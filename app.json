@@ -8,6 +8,11 @@
     "scheme": "pocketwise",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "extra": {
+      "eas": {
+        "projectId": "a9cb4df5-2f2e-480c-8a7d-491fd0ea8d6a"
+      }
+    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.pocketwise.app",
