@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRouter, useFocusEffect } from 'expo-router';
 import Svg, { Path, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -19,30 +19,43 @@ import * as Haptics from 'expo-haptics';
 export default function DashboardScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const queryClient = useQueryClient();
 
-  const { data: accounts = [], isLoading: loadingAcc } = useQuery({
+  const { data: accounts = [], isLoading: loadingAcc, refetch: refetchAcc } = useQuery({
     queryKey: ['accounts', user?.id],
     queryFn: () => accountService.getAccounts(user?.id || ''),
     enabled: !!user?.id,
   });
 
-  const { data: transactions = [], isLoading: loadingTx } = useQuery({
+  const { data: transactions = [], refetch: refetchTx } = useQuery({
     queryKey: ['transactions', user?.id],
     queryFn: () => transactionService.getTransactions(user?.id || ''),
     enabled: !!user?.id,
   });
 
-  const { data: bills = [] } = useQuery({
+  const { data: bills = [], refetch: refetchBills } = useQuery({
     queryKey: ['bills', user?.id],
     queryFn: () => billService.getBills(user?.id || ''),
     enabled: !!user?.id,
   });
 
-  const { data: goals = [] } = useQuery({
+  const { data: goals = [], refetch: refetchGoals } = useQuery({
     queryKey: ['goals', user?.id],
     queryFn: () => goalService.getGoals(user?.id || ''),
     enabled: !!user?.id,
   });
+
+  // Automatically refresh queries whenever returning to the Dashboard tab
+  useFocusEffect(
+    useCallback(() => {
+      if (user?.id) {
+        refetchAcc();
+        refetchTx();
+        refetchBills();
+        refetchGoals();
+      }
+    }, [user?.id, refetchAcc, refetchTx, refetchBills, refetchGoals])
+  );
 
   const upcomingBills = bills.filter((b) => !b.is_paid).slice(0, 3);
   const activeGoals = goals.slice(0, 2);

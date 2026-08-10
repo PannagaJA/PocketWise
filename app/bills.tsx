@@ -12,7 +12,7 @@ import { billService } from '../lib/services/bill.service';
 import { accountService } from '../lib/services/account.service';
 import { categoryService } from '../lib/services/category.service';
 import { formatMoney, formatDate, parseMoneyToMinor } from '../lib/finance/core';
-import { Plus, X, ArrowLeft, Calendar, CheckCircle2, Clock, AlertCircle, ShieldAlert, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { Plus, X, ArrowLeft, Calendar, CheckCircle2, Clock, AlertCircle, ShieldAlert, ChevronLeft, ChevronRight, Check } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 export default function BillsScreen() {
@@ -21,6 +21,7 @@ export default function BillsScreen() {
   const queryClient = useQueryClient();
   const [modalVisible, setModalVisible] = useState(false);
   const [calendarModalVisible, setCalendarModalVisible] = useState(false);
+  const [billToPay, setBillToPay] = useState<any | null>(null);
 
   // Form state
   const [name, setName] = useState('');
@@ -93,6 +94,8 @@ export default function BillsScreen() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bills', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['transactions', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['accounts', user?.id] });
       setModalVisible(false);
       setName('');
       setAmount('');
@@ -112,6 +115,7 @@ export default function BillsScreen() {
       queryClient.invalidateQueries({ queryKey: ['bills', user?.id] });
       queryClient.invalidateQueries({ queryKey: ['transactions', user?.id] });
       queryClient.invalidateQueries({ queryKey: ['accounts', user?.id] });
+      setBillToPay(null);
       try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
     },
     onError: (err: any) => {
@@ -235,9 +239,11 @@ export default function BillsScreen() {
                     <Button
                       variant="outline"
                       size="sm"
-                      loading={markPaidMutation.isPending}
                       className="mt-1 border-emerald-300 bg-emerald-50/40"
-                      onPress={() => markPaidMutation.mutate(b)}
+                      onPress={() => {
+                        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+                        setBillToPay(b);
+                      }}
                     >
                       <Text className="text-emerald-700 font-bold text-xs">Mark as Paid</Text>
                     </Button>
@@ -248,6 +254,43 @@ export default function BillsScreen() {
           )}
         </ScrollView>
       </View>
+
+      {/* Custom Mark as Paid Confirmation Modal */}
+      <Modal visible={!!billToPay} animationType="fade" transparent>
+        <View className="flex-1 justify-center items-center bg-black/60 px-5">
+          <View className="bg-white rounded-3xl p-6 border border-zinc-200 w-full max-w-sm items-center shadow-xl">
+            <View className="w-16 h-16 rounded-full bg-emerald-50 border border-emerald-100 items-center justify-center mb-4">
+              <CheckCircle2 size={32} color="#10B981" />
+            </View>
+
+            <Text className="text-xl font-black text-zinc-900 text-center">Confirm Bill Payment</Text>
+            <Text className="text-xs text-zinc-500 text-center mt-1.5 mb-6 px-2 leading-5">
+              Mark <Text className="font-bold text-zinc-900">{billToPay?.name}</Text> as paid for <Text className="font-bold text-emerald-600">{formatMoney(billToPay?.expected_amount_minor || 0)}</Text>? An expense transaction will be logged to your account.
+            </Text>
+
+            <View className="flex-row gap-3 w-full">
+              <Button
+                variant="outline"
+                size="md"
+                className="flex-1"
+                onPress={() => setBillToPay(null)}
+              >
+                <Text className="text-zinc-900 font-semibold text-xs">Cancel</Text>
+              </Button>
+
+              <Button
+                variant="primary"
+                size="md"
+                className="flex-1 bg-emerald-600 active:bg-emerald-700"
+                loading={markPaidMutation.isPending}
+                onPress={() => billToPay && markPaidMutation.mutate(billToPay)}
+              >
+                <Text className="text-white font-bold text-xs">Confirm Payment</Text>
+              </Button>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Add Bill Modal */}
       <Modal visible={modalVisible} animationType="slide" transparent>
