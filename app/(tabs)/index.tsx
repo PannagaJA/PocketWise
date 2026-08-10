@@ -12,7 +12,7 @@ import { transactionService } from '../../lib/services/transaction.service';
 import { billService } from '../../lib/services/bill.service';
 import { goalService } from '../../lib/services/goal.service';
 import { formatMoney, formatDate } from '../../lib/finance/core';
-import { Plus, ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight } from 'lucide-react-native';
+import { Plus, ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight, CheckCircle2, ShieldCheck } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 export default function DashboardScreen() {
@@ -106,7 +106,7 @@ export default function DashboardScreen() {
           </View>
         </Card>
 
-        {/* Action Buttons with Proper Gap */}
+        {/* Action Buttons with Gap */}
         <View className="flex-row gap-4 mb-6">
           <Button
             variant="primary"
@@ -138,8 +138,12 @@ export default function DashboardScreen() {
             </Pressable>
           </View>
           {upcomingBills.length === 0 ? (
-            <Card className="p-4 bg-white border border-zinc-200 items-center">
-              <Text className="text-xs text-zinc-400">No upcoming bills due soon</Text>
+            <Card className="p-6 bg-white border border-zinc-200 items-center rounded-2xl">
+              <View className="w-12 h-12 rounded-full bg-amber-50 items-center justify-center mb-2">
+                <ShieldCheck size={24} color="#F59E0B" />
+              </View>
+              <Text className="text-sm font-bold text-zinc-800">All caught up!</Text>
+              <Text className="text-xs text-zinc-400 mt-0.5">No upcoming pending bills due soon.</Text>
             </Card>
           ) : (
             upcomingBills.map((b) => (
@@ -149,7 +153,7 @@ export default function DashboardScreen() {
                     <Calendar size={18} color="#F59E0B" />
                   </View>
                   <View>
-                    <Text className="text-sm font-bold text-zinc-900">{b.biller_name}</Text>
+                    <Text className="text-sm font-bold text-zinc-900">{b.name}</Text>
                     <Text className="text-xs text-zinc-400">Due {formatDate(b.due_date)}</Text>
                   </View>
                 </View>
@@ -168,8 +172,12 @@ export default function DashboardScreen() {
             </Pressable>
           </View>
           {activeGoals.length === 0 ? (
-            <Card className="p-4 bg-white border border-zinc-200 items-center">
-              <Text className="text-xs text-zinc-400">No active savings goals</Text>
+            <Card className="p-6 bg-white border border-zinc-200 items-center rounded-2xl">
+              <View className="w-12 h-12 rounded-full bg-indigo-50 items-center justify-center mb-2">
+                <Target size={24} color="#6366F1" />
+              </View>
+              <Text className="text-sm font-bold text-zinc-800">No active goals</Text>
+              <Text className="text-xs text-zinc-400 mt-0.5">Create a target goal to start saving!</Text>
             </Card>
           ) : (
             activeGoals.map((g) => {
