@@ -1,49 +1,71 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Modal, Switch, Pressable } from 'react-native';
+import { View, Text, ScrollView, Modal, Alert, ActivityIndicator, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
-import { useAppStore } from '../../store/useAppStore';
+import { useAuth } from '../../context/AuthContext';
+import { subscriptionService } from '../../lib/services/subscription.service';
 import { formatCurrency, formatDate } from '../../lib/formatters';
-import { Plus, Bell, Calendar, CreditCard, RefreshCw, X } from 'lucide-react-native';
+import { parseMoneyToMinor } from '../../lib/finance/core';
+import { Plus, Bell, CreditCard, X } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 export default function SubscriptionsScreen() {
-  const { subscriptions, addSubscription } = useAppStore();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [modalVisible, setModalVisible] = useState(false);
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [cycle, setCycle] = useState<'monthly' | 'yearly'>('monthly');
 
-  const totalMonthlySpend = subscriptions.reduce((sum, sub) => {
-    if (sub.billing_cycle === 'monthly') return sum + sub.amount;
-    return sum + Math.round(sub.amount / 12);
-  }, 0);
+  const { data: subscriptions = [], isLoading: loadingSubs } = useQuery({
+    queryKey: ['subscriptions', user?.id],
+    queryFn: () => subscriptionService.getSubscriptions(user?.id || ''),
+    enabled: !!user?.id,
+  });
 
-  const handleSave = () => {
-    if (!name || !amount) return;
-    const newSub = {
-      id: `sub_${Date.now()}`,
-      name,
-      amount: Math.round(parseFloat(amount) * 100),
-      currency: 'INR',
-      billing_cycle: cycle,
-      next_billing_date: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
-      color: '#6366F1',
-      auto_renew: true,
-    };
-    addSubscription(newSub);
-    try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {
-      // Ignore haptics errors if unavailable
-    }
-    setModalVisible(false);
-    setName('');
-    setAmount('');
-  };
+  const createSubMutation = useMutation({
+    mutationFn: async () => {
+      if (!name.trim()) throw new Error('Subscription name is required');
+      const minorAmount = parseMoneyToMinor(amount);
+      if (minorAmount <= 0) throw new Error('Amount must be greater than zero');
+
+      const nextBilling = new Date();
+      nextBilling.setDate(nextBilling.getDate() + (cycle === 'monthly' ? 30 : 365));
+
+      return subscriptionService.createSubscription({
+        user_id: user!.id,
+        name,
+        amount_minor: minorAmount,
+        currency: 'INR',
+        billing_cycle: cycle,
+        next_billing_date: nextBilling.toISOString().split('T')[0],
+        status: 'active',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subscriptions', user?.id] });
+      try {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch {
+        // Ignore haptics
+      }
+      setModalVisible(false);
+      setName('');
+      setAmount('');
+    },
+    onError: (err: any) => {
+      Alert.alert('Error', err.message || 'Failed to create subscription');
+    },
+  });
+
+  const totalMonthlySpend = subscriptions.reduce((sum, sub) => {
+    if (sub.billing_cycle === 'monthly') return sum + sub.amount_minor;
+    return sum + Math.round(sub.amount_minor / 12);
+  }, 0);
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
@@ -83,35 +105,46 @@ export default function SubscriptionsScreen() {
 
         {/* Subscriptions List */}
         <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
-          {subscriptions.map((sub) => (
-            <Card key={sub.id} className="mb-3 p-4 bg-white border border-zinc-200">
-              <View className="flex-row items-center justify-between">
-                <View className="flex-row items-center flex-1 pr-2">
-                  <View 
-                    className="w-12 h-12 rounded-2xl items-center justify-center mr-3"
-                    style={{ backgroundColor: (sub.color || '#6366F1') + '15' }}
-                  >
-                    <Text className="font-extrabold text-lg" style={{ color: sub.color || '#6366F1' }}>{sub.name[0]}</Text>
+          {loadingSubs ? (
+            <ActivityIndicator size="small" color="#09090B" className="py-8" />
+          ) : subscriptions.length === 0 ? (
+            <Card className="p-6 bg-white border border-zinc-200 items-center mt-4">
+              <Text className="text-sm font-bold text-zinc-900">No active subscriptions</Text>
+              <Text className="text-xs text-zinc-500 mt-1 mb-4 text-center">
+                Add your Netflix, Spotify, or iCloud plan to track renewals.
+              </Text>
+              <Button size="sm" variant="primary" onPress={() => setModalVisible(true)}>
+                <Text className="text-white font-semibold text-xs">+ Add Subscription</Text>
+              </Button>
+            </Card>
+          ) : (
+            subscriptions.map((sub) => (
+              <Card key={sub.id} className="mb-3 p-4 bg-white border border-zinc-200">
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center flex-1 pr-2">
+                    <View className="w-12 h-12 rounded-2xl bg-indigo-50 items-center justify-center mr-3">
+                      <Text className="font-extrabold text-lg text-indigo-600">{sub.name[0]}</Text>
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-base font-bold text-zinc-900">{sub.name}</Text>
+                      <View className="flex-row items-center mt-1 space-x-2">
+                        <Badge label={sub.billing_cycle} variant="subscription" />
+                        <Text className="text-xs text-zinc-500 ml-2">Due {formatDate(sub.next_billing_date)}</Text>
+                      </View>
+                    </View>
                   </View>
-                  <View className="flex-1">
-                    <Text className="text-base font-bold text-zinc-900">{sub.name}</Text>
-                    <View className="flex-row items-center mt-1 space-x-2">
-                      <Badge label={sub.billing_cycle} variant="subscription" />
-                      <Text className="text-xs text-zinc-500 ml-2">Due {formatDate(sub.next_billing_date)}</Text>
+
+                  <View className="items-end">
+                    <Text className="text-base font-extrabold text-zinc-900">{formatCurrency(sub.amount_minor)}</Text>
+                    <View className="flex-row items-center mt-1">
+                      <Bell size={12} color="#6366F1" />
+                      <Text className="text-[10px] font-semibold text-indigo-600 ml-1">FCM Active</Text>
                     </View>
                   </View>
                 </View>
-
-                <View className="items-end">
-                  <Text className="text-base font-extrabold text-zinc-900">{formatCurrency(sub.amount)}</Text>
-                  <View className="flex-row items-center mt-1">
-                    <Bell size={12} color="#6366F1" />
-                    <Text className="text-[10px] font-semibold text-indigo-600 ml-1">FCM Active</Text>
-                  </View>
-                </View>
-              </View>
-            </Card>
-          ))}
+              </Card>
+            ))
+          )}
         </ScrollView>
       </View>
 
@@ -157,7 +190,12 @@ export default function SubscriptionsScreen() {
               </Pressable>
             </View>
 
-            <Button variant="primary" size="lg" onPress={handleSave}>
+            <Button
+              variant="primary"
+              size="lg"
+              loading={createSubMutation.isPending}
+              onPress={() => createSubMutation.mutate()}
+            >
               <Text className="text-white font-semibold">Save & Enable FCM Reminder</Text>
             </Button>
           </View>

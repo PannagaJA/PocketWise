@@ -1,21 +1,25 @@
 import { Platform } from 'react-native';
-import Constants from 'expo-constants';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { supabase } from '../supabase';
 
-const isExpoGo = Constants.appOwnership === 'expo';
+const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 let Notifications: any = null;
 if (!isExpoGo) {
-  Notifications = require('expo-notifications');
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    }),
-  });
+  try {
+    Notifications = require('expo-notifications');
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+  } catch {
+    Notifications = null;
+  }
 }
 
 export const notificationService = {
@@ -66,7 +70,7 @@ export const notificationService = {
       if (!hasPermission) return null;
 
       const tokenData = await Notifications.getDevicePushTokenAsync();
-      const token = tokenData.data;
+      const token = typeof tokenData === 'string' ? tokenData : tokenData?.data;
 
       if (!token) return null;
 
@@ -83,6 +87,8 @@ export const notificationService = {
 
       if (error) {
         console.error('Error saving device token to Supabase:', error);
+      } else {
+        console.log('Successfully registered FCM token for user:', userId);
       }
 
       return token;

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Modal, Alert, ActivityIndicator, Pressable } from 'react-native';
+import { View, Text, ScrollView, Modal, Alert, ActivityIndicator, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card } from '../../components/ui/Card';
@@ -10,7 +10,7 @@ import { transactionService } from '../../lib/services/transaction.service';
 import { accountService } from '../../lib/services/account.service';
 import { categoryService } from '../../lib/services/category.service';
 import { formatMoney, formatDate, parseMoneyToMinor } from '../../lib/finance/core';
-import { Plus, ArrowUpRight, ArrowDownLeft, X, ArrowRightLeft } from 'lucide-react-native';
+import { Plus, ArrowUpRight, ArrowDownLeft, X, ArrowRightLeft, ChevronDown, Check } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 export default function TransactionsScreen() {
@@ -19,6 +19,9 @@ export default function TransactionsScreen() {
 
   const [modalVisible, setModalVisible] = useState(false);
   const [accModalVisible, setAccModalVisible] = useState(false);
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
+  const [destAccountDropdownOpen, setDestAccountDropdownOpen] = useState(false);
 
   // Form state
   const [type, setType] = useState<'income' | 'expense' | 'transfer'>('expense');
@@ -33,13 +36,13 @@ export default function TransactionsScreen() {
   const [accBalance, setAccBalance] = useState('');
 
   // Data Queries
-  const { data: transactions = [], isLoading: loadingTx } = useQuery({
+  const { data: transactions = [], isLoading: loadingTx, refetch: refetchTx } = useQuery({
     queryKey: ['transactions', user?.id],
     queryFn: () => transactionService.getTransactions(user?.id || ''),
     enabled: !!user?.id,
   });
 
-  const { data: accounts = [], isLoading: loadingAcc } = useQuery({
+  const { data: accounts = [], isLoading: loadingAcc, refetch: refetchAcc } = useQuery({
     queryKey: ['accounts', user?.id],
     queryFn: () => accountService.getAccounts(user?.id || ''),
     enabled: !!user?.id,
@@ -50,6 +53,18 @@ export default function TransactionsScreen() {
     queryFn: () => categoryService.getCategories(user?.id || ''),
     enabled: !!user?.id,
   });
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([refetchTx(), refetchAcc()]);
+    setRefreshing(false);
+  };
+
+  const filteredCategories = categories.filter((c) => c.type === (type === 'transfer' ? 'expense' : type));
+  const selectedCatObj = categories.find((c) => c.id === selectedCategoryId);
+  const selectedAccObj = accounts.find((a) => a.id === selectedAccountId);
+  const selectedDestAccObj = accounts.find((a) => a.id === selectedDestAccountId);
 
   // Mutations
   const createTxMutation = useMutation({
@@ -80,8 +95,7 @@ export default function TransactionsScreen() {
       );
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transactions', user?.id] });
-      queryClient.invalidateQueries({ queryKey: ['accounts', user?.id] });
+      queryClient.invalidateQueries();
       try {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } catch {
@@ -108,7 +122,7 @@ export default function TransactionsScreen() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['accounts', user?.id] });
+      queryClient.invalidateQueries();
       try {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } catch {
@@ -129,6 +143,9 @@ export default function TransactionsScreen() {
     setSelectedAccountId(accounts[0]?.id || '');
     setSelectedDestAccountId('');
     setSelectedCategoryId('');
+    setCategoryDropdownOpen(false);
+    setAccountDropdownOpen(false);
+    setDestAccountDropdownOpen(false);
   };
 
   return (
@@ -165,7 +182,13 @@ export default function TransactionsScreen() {
         </View>
 
         {/* Transactions List */}
-        <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          className="flex-1"
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#09090B']} />
+          }
+        >
           {loadingTx ? (
             <ActivityIndicator size="small" color="#09090B" className="py-8" />
           ) : transactions.length === 0 ? (
@@ -228,86 +251,162 @@ export default function TransactionsScreen() {
               </Pressable>
             </View>
 
-            {/* Type selector */}
-            <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-4">
-              <Pressable
-                onPress={() => setType('expense')}
-                className={`flex-1 py-2 rounded-xl items-center ${type === 'expense' ? 'bg-white' : ''}`}
-              >
-                <Text className={`font-semibold text-xs ${type === 'expense' ? 'text-rose-600' : 'text-zinc-500'}`}>Expense</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setType('income')}
-                className={`flex-1 py-2 rounded-xl items-center ${type === 'income' ? 'bg-white' : ''}`}
-              >
-                <Text className={`font-semibold text-xs ${type === 'income' ? 'text-emerald-600' : 'text-zinc-500'}`}>Income</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setType('transfer')}
-                className={`flex-1 py-2 rounded-xl items-center ${type === 'transfer' ? 'bg-white' : ''}`}
-              >
-                <Text className={`font-semibold text-xs ${type === 'transfer' ? 'text-indigo-600' : 'text-zinc-500'}`}>Transfer</Text>
-              </Pressable>
-            </View>
-
-            <Input
-              label="Description"
-              placeholder="e.g. Salary credited"
-              value={description}
-              onChangeText={setDescription}
-            />
-
-            <Input
-              label="Amount (₹)"
-              placeholder="0.00"
-              keyboardType="numeric"
-              value={amount}
-              onChangeText={setAmount}
-            />
-
-            {/* Account Selector */}
-            <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">
-              {type === 'transfer' ? 'From Account' : 'Account'}
-            </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row space-x-2 mb-4">
-              {accounts.map((acc) => (
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Type selector */}
+              <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-4">
                 <Pressable
-                  key={acc.id}
-                  onPress={() => setSelectedAccountId(acc.id)}
-                  className={`px-3 py-2 rounded-xl border ${selectedAccountId === acc.id ? 'bg-zinc-900 border-zinc-900' : 'bg-white border-zinc-200'}`}
+                  onPress={() => setType('expense')}
+                  className={`flex-1 py-2 rounded-xl items-center ${type === 'expense' ? 'bg-white' : ''}`}
                 >
-                  <Text className={`text-xs font-semibold ${selectedAccountId === acc.id ? 'text-white' : 'text-zinc-700'}`}>{acc.name}</Text>
+                  <Text className={`font-semibold text-xs ${type === 'expense' ? 'text-rose-600' : 'text-zinc-500'}`}>Expense</Text>
                 </Pressable>
-              ))}
+                <Pressable
+                  onPress={() => setType('income')}
+                  className={`flex-1 py-2 rounded-xl items-center ${type === 'income' ? 'bg-white' : ''}`}
+                >
+                  <Text className={`font-semibold text-xs ${type === 'income' ? 'text-emerald-600' : 'text-zinc-500'}`}>Income</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setType('transfer')}
+                  className={`flex-1 py-2 rounded-xl items-center ${type === 'transfer' ? 'bg-white' : ''}`}
+                >
+                  <Text className={`font-semibold text-xs ${type === 'transfer' ? 'text-indigo-600' : 'text-zinc-500'}`}>Transfer</Text>
+                </Pressable>
+              </View>
+
+              <Input
+                label="Description"
+                placeholder="e.g. Salary credited"
+                value={description}
+                onChangeText={setDescription}
+              />
+
+              <Input
+                label="Amount (₹)"
+                placeholder="0.00"
+                keyboardType="numeric"
+                value={amount}
+                onChangeText={setAmount}
+              />
+
+              {/* Category Dropdown */}
+              {type !== 'transfer' && (
+                <View className="mb-4">
+                  <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Category</Text>
+                  <Pressable
+                    onPress={() => setCategoryDropdownOpen(!categoryDropdownOpen)}
+                    className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
+                  >
+                    <Text className={`text-sm ${selectedCatObj ? 'text-zinc-900 font-medium' : 'text-zinc-400'}`}>
+                      {selectedCatObj ? selectedCatObj.name : 'Select a Category'}
+                    </Text>
+                    <ChevronDown size={18} color="#71717A" />
+                  </Pressable>
+
+                  {categoryDropdownOpen && (
+                    <View className="mt-1 bg-white border border-zinc-200 rounded-xl max-h-48 overflow-hidden shadow-sm">
+                      <ScrollView nestedScrollEnabled className="p-1">
+                        {filteredCategories.map((cat) => (
+                          <Pressable
+                            key={cat.id}
+                            onPress={() => {
+                              setSelectedCategoryId(cat.id);
+                              setCategoryDropdownOpen(false);
+                            }}
+                            className={`flex-row justify-between items-center p-3 rounded-lg ${selectedCategoryId === cat.id ? 'bg-zinc-100' : ''}`}
+                          >
+                            <Text className={`text-sm ${selectedCategoryId === cat.id ? 'font-bold text-zinc-900' : 'text-zinc-700'}`}>{cat.name}</Text>
+                            {selectedCategoryId === cat.id && <Check size={16} color="#09090B" />}
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {/* Account Dropdown */}
+              <View className="mb-4">
+                <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">
+                  {type === 'transfer' ? 'From Account' : 'Account'}
+                </Text>
+                <Pressable
+                  onPress={() => setAccountDropdownOpen(!accountDropdownOpen)}
+                  className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
+                >
+                  <Text className={`text-sm ${selectedAccObj ? 'text-zinc-900 font-medium' : 'text-zinc-400'}`}>
+                    {selectedAccObj ? selectedAccObj.name : 'Select Account'}
+                  </Text>
+                  <ChevronDown size={18} color="#71717A" />
+                </Pressable>
+
+                {accountDropdownOpen && (
+                  <View className="mt-1 bg-white border border-zinc-200 rounded-xl max-h-48 overflow-hidden shadow-sm">
+                    <ScrollView nestedScrollEnabled className="p-1">
+                      {accounts.map((acc) => (
+                        <Pressable
+                          key={acc.id}
+                          onPress={() => {
+                            setSelectedAccountId(acc.id);
+                            setAccountDropdownOpen(false);
+                          }}
+                          className={`flex-row justify-between items-center p-3 rounded-lg ${selectedAccountId === acc.id ? 'bg-zinc-100' : ''}`}
+                        >
+                          <Text className={`text-sm ${selectedAccountId === acc.id ? 'font-bold text-zinc-900' : 'text-zinc-700'}`}>{acc.name}</Text>
+                          {selectedAccountId === acc.id && <Check size={16} color="#09090B" />}
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
+
+              {/* Destination Account for Transfer */}
+              {type === 'transfer' && (
+                <View className="mb-4">
+                  <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">To Account</Text>
+                  <Pressable
+                    onPress={() => setDestAccountDropdownOpen(!destAccountDropdownOpen)}
+                    className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
+                  >
+                    <Text className={`text-sm ${selectedDestAccObj ? 'text-zinc-900 font-medium' : 'text-zinc-400'}`}>
+                      {selectedDestAccObj ? selectedDestAccObj.name : 'Select Destination Account'}
+                    </Text>
+                    <ChevronDown size={18} color="#71717A" />
+                  </Pressable>
+
+                  {destAccountDropdownOpen && (
+                    <View className="mt-1 bg-white border border-zinc-200 rounded-xl max-h-48 overflow-hidden shadow-sm">
+                      <ScrollView nestedScrollEnabled className="p-1">
+                        {accounts.map((acc) => (
+                          <Pressable
+                            key={acc.id}
+                            onPress={() => {
+                              setSelectedDestAccountId(acc.id);
+                              setDestAccountDropdownOpen(false);
+                            }}
+                            className={`flex-row justify-between items-center p-3 rounded-lg ${selectedDestAccountId === acc.id ? 'bg-zinc-100' : ''}`}
+                          >
+                            <Text className={`text-sm ${selectedDestAccountId === acc.id ? 'font-bold text-zinc-900' : 'text-zinc-700'}`}>{acc.name}</Text>
+                            {selectedDestAccountId === acc.id && <Check size={16} color="#09090B" />}
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              <Button
+                variant={type === 'income' ? 'income' : type === 'expense' ? 'destructive' : 'primary'}
+                size="lg"
+                loading={createTxMutation.isPending}
+                className="mt-2 mb-4"
+                onPress={() => createTxMutation.mutate()}
+              >
+                <Text className="text-white font-semibold">{type === 'income' ? 'Save INCOME' : type === 'expense' ? 'Save EXPENSE' : 'Save TRANSFER'}</Text>
+              </Button>
             </ScrollView>
-
-            {/* Destination Account for Transfer */}
-            {type === 'transfer' && (
-              <>
-                <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">To Account</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row space-x-2 mb-4">
-                  {accounts.map((acc) => (
-                    <Pressable
-                      key={acc.id}
-                      onPress={() => setSelectedDestAccountId(acc.id)}
-                      className={`px-3 py-2 rounded-xl border ${selectedDestAccountId === acc.id ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-zinc-200'}`}
-                    >
-                      <Text className={`text-xs font-semibold ${selectedDestAccountId === acc.id ? 'text-white' : 'text-zinc-700'}`}>{acc.name}</Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-              </>
-            )}
-
-            <Button
-              variant={type === 'income' ? 'income' : type === 'expense' ? 'destructive' : 'primary'}
-              size="lg"
-              loading={createTxMutation.isPending}
-              className="mt-2 mb-4"
-              onPress={() => createTxMutation.mutate()}
-            >
-              <Text className="text-white font-semibold">{type === 'income' ? 'Save INCOME' : type === 'expense' ? 'Save EXPENSE' : 'Save TRANSFER'}</Text>
-            </Button>
           </View>
         </View>
       </Modal>

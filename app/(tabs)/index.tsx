@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
@@ -9,9 +9,10 @@ import { Badge } from '../../components/ui/Badge';
 import { useAuth } from '../../context/AuthContext';
 import { accountService } from '../../lib/services/account.service';
 import { transactionService } from '../../lib/services/transaction.service';
-import { subscriptionService } from '../../lib/services/subscription.service';
+import { billService } from '../../lib/services/bill.service';
+import { goalService } from '../../lib/services/goal.service';
 import { formatMoney, formatDate } from '../../lib/finance/core';
-import { Plus, ArrowUpRight, ArrowDownLeft, Bell, Wallet } from 'lucide-react-native';
+import { Plus, ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 export default function DashboardScreen() {
@@ -30,11 +31,20 @@ export default function DashboardScreen() {
     enabled: !!user?.id,
   });
 
-  const { data: subscriptions = [] } = useQuery({
-    queryKey: ['subscriptions', user?.id],
-    queryFn: () => subscriptionService.getSubscriptions(user?.id || ''),
+  const { data: bills = [] } = useQuery({
+    queryKey: ['bills', user?.id],
+    queryFn: () => billService.getBills(user?.id || ''),
     enabled: !!user?.id,
   });
+
+  const { data: goals = [] } = useQuery({
+    queryKey: ['goals', user?.id],
+    queryFn: () => goalService.getGoals(user?.id || ''),
+    enabled: !!user?.id,
+  });
+
+  const upcomingBills = bills.filter((b) => !b.is_paid).slice(0, 3);
+  const activeGoals = goals.slice(0, 2);
 
   // Calculate Net Totals
   const totalBalance = accounts.reduce((sum, a) => sum + (a.balance || 0), 0);
@@ -119,30 +129,66 @@ export default function DashboardScreen() {
           </Button>
         </View>
 
-        {/* Accounts Carousel */}
+        {/* Upcoming Bills Widget */}
         <View className="mb-6">
           <View className="flex-row justify-between items-center mb-3">
-            <Text className="text-base font-bold text-zinc-900">Your Accounts</Text>
+            <Text className="text-base font-bold text-zinc-900">Upcoming Bills</Text>
+            <Pressable onPress={() => router.push('/bills')}>
+              <Text className="text-xs font-bold text-indigo-600">See All</Text>
+            </Pressable>
           </View>
-
-          {loadingAcc ? (
-            <ActivityIndicator color="#09090B" size="small" />
-          ) : accounts.length === 0 ? (
+          {upcomingBills.length === 0 ? (
             <Card className="p-4 bg-white border border-zinc-200">
-              <Text className="text-xs text-zinc-500 text-center">No accounts added yet. Create one in Transactions!</Text>
+              <Text className="text-xs text-zinc-500 text-center">No upcoming bills right now.</Text>
             </Card>
           ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row space-x-3">
-              {accounts.map((acc) => (
-                <Card key={acc.id} className="w-44 p-4 bg-white border border-zinc-200 mr-3">
-                  <View className="w-8 h-8 rounded-xl bg-zinc-100 items-center justify-center mb-3">
-                    <Wallet size={16} color="#09090B" />
+            upcomingBills.map((b) => (
+              <Card key={b.id} className="mb-2 p-3 bg-white border border-zinc-200">
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center">
+                    <Calendar size={16} color="#F59E0B" className="mr-2.5" />
+                    <Text className="text-sm font-bold text-zinc-900">{b.name}</Text>
                   </View>
-                  <Text className="text-xs font-medium text-zinc-500">{acc.name}</Text>
-                  <Text className="text-base font-extrabold text-zinc-900 mt-1">{formatMoney(acc.balance)}</Text>
+                  <Text className="text-sm font-extrabold text-zinc-900">{formatMoney(b.expected_amount_minor)}</Text>
+                </View>
+              </Card>
+            ))
+          )}
+        </View>
+
+        {/* Savings Goals Widget */}
+        <View className="mb-6">
+          <View className="flex-row justify-between items-center mb-3">
+            <Text className="text-base font-bold text-zinc-900">Savings Goals</Text>
+            <Pressable onPress={() => router.push('/goals')}>
+              <Text className="text-xs font-bold text-indigo-600">See All</Text>
+            </Pressable>
+          </View>
+          {activeGoals.length === 0 ? (
+            <Card className="p-4 bg-white border border-zinc-200">
+              <Text className="text-xs text-zinc-500 text-center">No savings goals created yet.</Text>
+            </Card>
+          ) : (
+            activeGoals.map((g) => {
+              const target = g.target_amount_minor || 1;
+              const current = g.current_amount_minor || 0;
+              const pct = Math.min(Math.round((current / target) * 100), 100);
+
+              return (
+                <Card key={g.id} className="mb-2 p-3.5 bg-white border border-zinc-200">
+                  <View className="flex-row justify-between items-center mb-1.5">
+                    <View className="flex-row items-center">
+                      <Target size={16} color="#6366F1" className="mr-2" />
+                      <Text className="text-sm font-bold text-zinc-900">{g.name}</Text>
+                    </View>
+                    <Text className="text-xs font-bold text-zinc-600">{pct}%</Text>
+                  </View>
+                  <View className="w-full h-2 bg-zinc-100 rounded-full overflow-hidden">
+                    <View className="h-full bg-indigo-600 rounded-full" style={{ width: `${pct}%` }} />
+                  </View>
                 </Card>
-              ))}
-            </ScrollView>
+              );
+            })
           )}
         </View>
 

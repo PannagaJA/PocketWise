@@ -77,11 +77,11 @@ serve(async (req) => {
           if (res.ok) {
             sentSuccess = true;
           } else {
-            const errJson = await res.json();
-            lastError = JSON.stringify(errJson);
+            const errJson = await res.text();
+            lastError = errJson;
 
             // Handle invalid token deactivate logic
-            if (errJson?.results?.[0]?.error === 'NotRegistered' || errJson?.results?.[0]?.error === 'InvalidRegistration') {
+            if (errJson.includes('NotRegistered') || errJson.includes('InvalidRegistration')) {
               await supabase
                 .from('devices')
                 .update({ is_active: false })
@@ -108,7 +108,7 @@ serve(async (req) => {
         })
         .eq('id', reminder.id);
 
-      results.push({ reminder_id: reminder.id, success: sentSuccess, status: nextStatus });
+      results.push({ reminder_id: reminder.id, success: sentSuccess, status: nextStatus, error: lastError });
     }
 
     return new Response(JSON.stringify({ processed: results.length, details: results }), {
