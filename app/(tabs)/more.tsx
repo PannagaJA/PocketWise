@@ -212,7 +212,7 @@ export default function MoreScreen() {
               </View>
               <View>
                 <Text className="text-sm font-bold text-zinc-900">Push Notifications</Text>
-                <Text className="text-xs text-zinc-500">FCM Push Reminders</Text>
+                <Text className="text-xs text-zinc-500">Bill & Subscription Alerts</Text>
               </View>
             </View>
             <Switch

@@ -99,7 +99,7 @@ export default function BillsScreen() {
             </Pressable>
             <View>
               <Text className="text-2xl font-black text-zinc-900">Upcoming Bills</Text>
-              <Text className="text-xs text-zinc-500 mt-0.5">Automated FCM bill reminders</Text>
+              <Text className="text-xs text-zinc-500 mt-0.5">Automated bill reminders</Text>
             </View>
           </View>
 
