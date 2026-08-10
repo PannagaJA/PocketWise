@@ -106,8 +106,8 @@ export default function DashboardScreen() {
           </View>
         </Card>
 
-        {/* Action Buttons */}
-        <View className="flex-row space-x-3 mb-6">
+        {/* Action Buttons with Proper Gap */}
+        <View className="flex-row gap-4 mb-6">
           <Button
             variant="primary"
             size="md"
@@ -138,26 +138,29 @@ export default function DashboardScreen() {
             </Pressable>
           </View>
           {upcomingBills.length === 0 ? (
-            <Card className="p-4 bg-white border border-zinc-200">
-              <Text className="text-xs text-zinc-500 text-center">No upcoming bills right now.</Text>
+            <Card className="p-4 bg-white border border-zinc-200 items-center">
+              <Text className="text-xs text-zinc-400">No upcoming bills due soon</Text>
             </Card>
           ) : (
             upcomingBills.map((b) => (
-              <Card key={b.id} className="mb-2 p-3 bg-white border border-zinc-200">
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-row items-center">
-                    <Calendar size={16} color="#F59E0B" className="mr-2.5" />
-                    <Text className="text-sm font-bold text-zinc-900">{b.name}</Text>
+              <Card key={b.id} className="mb-2.5 p-4 bg-white border border-zinc-200 flex-row items-center justify-between">
+                <View className="flex-row items-center">
+                  <View className="w-10 h-10 rounded-xl bg-amber-50 items-center justify-center mr-3">
+                    <Calendar size={18} color="#F59E0B" />
                   </View>
-                  <Text className="text-sm font-extrabold text-zinc-900">{formatMoney(b.expected_amount_minor)}</Text>
+                  <View>
+                    <Text className="text-sm font-bold text-zinc-900">{b.biller_name}</Text>
+                    <Text className="text-xs text-zinc-400">Due {formatDate(b.due_date)}</Text>
+                  </View>
                 </View>
+                <Text className="text-sm font-extrabold text-zinc-900">{formatMoney(b.expected_amount_minor)}</Text>
               </Card>
             ))
           )}
         </View>
 
-        {/* Savings Goals Widget */}
-        <View className="mb-6">
+        {/* Savings Goals Summary Widget */}
+        <View className="mb-8">
           <View className="flex-row justify-between items-center mb-3">
             <Text className="text-base font-bold text-zinc-900">Savings Goals</Text>
             <Pressable onPress={() => router.push('/goals')}>
@@ -165,23 +168,24 @@ export default function DashboardScreen() {
             </Pressable>
           </View>
           {activeGoals.length === 0 ? (
-            <Card className="p-4 bg-white border border-zinc-200">
-              <Text className="text-xs text-zinc-500 text-center">No savings goals created yet.</Text>
+            <Card className="p-4 bg-white border border-zinc-200 items-center">
+              <Text className="text-xs text-zinc-400">No active savings goals</Text>
             </Card>
           ) : (
             activeGoals.map((g) => {
-              const target = g.target_amount_minor || 1;
-              const current = g.current_amount_minor || 0;
-              const pct = Math.min(Math.round((current / target) * 100), 100);
-
+              const pct = g.target_amount_minor > 0
+                ? Math.min(100, Math.round((g.current_amount_minor / g.target_amount_minor) * 100))
+                : 0;
               return (
-                <Card key={g.id} className="mb-2 p-3.5 bg-white border border-zinc-200">
-                  <View className="flex-row justify-between items-center mb-1.5">
+                <Card key={g.id} className="mb-2.5 p-4 bg-white border border-zinc-200">
+                  <View className="flex-row items-center justify-between mb-2">
                     <View className="flex-row items-center">
-                      <Target size={16} color="#6366F1" className="mr-2" />
+                      <View className="w-8 h-8 rounded-xl bg-indigo-50 items-center justify-center mr-2.5">
+                        <Target size={16} color="#6366F1" />
+                      </View>
                       <Text className="text-sm font-bold text-zinc-900">{g.name}</Text>
                     </View>
-                    <Text className="text-xs font-bold text-zinc-600">{pct}%</Text>
+                    <Text className="text-xs font-black text-indigo-600">{pct}%</Text>
                   </View>
                   <View className="w-full h-2 bg-zinc-100 rounded-full overflow-hidden">
                     <View className="h-full bg-indigo-600 rounded-full" style={{ width: `${pct}%` }} />
@@ -189,45 +193,6 @@ export default function DashboardScreen() {
                 </Card>
               );
             })
-          )}
-        </View>
-
-        {/* Recent Transactions */}
-        <View className="mb-8">
-          <Text className="text-base font-bold text-zinc-900 mb-3">Recent Activity</Text>
-          {loadingTx ? (
-            <ActivityIndicator color="#09090B" size="small" />
-          ) : transactions.length === 0 ? (
-            <Card className="p-4 bg-white border border-zinc-200">
-              <Text className="text-xs text-zinc-500 text-center">No transactions recorded yet.</Text>
-            </Card>
-          ) : (
-            transactions.slice(0, 5).map((tx) => (
-              <Card key={tx.id} className="mb-2 p-3.5 bg-white border border-zinc-200">
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-row items-center flex-1">
-                    <View className={`w-9 h-9 rounded-xl items-center justify-center mr-3 ${
-                      tx.type === 'income' ? 'bg-emerald-50' : 'bg-rose-50'
-                    }`}>
-                      {tx.type === 'income' ? (
-                        <ArrowDownLeft size={18} color="#10B981" />
-                      ) : (
-                        <ArrowUpRight size={18} color="#EF4444" />
-                      )}
-                    </View>
-                    <View className="flex-1">
-                      <Text className="text-sm font-bold text-zinc-900" numberOfLines={1}>{tx.description}</Text>
-                      <Text className="text-xs text-zinc-500">{formatDate(tx.date)}</Text>
-                    </View>
-                  </View>
-                  <Text className={`text-sm font-bold ${
-                    tx.type === 'income' ? 'text-emerald-600' : 'text-zinc-900'
-                  }`}>
-                    {tx.type === 'income' ? '+' : '-'}{formatMoney(tx.amount_minor)}
-                  </Text>
-                </View>
-              </Card>
-            ))
           )}
         </View>
       </ScrollView>

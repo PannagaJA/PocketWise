@@ -8,7 +8,7 @@ import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { useAuth } from '../../context/AuthContext';
 import { appLockService } from '../../lib/security/app-lock.service';
-import { Fingerprint, Bell, Database, LogOut, ChevronRight, Calendar, Target, Lock, KeyRound, X } from 'lucide-react-native';
+import { Fingerprint, Bell, Database, LogOut, ChevronRight, Calendar, Target, Lock, PieChart, X } from 'lucide-react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as Haptics from 'expo-haptics';
 
@@ -100,7 +100,11 @@ export default function MoreScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      <ScrollView className="flex-1 px-4 pt-2" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        className="flex-1 px-4 pt-2"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 100 }}
+      >
         {/* Profile Card */}
         <Card className="mb-6 p-5 flex-row items-center bg-white border border-zinc-200">
           <View className="w-14 h-14 rounded-full bg-zinc-900 items-center justify-center mr-4">
@@ -122,6 +126,19 @@ export default function MoreScreen() {
         {/* Modules */}
         <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3 ml-1">Financial Modules</Text>
         <Card className="mb-6 p-0 bg-white border border-zinc-200 divide-y divide-zinc-100">
+          <Pressable onPress={() => router.push('/reports')} className="p-4 flex-row items-center justify-between">
+            <View className="flex-row items-center">
+              <View className="w-9 h-9 rounded-xl bg-purple-50 items-center justify-center mr-3">
+                <PieChart size={20} color="#A855F7" />
+              </View>
+              <View>
+                <Text className="text-sm font-bold text-zinc-900">Financial Reports & Analytics</Text>
+                <Text className="text-xs text-zinc-500">Spending rate, breakdown & performance</Text>
+              </View>
+            </View>
+            <ChevronRight size={18} color="#A1A1AA" />
+          </Pressable>
+
           <Pressable onPress={() => router.push('/bills')} className="p-4 flex-row items-center justify-between">
             <View className="flex-row items-center">
               <View className="w-9 h-9 rounded-xl bg-amber-50 items-center justify-center mr-3">
@@ -226,7 +243,7 @@ export default function MoreScreen() {
         <Button
           variant="outline"
           size="lg"
-          className="mb-8 border-rose-200 bg-rose-50/50"
+          className="mb-12 border-rose-200 bg-rose-50/50"
           onPress={handleSignOut}
         >
           <LogOut size={18} color="#EF4444" className="mr-2" />
