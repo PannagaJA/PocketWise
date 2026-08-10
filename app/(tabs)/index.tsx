@@ -1,5 +1,5 @@
-import React, { useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Pressable } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Pressable, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -12,14 +12,17 @@ import { accountService } from '../../lib/services/account.service';
 import { transactionService } from '../../lib/services/transaction.service';
 import { billService } from '../../lib/services/bill.service';
 import { goalService } from '../../lib/services/goal.service';
+import { reminderService } from '../../lib/services/reminder.service';
 import { formatMoney, formatDate } from '../../lib/finance/core';
-import { Plus, ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight, ShieldCheck, TrendingUp, TrendingDown, ArrowRightLeft } from 'lucide-react-native';
+import { Plus, ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight, ShieldCheck, TrendingUp, TrendingDown, ArrowRightLeft, X, Clock } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 export default function DashboardScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
+
+  const [notifModalVisible, setNotifModalVisible] = useState(false);
 
   const { data: accounts = [], isLoading: loadingAcc, refetch: refetchAcc } = useQuery({
     queryKey: ['accounts', user?.id],
@@ -45,6 +48,12 @@ export default function DashboardScreen() {
     enabled: !!user?.id,
   });
 
+  const { data: reminders = [], refetch: refetchReminders } = useQuery({
+    queryKey: ['reminders', user?.id],
+    queryFn: () => reminderService.getReminders(user?.id || ''),
+    enabled: !!user?.id,
+  });
+
   // Automatically refresh queries whenever returning to the Dashboard tab
   useFocusEffect(
     useCallback(() => {
@@ -53,8 +62,9 @@ export default function DashboardScreen() {
         refetchTx();
         refetchBills();
         refetchGoals();
+        refetchReminders();
       }
-    }, [user?.id, refetchAcc, refetchTx, refetchBills, refetchGoals])
+    }, [user?.id, refetchAcc, refetchTx, refetchBills, refetchGoals, refetchReminders])
   );
 
   const upcomingBills = bills.filter((b) => !b.is_paid).slice(0, 3);
@@ -126,10 +136,16 @@ export default function DashboardScreen() {
             </Text>
           </View>
           <TouchableOpacity
-            onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
-            className="w-10 h-10 bg-white border border-zinc-200 rounded-full items-center justify-center shadow-sm"
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              setNotifModalVisible(true);
+            }}
+            className="w-10 h-10 bg-white border border-zinc-200 rounded-full items-center justify-center shadow-sm relative"
           >
             <Bell size={18} color="#09090B" />
+            {reminders.length > 0 && (
+              <View className="w-2.5 h-2.5 bg-indigo-600 rounded-full absolute top-1.5 right-1.5 border border-white" />
+            )}
           </TouchableOpacity>
         </View>
 
@@ -356,6 +372,69 @@ export default function DashboardScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Notifications Drawer Modal */}
+      <Modal visible={notifModalVisible} animationType="slide" transparent>
+        <View className="flex-1 justify-end bg-black/50">
+          <View className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[80%]">
+            <View className="flex-row justify-between items-center mb-4">
+              <View className="flex-row items-center gap-2">
+                <View className="w-8 h-8 rounded-full bg-indigo-50 items-center justify-center">
+                  <Bell size={18} color="#6366F1" />
+                </View>
+                <View>
+                  <Text className="text-xl font-extrabold text-zinc-900">Notifications</Text>
+                  <Text className="text-xs text-zinc-500">Recent push alerts & reminders</Text>
+                </View>
+              </View>
+
+              <Pressable
+                onPress={() => setNotifModalVisible(false)}
+                className="w-8 h-8 rounded-full bg-zinc-100 items-center justify-center"
+              >
+                <X size={18} color="#71717A" />
+              </Pressable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} className="mb-4">
+              {reminders.length === 0 ? (
+                <View className="items-center py-10">
+                  <View className="w-12 h-12 rounded-full bg-zinc-100 items-center justify-center mb-2">
+                    <Bell size={22} color="#A1A1AA" />
+                  </View>
+                  <Text className="text-sm font-bold text-zinc-800">No recent notifications</Text>
+                  <Text className="text-xs text-zinc-400 mt-1 text-center">Your upcoming bill & budget push notifications will appear here.</Text>
+                </View>
+              ) : (
+                reminders.map((r) => (
+                  <View key={r.id} className="p-4 bg-zinc-50 border border-zinc-200/80 rounded-2xl mb-3">
+                    <View className="flex-row items-center justify-between mb-1">
+                      <View className="flex-row items-center gap-2">
+                        <View className="w-2 h-2 rounded-full bg-indigo-600" />
+                        <Text className="text-xs font-extrabold text-zinc-900">{r.title}</Text>
+                      </View>
+                      <View className="flex-row items-center gap-1">
+                        <Clock size={12} color="#A1A1AA" />
+                        <Text className="text-[10px] font-semibold text-zinc-400">{formatDate(r.scheduled_at)}</Text>
+                      </View>
+                    </View>
+                    <Text className="text-xs text-zinc-600 pl-4">{r.body}</Text>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+
+            <Button
+              variant="outline"
+              size="md"
+              className="border-zinc-200"
+              onPress={() => setNotifModalVisible(false)}
+            >
+              <Text className="text-zinc-800 font-bold text-xs">Close</Text>
+            </Button>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

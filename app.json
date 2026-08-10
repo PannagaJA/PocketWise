@@ -22,7 +22,7 @@
       "package": "com.pocketwise.app",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "backgroundColor": "#FFFFFF",
+        "backgroundColor": "#0A192F",
         "foregroundImage": "./assets/android-icon-foreground.png"
       }
     },
