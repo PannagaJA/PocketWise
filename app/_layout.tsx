@@ -14,6 +14,7 @@ const queryClient = new QueryClient({
       staleTime: 0,
       refetchOnWindowFocus: true,
       refetchOnReconnect: true,
+      refetchOnMount: true,
     },
   },
   queryCache: new QueryCache({
@@ -24,6 +25,10 @@ const queryClient = new QueryClient({
   mutationCache: new MutationCache({
     onError: (error) => {
       console.error('[Mutation Error]:', error);
+    },
+    onSuccess: () => {
+      // Invalidate all TanStack Query caches instantly on ANY mutation across the app
+      queryClient.invalidateQueries();
     },
   }),
 });
@@ -50,7 +55,7 @@ function GlobalNotificationAndRealtimeSync() {
       .channel('realtime_financial_sync')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', filter: `user_id=eq.${user.id}` },
+        { event: '*', schema: 'public' },
         () => {
           queryClient.invalidateQueries();
         }

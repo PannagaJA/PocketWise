@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Pressable 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
+import Svg, { Path, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -12,7 +13,7 @@ import { transactionService } from '../../lib/services/transaction.service';
 import { billService } from '../../lib/services/bill.service';
 import { goalService } from '../../lib/services/goal.service';
 import { formatMoney, formatDate } from '../../lib/finance/core';
-import { Plus, ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight, CheckCircle2, ShieldCheck } from 'lucide-react-native';
+import { Plus, ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight, ShieldCheck, TrendingUp } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 export default function DashboardScreen() {
@@ -74,12 +75,43 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Net Worth Card */}
-        <Card className="bg-zinc-900 border-zinc-800 p-6 mb-6 rounded-3xl">
-          <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Net Total Balance</Text>
-          <Text className="text-3xl font-extrabold text-white mt-1 mb-4">
-            {formatMoney(totalBalance)}
-          </Text>
+        {/* Net Worth Card with Smooth Area Graph */}
+        <Card className="bg-zinc-900 border-zinc-800 p-6 mb-6 rounded-3xl overflow-hidden relative">
+          <View className="flex-row justify-between items-start mb-1">
+            <View>
+              <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Net Total Balance</Text>
+              <Text className="text-3xl font-extrabold text-white mt-1">
+                {formatMoney(totalBalance)}
+              </Text>
+            </View>
+            <View className="bg-emerald-500/20 px-2.5 py-1 rounded-full flex-row items-center border border-emerald-500/30">
+              <TrendingUp size={12} color="#10B981" className="mr-1" />
+              <Text className="text-[11px] font-bold text-emerald-400">Live</Text>
+            </View>
+          </View>
+
+          {/* SVG Smooth Curved Area Graph */}
+          <View className="my-3 h-16 w-full justify-center">
+            <Svg height="60" width="100%" viewBox="0 0 300 60" preserveAspectRatio="none">
+              <Defs>
+                <LinearGradient id="gradient" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0%" stopColor="#10B981" stopOpacity="0.4" />
+                  <Stop offset="100%" stopColor="#10B981" stopOpacity="0.0" />
+                </LinearGradient>
+              </Defs>
+              <Path
+                d="M 0 45 C 40 40, 70 15, 110 28 C 150 40, 190 10, 230 20 C 260 28, 280 5, 300 12 L 300 60 L 0 60 Z"
+                fill="url(#gradient)"
+              />
+              <Path
+                d="M 0 45 C 40 40, 70 15, 110 28 C 150 40, 190 10, 230 20 C 260 28, 280 5, 300 12"
+                fill="none"
+                stroke="#10B981"
+                strokeWidth="3"
+                strokeLinecap="round"
+              />
+            </Svg>
+          </View>
 
           <View className="flex-row pt-4 border-t border-zinc-800 justify-between items-center">
             <View className="flex-row items-center">

@@ -10,7 +10,7 @@ import { transactionService } from '../../lib/services/transaction.service';
 import { accountService } from '../../lib/services/account.service';
 import { categoryService } from '../../lib/services/category.service';
 import { formatMoney, formatDate, parseMoneyToMinor } from '../../lib/finance/core';
-import { Plus, ArrowUpRight, ArrowDownLeft, X, ArrowRightLeft, ChevronDown, Check } from 'lucide-react-native';
+import { Plus, ArrowUpRight, ArrowDownLeft, X, ArrowRightLeft, ChevronDown, Check, Wallet } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 export default function TransactionsScreen() {
@@ -152,32 +152,34 @@ export default function TransactionsScreen() {
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       <View className="px-4 pt-2 flex-1">
         {/* Header */}
-        <View className="flex-row justify-between items-center mb-4">
-          <View>
-            <Text className="text-2xl font-black text-zinc-900">Transactions</Text>
-            <Text className="text-xs text-zinc-500 mt-0.5">Real-time financial activity</Text>
-          </View>
+        <View className="mb-4">
+          <Text className="text-2xl font-black text-zinc-900">Transactions</Text>
+          <Text className="text-xs text-zinc-500 mt-0.5 mb-3">Real-time financial activity</Text>
 
-          <View className="flex-row space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onPress={() => setAccModalVisible(true)}
-            >
-              <Text className="text-zinc-900 font-semibold text-xs">+ Account</Text>
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              className="flex-row space-x-1"
+          {/* Action Row */}
+          <View className="flex-row gap-3">
+            <Pressable
               onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                setAccModalVisible(true);
+              }}
+              className="flex-1 flex-row items-center justify-center py-2.5 px-3 bg-white border border-zinc-200 rounded-xl active:bg-zinc-100 shadow-sm"
+            >
+              <Wallet size={16} color="#09090B" />
+              <Text className="text-zinc-900 font-bold text-xs ml-1.5">+ Account</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                 setSelectedAccountId(accounts[0]?.id || '');
                 setModalVisible(true);
               }}
+              className="flex-1 flex-row items-center justify-center py-2.5 px-3 bg-zinc-900 rounded-xl active:bg-zinc-800 shadow-sm"
             >
               <Plus size={16} color="#FFF" />
-              <Text className="text-white font-semibold text-xs">Add New</Text>
-            </Button>
+              <Text className="text-white font-bold text-xs ml-1.5">+ Transaction</Text>
+            </Pressable>
           </View>
         </View>
 
