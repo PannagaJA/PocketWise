@@ -33,19 +33,8 @@ const queryClient = new QueryClient({
   }),
 });
 
-function GlobalNotificationAndRealtimeSync() {
+function GlobalRealtimeSync() {
   const { user } = useAuth();
-
-  useEffect(() => {
-    // 1. Register notification response listener
-    const removeListener = deepLinkService.registerNotificationListener();
-    // 2. Check for cold start notification response
-    deepLinkService.checkColdStartNotification();
-
-    return () => {
-      removeListener();
-    };
-  }, []);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -75,7 +64,7 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <AppLockGate>
-          <GlobalNotificationAndRealtimeSync />
+          <GlobalRealtimeSync />
           <StatusBar style="dark" />
           <Stack screenOptions={{ headerShown: false }} />
         </AppLockGate>

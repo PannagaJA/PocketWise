@@ -66,11 +66,13 @@ export const deepLinkService = {
   },
 
   dispatchRoute(route: string) {
-    try {
-      router.push(route as any);
-    } catch (err) {
-      console.warn('Could not dispatch notification route:', err);
-    }
+    setTimeout(() => {
+      try {
+        router.push(route as any);
+      } catch (err) {
+        console.warn('Could not dispatch notification route:', err);
+      }
+    }, 100);
   },
 
   async checkColdStartNotification() {
@@ -91,7 +93,7 @@ export const deepLinkService = {
     if (isExpoGo) return () => {};
     try {
       const Notifications = getNotificationsModule();
-      if (!Notifications) return () => {};
+      if (!Notifications) return;
       const subscription = Notifications.addNotificationResponseReceivedListener((response: any) => {
         this.handleNotificationResponse(response);
       });

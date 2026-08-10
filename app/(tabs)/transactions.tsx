@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Modal, Alert, ActivityIndicator, Pressable, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, Modal, Alert, ActivityIndicator, Pressable, RefreshControl, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Svg, { Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
@@ -11,7 +11,7 @@ import { transactionService } from '../../lib/services/transaction.service';
 import { accountService } from '../../lib/services/account.service';
 import { categoryService } from '../../lib/services/category.service';
 import { formatMoney, formatDate, parseMoneyToMinor } from '../../lib/finance/core';
-import { Plus, ArrowUpRight, ArrowDownLeft, X, ArrowRightLeft, ChevronDown, Check, Wallet, BarChart2 } from 'lucide-react-native';
+import { Plus, ArrowUpRight, ArrowDownLeft, X, ArrowRightLeft, ChevronDown, Check, Wallet, BarChart2, Filter, Search } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 export default function TransactionsScreen() {
@@ -23,6 +23,10 @@ export default function TransactionsScreen() {
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
   const [destAccountDropdownOpen, setDestAccountDropdownOpen] = useState(false);
+
+  // Search & Filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'income' | 'expense' | 'transfer'>('all');
 
   // Form state
   const [type, setType] = useState<'income' | 'expense' | 'transfer'>('expense');
@@ -61,6 +65,24 @@ export default function TransactionsScreen() {
     await Promise.all([refetchTx(), refetchAcc()]);
     setRefreshing(false);
   };
+
+  // Apply search query and active filter
+  const displayedTransactions = transactions.filter((t) => {
+    const matchesFilter = activeFilter === 'all' || t.type === activeFilter;
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return matchesFilter;
+
+    const matchesDesc = t.description.toLowerCase().includes(q);
+    const matchesCat = (t.category?.name || '').toLowerCase().includes(q);
+    const matchesAcc = (t.account?.name || '').toLowerCase().includes(q);
+
+    // Format amount in rupees (e.g. 500 or 500.00)
+    const rupeesAmount = (t.amount_minor / 100).toString();
+    const formattedMoneyStr = formatMoney(t.amount_minor).toLowerCase();
+    const matchesAmount = rupeesAmount.includes(q) || formattedMoneyStr.includes(q);
+
+    return matchesFilter && (matchesDesc || matchesCat || matchesAcc || matchesAmount);
+  });
 
   const filteredCategories = categories.filter((c) => c.type === (type === 'transfer' ? 'expense' : type));
   const selectedCatObj = categories.find((c) => c.id === selectedCategoryId);
@@ -183,12 +205,12 @@ export default function TransactionsScreen() {
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       <View className="px-4 pt-2 flex-1">
         {/* Header */}
-        <View className="mb-4">
+        <View className="mb-3">
           <Text className="text-2xl font-black text-zinc-900">Transactions</Text>
           <Text className="text-xs text-zinc-500 mt-0.5 mb-3">Real-time financial activity</Text>
 
           {/* Unique Cashflow Breakdown Card with Dual Bar Chart */}
-          <Card className="bg-zinc-900 border-zinc-800 p-5 mb-4 rounded-3xl overflow-hidden shadow-md">
+          <Card className="bg-zinc-900 border-zinc-800 p-5 mb-3.5 rounded-3xl overflow-hidden shadow-md">
             <View className="flex-row justify-between items-center mb-4">
               <View className="flex-row items-center gap-2.5">
                 <View className="w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-500/30 items-center justify-center">
@@ -262,6 +284,66 @@ export default function TransactionsScreen() {
             </View>
           </Card>
 
+          {/* Search Bar Input */}
+          <View className="flex-row items-center gap-3 bg-white border border-zinc-200 rounded-2xl px-4 py-3 mb-3 shadow-sm">
+            <Search size={18} color="#71717A" />
+            <TextInput
+              placeholder="Search description, category, or account..."
+              placeholderTextColor="#A1A1AA"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              className="flex-1 text-sm font-medium text-zinc-900 p-0 ml-1"
+            />
+            {searchQuery ? (
+              <Pressable onPress={() => setSearchQuery('')} className="p-1">
+                <X size={16} color="#71717A" />
+              </Pressable>
+            ) : null}
+          </View>
+
+          {/* Filter Pills */}
+          <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-3">
+            <Pressable
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                setActiveFilter('all');
+              }}
+              className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'all' ? 'bg-white' : ''}`}
+            >
+              <Text className={`font-semibold text-xs ${activeFilter === 'all' ? 'text-zinc-900' : 'text-zinc-500'}`}>All</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                setActiveFilter('income');
+              }}
+              className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'income' ? 'bg-white' : ''}`}
+            >
+              <Text className={`font-semibold text-xs ${activeFilter === 'income' ? 'text-emerald-600' : 'text-zinc-500'}`}>Income</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                setActiveFilter('expense');
+              }}
+              className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'expense' ? 'bg-white' : ''}`}
+            >
+              <Text className={`font-semibold text-xs ${activeFilter === 'expense' ? 'text-rose-600' : 'text-zinc-500'}`}>Expense</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                setActiveFilter('transfer');
+              }}
+              className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'transfer' ? 'bg-white' : ''}`}
+            >
+              <Text className={`font-semibold text-xs ${activeFilter === 'transfer' ? 'text-indigo-600' : 'text-zinc-500'}`}>Transfer</Text>
+            </Pressable>
+          </View>
+
           {/* Action Row */}
           <View className="flex-row gap-3">
             <Pressable
@@ -272,7 +354,7 @@ export default function TransactionsScreen() {
               className="flex-1 flex-row items-center justify-center py-2.5 px-3 bg-white border border-zinc-200 rounded-xl active:bg-zinc-100 shadow-sm"
             >
               <Wallet size={16} color="#09090B" />
-              <Text className="text-zinc-900 font-bold text-xs ml-1.5">+ Account</Text>
+              <Text className="text-zinc-900 font-bold text-xs ml-1.5">Account</Text>
             </Pressable>
 
             <Pressable
@@ -284,7 +366,7 @@ export default function TransactionsScreen() {
               className="flex-1 flex-row items-center justify-center py-2.5 px-3 bg-zinc-900 rounded-xl active:bg-zinc-800 shadow-sm"
             >
               <Plus size={16} color="#FFF" />
-              <Text className="text-white font-bold text-xs ml-1.5">+ Transaction</Text>
+              <Text className="text-white font-bold text-xs ml-1.5">Transaction</Text>
             </Pressable>
           </View>
         </View>
@@ -300,18 +382,33 @@ export default function TransactionsScreen() {
         >
           {loadingTx ? (
             <ActivityIndicator size="small" color="#09090B" className="py-8" />
-          ) : transactions.length === 0 ? (
-            <Card className="p-6 bg-white border border-zinc-200 items-center mt-4">
-              <Text className="text-sm font-semibold text-zinc-700">No transactions recorded</Text>
-              <Text className="text-xs text-zinc-400 mt-1 mb-4 text-center">
-                Create an account and record your first income or expense!
+          ) : displayedTransactions.length === 0 ? (
+            <Card className="p-6 bg-white border border-zinc-200 items-center mt-2 rounded-2xl">
+              <View className="w-12 h-12 rounded-full bg-zinc-100 items-center justify-center mb-2">
+                <Filter size={20} color="#71717A" />
+              </View>
+              <Text className="text-sm font-bold text-zinc-800">
+                {searchQuery ? 'No matching transactions' : `No ${activeFilter === 'all' ? '' : activeFilter} transactions found`}
               </Text>
-              <Button size="sm" variant="primary" onPress={() => setModalVisible(true)}>
-                <Text className="text-white font-semibold text-xs">+ Record Transaction</Text>
-              </Button>
+              <Text className="text-xs text-zinc-400 mt-0.5 mb-4 text-center">
+                {searchQuery
+                  ? `No transactions matched "${searchQuery}".`
+                  : activeFilter === 'all'
+                  ? 'Record your first transaction to get started!'
+                  : `No transactions matched the "${activeFilter}" filter.`}
+              </Text>
+              {searchQuery || activeFilter !== 'all' ? (
+                <Button size="sm" variant="outline" onPress={() => { setSearchQuery(''); setActiveFilter('all'); }}>
+                  <Text className="text-zinc-900 font-semibold text-xs">Clear Search & Filters</Text>
+                </Button>
+              ) : (
+                <Button size="sm" variant="primary" onPress={() => setModalVisible(true)}>
+                  <Text className="text-white font-semibold text-xs">Record Transaction</Text>
+                </Button>
+              )}
             </Card>
           ) : (
-            transactions.map((tx) => (
+            displayedTransactions.map((tx) => (
               <Card key={tx.id} className="mb-3 p-4 bg-white border border-zinc-200">
                 <View className="flex-row items-center justify-between">
                   <View className="flex-row items-center flex-1 pr-3">
