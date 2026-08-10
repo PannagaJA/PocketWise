@@ -12,13 +12,15 @@ import { billService } from '../lib/services/bill.service';
 import { accountService } from '../lib/services/account.service';
 import { categoryService } from '../lib/services/category.service';
 import { formatMoney, formatDate, parseMoneyToMinor } from '../lib/finance/core';
-import { Plus, X, ArrowLeft, Calendar, CheckCircle2, Clock, AlertCircle } from 'lucide-react-native';
+import { Plus, X, ArrowLeft, Calendar, CheckCircle2, Clock, AlertCircle, ShieldAlert, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 
 export default function BillsScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [modalVisible, setModalVisible] = useState(false);
+  const [calendarModalVisible, setCalendarModalVisible] = useState(false);
 
   // Form state
   const [name, setName] = useState('');
@@ -26,6 +28,28 @@ export default function BillsScreen() {
   const [dueDate, setDueDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
+
+  // Interactive Calendar State
+  const now = new Date();
+  const [calendarMonth, setCalendarMonth] = useState(now.getMonth());
+  const [calendarYear, setCalendarYear] = useState(now.getFullYear());
+
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  const daysInMonth = (month: number, year: number) => new Date(year, month + 1, 0).getDate();
+  const firstDayOfMonth = (month: number, year: number) => new Date(year, month, 1).getDay();
+
+  const handleSelectDay = (day: number) => {
+    const formattedMonth = String(calendarMonth + 1).padStart(2, '0');
+    const formattedDay = String(day).padStart(2, '0');
+    const formattedDate = `${calendarYear}-${formattedMonth}-${formattedDay}`;
+    setDueDate(formattedDate);
+    setCalendarModalVisible(false);
+    try { Haptics.selectionAsync(); } catch {}
+  };
 
   const { data: bills = [], isLoading: loadingBills } = useQuery({
     queryKey: ['bills', user?.id],
@@ -44,6 +68,12 @@ export default function BillsScreen() {
     queryFn: () => categoryService.getCategories(user?.id || ''),
     enabled: !!user?.id,
   });
+
+  // Calculate Bill Summary Metrics
+  const todayStr = new Date().toISOString().split('T')[0];
+  const unpaidBills = bills.filter((b) => !b.is_paid);
+  const totalUnpaidMinor = unpaidBills.reduce((sum, b) => sum + (b.expected_amount_minor || 0), 0);
+  const overdueCount = unpaidBills.filter((b) => b.due_date < todayStr).length;
 
   const createBillMutation = useMutation({
     mutationFn: async () => {
@@ -82,6 +112,7 @@ export default function BillsScreen() {
       queryClient.invalidateQueries({ queryKey: ['bills', user?.id] });
       queryClient.invalidateQueries({ queryKey: ['transactions', user?.id] });
       queryClient.invalidateQueries({ queryKey: ['accounts', user?.id] });
+      try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
     },
     onError: (err: any) => {
       Alert.alert('Error', err.message || 'Failed to mark bill as paid');
@@ -99,7 +130,7 @@ export default function BillsScreen() {
             </Pressable>
             <View>
               <Text className="text-2xl font-black text-zinc-900">Upcoming Bills</Text>
-              <Text className="text-xs text-zinc-500 mt-0.5">Automated bill reminders</Text>
+              <Text className="text-xs text-zinc-500 mt-0.5">Automated bill reminders & status</Text>
             </View>
           </View>
 
@@ -114,18 +145,49 @@ export default function BillsScreen() {
           </Button>
         </View>
 
+        {/* Unique Outstanding Bill Commitment Card */}
+        <Card className="bg-zinc-900 border-zinc-800 p-5 mb-4 rounded-3xl shadow-md">
+          <View className="flex-row justify-between items-start mb-3">
+            <View>
+              <Text className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">
+                Total Unpaid Commitment
+              </Text>
+              <Text className="text-2xl font-black text-white mt-1">
+                {formatMoney(totalUnpaidMinor)}
+              </Text>
+            </View>
+
+            {overdueCount > 0 ? (
+              <View className="bg-rose-500/20 px-2.5 py-1 rounded-full flex-row items-center border border-rose-500/30 gap-1">
+                <ShieldAlert size={12} color="#EF4444" />
+                <Text className="text-[11px] font-bold text-rose-400">{overdueCount} Overdue</Text>
+              </View>
+            ) : (
+              <View className="bg-emerald-500/20 px-2.5 py-1 rounded-full flex-row items-center border border-emerald-500/30 gap-1">
+                <CheckCircle2 size={12} color="#10B981" />
+                <Text className="text-[11px] font-bold text-emerald-400">On Track</Text>
+              </View>
+            )}
+          </View>
+
+          <View className="pt-3 border-t border-zinc-800 flex-row justify-between items-center">
+            <Text className="text-xs text-zinc-400">Pending Bills: <Text className="font-bold text-white">{unpaidBills.length}</Text></Text>
+            <Text className="text-xs text-zinc-400">Auto Reminders: <Text className="font-bold text-emerald-400">Active</Text></Text>
+          </View>
+        </Card>
+
         {/* Bills List */}
-        <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
+        <ScrollView showsVerticalScrollIndicator={false} className="flex-1" contentContainerStyle={{ paddingBottom: 110 }}>
           {loadingBills ? (
             <ActivityIndicator size="small" color="#09090B" className="py-8" />
           ) : bills.length === 0 ? (
-            <Card className="p-6 bg-white border border-zinc-200 items-center mt-4">
-              <View className="w-12 h-12 rounded-2xl bg-zinc-100 items-center justify-center mb-3">
-                <Calendar size={24} color="#09090B" />
+            <Card className="p-6 bg-white border border-zinc-200 items-center mt-2 rounded-2xl">
+              <View className="w-12 h-12 rounded-2xl bg-amber-50 items-center justify-center mb-3">
+                <Calendar size={24} color="#F59E0B" />
               </View>
               <Text className="text-sm font-bold text-zinc-900">No upcoming bills</Text>
               <Text className="text-xs text-zinc-500 mt-1 mb-4 text-center">
-                Add your recurring electricity, internet, or card bills.
+                Add your recurring electricity, internet, or card bills to get push alerts.
               </Text>
               <Button size="sm" variant="primary" onPress={() => setModalVisible(true)}>
                 <Text className="text-white font-semibold text-xs">Add Bill</Text>
@@ -138,7 +200,7 @@ export default function BillsScreen() {
               const isOverdue = !isPaid && b.due_date < today;
 
               return (
-                <Card key={b.id} className="mb-3 p-4 bg-white border border-zinc-200">
+                <Card key={b.id} className="mb-3 p-4 bg-white border border-zinc-200 rounded-2xl">
                   <View className="flex-row items-center justify-between mb-3">
                     <View className="flex-row items-center flex-1 pr-2">
                       <View className={`w-10 h-10 rounded-xl items-center justify-center mr-3 ${
@@ -160,7 +222,7 @@ export default function BillsScreen() {
                       </View>
                     </View>
 
-                    <View className="items-end">
+                    <View className="items-end gap-1">
                       <Text className="text-base font-extrabold text-zinc-900">{formatMoney(b.expected_amount_minor)}</Text>
                       <Badge
                         label={isPaid ? 'Paid' : isOverdue ? 'Overdue' : 'Upcoming'}
@@ -213,12 +275,23 @@ export default function BillsScreen() {
               onChangeText={setAmount}
             />
 
-            <Input
-              label="Due Date (YYYY-MM-DD)"
-              placeholder="2026-08-15"
-              value={dueDate}
-              onChangeText={setDueDate}
-            />
+            {/* Interactive Calendar Date Picker Button */}
+            <View className="mb-4">
+              <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Due Date</Text>
+              <Pressable
+                onPress={() => {
+                  try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                  setCalendarModalVisible(true);
+                }}
+                className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
+              >
+                <View className="flex-row items-center gap-2">
+                  <Calendar size={18} color="#6366F1" />
+                  <Text className="text-sm font-medium text-zinc-900">{formatDate(dueDate)}</Text>
+                </View>
+                <Text className="text-xs font-bold text-indigo-600">Pick Date</Text>
+              </Pressable>
+            </View>
 
             <Button
               variant="primary"
@@ -228,6 +301,89 @@ export default function BillsScreen() {
               onPress={() => createBillMutation.mutate()}
             >
               <Text className="text-white font-semibold">Save Bill & Enable Reminder</Text>
+            </Button>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Visual Interactive Calendar Modal */}
+      <Modal visible={calendarModalVisible} animationType="fade" transparent>
+        <View className="flex-1 justify-center items-center bg-black/50 px-5">
+          <View className="bg-white rounded-3xl p-5 w-full border border-zinc-200 shadow-xl">
+            {/* Calendar Header */}
+            <View className="flex-row justify-between items-center mb-4">
+              <Pressable
+                onPress={() => {
+                  if (calendarMonth === 0) {
+                    setCalendarMonth(11);
+                    setCalendarYear(calendarYear - 1);
+                  } else {
+                    setCalendarMonth(calendarMonth - 1);
+                  }
+                }}
+                className="p-2 rounded-full active:bg-zinc-100"
+              >
+                <ChevronLeft size={20} color="#09090B" />
+              </Pressable>
+
+              <Text className="text-base font-bold text-zinc-900">
+                {monthNames[calendarMonth]} {calendarYear}
+              </Text>
+
+              <Pressable
+                onPress={() => {
+                  if (calendarMonth === 11) {
+                    setCalendarMonth(0);
+                    setCalendarYear(calendarYear + 1);
+                  } else {
+                    setCalendarMonth(calendarMonth + 1);
+                  }
+                }}
+                className="p-2 rounded-full active:bg-zinc-100"
+              >
+                <ChevronRight size={20} color="#09090B" />
+              </Pressable>
+            </View>
+
+            {/* Days of Week Header */}
+            <View className="flex-row justify-between mb-2">
+              {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                <Text key={d} className="w-9 text-center text-xs font-bold text-zinc-400">{d}</Text>
+              ))}
+            </View>
+
+            {/* Calendar Grid */}
+            <View className="flex-row flex-wrap">
+              {Array.from({ length: firstDayOfMonth(calendarMonth, calendarYear) }).map((_, i) => (
+                <View key={`empty-${i}`} className="w-[14.28%] h-9" />
+              ))}
+
+              {Array.from({ length: daysInMonth(calendarMonth, calendarYear) }).map((_, i) => {
+                const day = i + 1;
+                const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const isSelected = dueDate === dateStr;
+
+                return (
+                  <Pressable
+                    key={day}
+                    onPress={() => handleSelectDay(day)}
+                    className={`w-[14.28%] h-9 items-center justify-center rounded-xl mb-1 ${
+                      isSelected ? 'bg-indigo-600' : 'active:bg-zinc-100'
+                    }`}
+                  >
+                    <Text className={`text-sm font-bold ${isSelected ? 'text-white' : 'text-zinc-900'}`}>{day}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-4 border-zinc-200"
+              onPress={() => setCalendarModalVisible(false)}
+            >
+              <Text className="text-zinc-700 font-semibold text-xs">Cancel</Text>
             </Button>
           </View>
         </View>

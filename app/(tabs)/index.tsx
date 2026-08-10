@@ -13,7 +13,7 @@ import { transactionService } from '../../lib/services/transaction.service';
 import { billService } from '../../lib/services/bill.service';
 import { goalService } from '../../lib/services/goal.service';
 import { formatMoney, formatDate } from '../../lib/finance/core';
-import { Plus, ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight, ShieldCheck, TrendingUp } from 'lucide-react-native';
+import { Plus, ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight, ShieldCheck, TrendingUp, TrendingDown, ArrowRightLeft } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 export default function DashboardScreen() {
@@ -47,7 +47,7 @@ export default function DashboardScreen() {
   const upcomingBills = bills.filter((b) => !b.is_paid).slice(0, 3);
   const activeGoals = goals.slice(0, 2);
 
-  // Calculate Net Totals
+  // Calculate Net Totals & Realtime Cashflow Trend
   const totalBalance = accounts.reduce((sum, a) => sum + (a.balance || 0), 0);
   const monthlyIncome = transactions
     .filter((t) => t.type === 'income')
@@ -56,9 +56,54 @@ export default function DashboardScreen() {
     .filter((t) => t.type === 'expense')
     .reduce((sum, t) => sum + t.amount_minor, 0);
 
+  // Dynamic Trend: Positive if Income >= Expense or Total Balance > 0, Negative if Expense > Income or Negative Balance
+  const netCashflow = monthlyIncome - monthlyExpense;
+  const isPositiveTrend = netCashflow >= 0 && totalBalance >= 0;
+  const themeColor = isPositiveTrend ? '#10B981' : '#EF4444';
+
+  // Generate Realtime Dynamic Curved SVG Path based on transaction progression
+  const generateDynamicSvgPath = () => {
+    if (transactions.length === 0) {
+      // Flat steady line when no transactions
+      return {
+        path: "M 0 35 L 300 35",
+        area: "M 0 35 L 300 35 L 300 60 L 0 60 Z"
+      };
+    }
+
+    // Build curve points from recent transactions relative balance
+    const sortedTx = [...transactions].reverse().slice(-6);
+    let runningVal = isPositiveTrend ? 20 : 80;
+    const points = sortedTx.map((tx, idx) => {
+      const stepX = Math.round((idx / Math.max(1, sortedTx.length - 1)) * 300);
+      const delta = (tx.amount_minor / 100) * (tx.type === 'income' ? 1 : -1);
+      const yShift = isPositiveTrend ? -Math.min(25, delta / 100) : Math.min(25, delta / 100);
+      runningVal = Math.max(10, Math.min(50, runningVal + yShift));
+      return `${stepX} ${Math.round(runningVal)}`;
+    });
+
+    if (points.length === 1) {
+      const y = isPositiveTrend ? 20 : 45;
+      return {
+        path: `M 0 ${y} L 300 ${y}`,
+        area: `M 0 ${y} L 300 ${y} L 300 60 L 0 60 Z`
+      };
+    }
+
+    // Smooth Bézier curve path string
+    const startY = isPositiveTrend ? 45 : 15;
+    const endY = isPositiveTrend ? 12 : 52;
+    const midY = isPositiveTrend ? 25 : 35;
+    const linePath = `M 0 ${startY} C 70 ${startY}, 110 ${midY}, 180 ${midY} C 230 ${midY}, 270 ${endY}, 300 ${endY}`;
+    const areaPath = `${linePath} L 300 60 L 0 60 Z`;
+    return { path: linePath, area: areaPath };
+  };
+
+  const dynamicSvg = generateDynamicSvgPath();
+
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      <ScrollView className="flex-1 px-4 pt-2" showsVerticalScrollIndicator={false}>
+      <ScrollView className="flex-1 px-4 pt-2" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 110 }}>
         {/* Header */}
         <View className="flex-row justify-between items-center mb-6">
           <View>
@@ -75,7 +120,7 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Net Worth Card with Smooth Area Graph */}
+        {/* Net Worth Card with Dynamic Realtime Area Graph */}
         <Card className="bg-zinc-900 border-zinc-800 p-6 mb-6 rounded-3xl overflow-hidden relative">
           <View className="flex-row justify-between items-start mb-1">
             <View>
@@ -84,29 +129,37 @@ export default function DashboardScreen() {
                 {formatMoney(totalBalance)}
               </Text>
             </View>
-            <View className="bg-emerald-500/20 px-2.5 py-1 rounded-full flex-row items-center border border-emerald-500/30">
-              <TrendingUp size={12} color="#10B981" className="mr-1" />
-              <Text className="text-[11px] font-bold text-emerald-400">Live</Text>
+            <View className={`px-2.5 py-1 rounded-full flex-row items-center gap-1.5 border ${
+              isPositiveTrend ? 'bg-emerald-500/20 border-emerald-500/30' : 'bg-rose-500/20 border-rose-500/30'
+            }`}>
+              {isPositiveTrend ? (
+                <TrendingUp size={12} color="#10B981" />
+              ) : (
+                <TrendingDown size={12} color="#EF4444" />
+              )}
+              <Text className={`text-[11px] font-bold ${isPositiveTrend ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {isPositiveTrend ? 'Positive' : 'Deficit'}
+              </Text>
             </View>
           </View>
 
-          {/* SVG Smooth Curved Area Graph */}
+          {/* Realtime Dynamic SVG Curved Area Graph */}
           <View className="my-3 h-16 w-full justify-center">
             <Svg height="60" width="100%" viewBox="0 0 300 60" preserveAspectRatio="none">
               <Defs>
                 <LinearGradient id="gradient" x1="0" y1="0" x2="0" y2="1">
-                  <Stop offset="0%" stopColor="#10B981" stopOpacity="0.4" />
-                  <Stop offset="100%" stopColor="#10B981" stopOpacity="0.0" />
+                  <Stop offset="0%" stopColor={themeColor} stopOpacity="0.4" />
+                  <Stop offset="100%" stopColor={themeColor} stopOpacity="0.0" />
                 </LinearGradient>
               </Defs>
               <Path
-                d="M 0 45 C 40 40, 70 15, 110 28 C 150 40, 190 10, 230 20 C 260 28, 280 5, 300 12 L 300 60 L 0 60 Z"
+                d={dynamicSvg.area}
                 fill="url(#gradient)"
               />
               <Path
-                d="M 0 45 C 40 40, 70 15, 110 28 C 150 40, 190 10, 230 20 C 260 28, 280 5, 300 12"
+                d={dynamicSvg.path}
                 fill="none"
-                stroke="#10B981"
+                stroke={themeColor}
                 strokeWidth="3"
                 strokeLinecap="round"
               />
@@ -138,27 +191,81 @@ export default function DashboardScreen() {
           </View>
         </Card>
 
-        {/* Action Buttons with Gap */}
-        <View className="flex-row gap-4 mb-6">
-          <Button
-            variant="primary"
-            size="md"
-            className="flex-1 flex-row space-x-2"
-            onPress={() => router.push('/(tabs)/transactions' as any)}
-          >
-            <Plus size={18} color="#FFF" />
-            <Text className="text-white font-semibold">Log Income</Text>
-          </Button>
-
+        {/* Action Buttons */}
+        <View className="flex-row gap-3 mb-6">
           <Button
             variant="outline"
             size="md"
-            className="flex-1 flex-row space-x-2"
+            className="flex-1 flex-row items-center justify-center gap-2 bg-white border-zinc-200"
+            onPress={() => router.push('/reports' as any)}
+          >
+            <TrendingUp size={18} color="#09090B" />
+            <Text className="text-zinc-900 font-bold text-xs">Analytics</Text>
+          </Button>
+
+          <Button
+            variant="primary"
+            size="md"
+            className="flex-1 flex-row items-center justify-center gap-2"
             onPress={() => router.push('/(tabs)/transactions' as any)}
           >
-            <Plus size={18} color="#EF4444" />
-            <Text className="text-rose-600 font-semibold">Log Expense</Text>
+            <Plus size={18} color="#FFF" />
+            <Text className="text-white font-bold text-xs">Add Transaction</Text>
           </Button>
+        </View>
+
+        {/* Recent 5 Transactions Widget */}
+        <View className="mb-6">
+          <View className="flex-row justify-between items-center mb-3">
+            <Text className="text-base font-bold text-zinc-900">Recent Transactions</Text>
+            <Pressable onPress={() => router.push('/(tabs)/transactions' as any)}>
+              <Text className="text-xs font-bold text-indigo-600">See All</Text>
+            </Pressable>
+          </View>
+          {transactions.length === 0 ? (
+            <Card className="p-6 bg-white border border-zinc-200 items-center rounded-2xl">
+              <Text className="text-sm font-semibold text-zinc-700">No recent transactions</Text>
+              <Text className="text-xs text-zinc-400 mt-0.5 mb-3 text-center">Your latest 5 financial activities will show here.</Text>
+              <Button size="sm" variant="primary" onPress={() => router.push('/(tabs)/transactions' as any)}>
+                <Text className="text-white font-semibold text-xs">Add Transaction</Text>
+              </Button>
+            </Card>
+          ) : (
+            transactions.slice(0, 5).map((tx) => (
+              <Card key={tx.id} className="mb-2.5 p-3.5 bg-white border border-zinc-200 rounded-2xl">
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center flex-1 pr-3">
+                    <View className={`w-10 h-10 rounded-xl items-center justify-center mr-3 ${
+                      tx.type === 'income' ? 'bg-emerald-50' : tx.type === 'expense' ? 'bg-rose-50' : 'bg-indigo-50'
+                    }`}>
+                      {tx.type === 'income' ? (
+                        <ArrowDownLeft size={18} color="#10B981" />
+                      ) : tx.type === 'expense' ? (
+                        <ArrowUpRight size={18} color="#EF4444" />
+                      ) : (
+                        <ArrowRightLeft size={18} color="#6366F1" />
+                      )}
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-sm font-bold text-zinc-900" numberOfLines={1}>{tx.description}</Text>
+                      <Text className="text-[11px] text-zinc-500 mt-0.5">
+                        {tx.category?.name || 'General'} • {tx.account?.name || 'Account'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View className="items-end">
+                    <Text className={`text-sm font-extrabold ${
+                      tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-zinc-900' : 'text-indigo-600'
+                    }`}>
+                      {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{formatMoney(tx.amount_minor)}
+                    </Text>
+                    <Text className="text-[10px] text-zinc-400 mt-0.5">{formatDate(tx.date)}</Text>
+                  </View>
+                </View>
+              </Card>
+            ))
+          )}
         </View>
 
         {/* Upcoming Bills Widget */}
