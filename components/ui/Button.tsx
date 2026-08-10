@@ -23,7 +23,11 @@ export const Button: React.FC<ButtonProps> = ({
 }) => {
   const handlePress = () => {
     if (disabled || loading) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {
+      // Ignore haptics errors if unavailable
+    }
     onPress();
   };
 
@@ -55,6 +59,16 @@ export const Button: React.FC<ButtonProps> = ({
   else if (size === 'md') textStyle += "text-base ";
   else if (size === 'lg') textStyle += "text-lg ";
 
+  const renderContent = () => {
+    if (loading) {
+      return <ActivityIndicator color={variant === 'primary' || variant === 'destructive' || variant === 'income' ? "#FFF" : "#09090B"} />;
+    }
+    if (typeof children === 'string' || typeof children === 'number') {
+      return <Text className={textStyle}>{children}</Text>;
+    }
+    return children;
+  };
+
   return (
     <TouchableOpacity
       activeOpacity={0.8}
@@ -62,15 +76,7 @@ export const Button: React.FC<ButtonProps> = ({
       disabled={disabled || loading}
       className={`${baseStyle} ${className}`}
     >
-      {loading ? (
-        <ActivityIndicator color={variant === 'primary' || variant === 'destructive' ? "#FFF" : "#09090B"} />
-      ) : (
-        typeof children === 'string' ? (
-          <Text className={textStyle}>{children}</Text>
-        ) : (
-          children
-        )
-      )}
+      {renderContent()}
     </TouchableOpacity>
   );
 };

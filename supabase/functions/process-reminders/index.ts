@@ -23,11 +23,17 @@ serve(async (req) => {
     const results = [];
 
     for (const reminder of reminders || []) {
-      // Mark as processing (idempotency check)
-      await supabase
+      // Idempotency check: Claim reminder by setting status = 'processing'
+      const { data: claimed, error: claimErr } = await supabase
         .from('reminders')
-        .update({ status: 'processing', attempt_count: reminder.attempt_count + 1 })
-        .eq('id', reminder.id);
+        .update({ status: 'processing', attempt_count: (reminder.attempt_count || 0) + 1 })
+        .eq('id', reminder.id)
+        .eq('status', 'pending')
+        .select()
+        .single();
+
+      // Skip if another worker claimed this reminder concurrently
+      if (claimErr || !claimed) continue;
 
       // Fetch active device FCM tokens for the user
       const { data: devices } = await supabase
@@ -37,9 +43,13 @@ serve(async (req) => {
         .eq('is_active', true);
 
       let sentSuccess = false;
+      let lastError = null;
 
       for (const dev of devices || []) {
-        if (!FCM_SERVER_KEY) break;
+        if (!FCM_SERVER_KEY) {
+          lastError = 'FCM_SERVER_KEY not configured';
+          break;
+        }
 
         const fcmPayload = {
           to: dev.fcm_token,
@@ -54,28 +64,51 @@ serve(async (req) => {
           },
         };
 
-        const res = await fetch('https://fcm.googleapis.com/fcm/send', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `key=${FCM_SERVER_KEY}`,
-          },
-          body: JSON.stringify(fcmPayload),
-        });
+        try {
+          const res = await fetch('https://fcm.googleapis.com/fcm/send', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `key=${FCM_SERVER_KEY}`,
+            },
+            body: JSON.stringify(fcmPayload),
+          });
 
-        if (res.ok) sentSuccess = true;
+          if (res.ok) {
+            sentSuccess = true;
+          } else {
+            const errJson = await res.json();
+            lastError = JSON.stringify(errJson);
+
+            // Handle invalid token deactivate logic
+            if (errJson?.results?.[0]?.error === 'NotRegistered' || errJson?.results?.[0]?.error === 'InvalidRegistration') {
+              await supabase
+                .from('devices')
+                .update({ is_active: false })
+                .eq('fcm_token', dev.fcm_token);
+            }
+          }
+        } catch (err: any) {
+          lastError = err.message;
+        }
       }
 
-      // Update final status
+      // Retry policy: If failed and attempts < 3, revert to pending for next run
+      let nextStatus = sentSuccess ? 'sent' : 'failed';
+      if (!sentSuccess && reminder.attempt_count < 3) {
+        nextStatus = 'pending';
+      }
+
       await supabase
         .from('reminders')
         .update({
-          status: sentSuccess ? 'sent' : 'failed',
+          status: nextStatus,
           sent_at: sentSuccess ? new Date().toISOString() : null,
+          last_error: lastError,
         })
         .eq('id', reminder.id);
 
-      results.push({ reminder_id: reminder.id, success: sentSuccess });
+      results.push({ reminder_id: reminder.id, success: sentSuccess, status: nextStatus });
     }
 
     return new Response(JSON.stringify({ processed: results.length, details: results }), {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Modal, Switch } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Modal, Switch, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -35,7 +35,11 @@ export default function SubscriptionsScreen() {
       auto_renew: true,
     };
     addSubscription(newSub);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    try {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      // Ignore haptics errors if unavailable
+    }
     setModalVisible(false);
     setName('');
     setAmount('');
@@ -117,9 +121,9 @@ export default function SubscriptionsScreen() {
           <View className="bg-white rounded-t-3xl p-6 border-t border-zinc-200">
             <View className="flex-row justify-between items-center mb-6">
               <Text className="text-xl font-bold text-zinc-900">Add Subscription</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
+              <Pressable onPress={() => setModalVisible(false)}>
                 <X size={20} color="#71717A" />
-              </TouchableOpacity>
+              </Pressable>
             </View>
 
             <Input 
@@ -139,22 +143,22 @@ export default function SubscriptionsScreen() {
 
             {/* Cycle */}
             <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-6">
-              <TouchableOpacity 
+              <Pressable 
                 onPress={() => setCycle('monthly')} 
-                className={`flex-1 py-2.5 rounded-xl items-center ${cycle === 'monthly' ? 'bg-white shadow-sm' : ''}`}
+                className={`flex-1 py-2.5 rounded-xl items-center ${cycle === 'monthly' ? 'bg-white' : ''}`}
               >
                 <Text className={`font-semibold ${cycle === 'monthly' ? 'text-zinc-900' : 'text-zinc-500'}`}>Monthly</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
+              </Pressable>
+              <Pressable 
                 onPress={() => setCycle('yearly')} 
-                className={`flex-1 py-2.5 rounded-xl items-center ${cycle === 'yearly' ? 'bg-white shadow-sm' : ''}`}
+                className={`flex-1 py-2.5 rounded-xl items-center ${cycle === 'yearly' ? 'bg-white' : ''}`}
               >
                 <Text className={`font-semibold ${cycle === 'yearly' ? 'text-zinc-900' : 'text-zinc-500'}`}>Yearly</Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
 
             <Button variant="primary" size="lg" onPress={handleSave}>
-              Save & Enable FCM Reminder
+              <Text className="text-white font-semibold">Save & Enable FCM Reminder</Text>
             </Button>
           </View>
         </View>
