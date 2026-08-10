@@ -117,8 +117,8 @@ export default function MoreScreen() {
               {user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Authenticated User'}
             </Text>
             <Text className="text-xs text-zinc-500 mt-0.5" numberOfLines={1}>{user?.email}</Text>
-            <View className="mt-2">
-              <Badge label="Supabase Auth Active" variant="income" />
+            <View className="mt-2 flex-row items-center gap-1.5">
+              <Badge label="Verified Account" variant="income" />
             </View>
           </View>
         </Card>
@@ -223,22 +223,7 @@ export default function MoreScreen() {
           </View>
         </Card>
 
-        {/* Infrastructure */}
-        <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3 ml-1">Infrastructure</Text>
-        <Card className="mb-6 p-4 bg-white border border-zinc-200">
-          <View className="flex-row items-center justify-between">
-            <View className="flex-row items-center">
-              <View className="w-9 h-9 rounded-xl bg-zinc-100 items-center justify-center mr-3">
-                <Database size={20} color="#09090B" />
-              </View>
-              <View>
-                <Text className="text-sm font-bold text-zinc-900">Supabase Source of Truth</Text>
-                <Text className="text-xs text-zinc-500">PostgreSQL Cloud DB Connected</Text>
-              </View>
-            </View>
-            <ChevronRight size={18} color="#A1A1AA" />
-          </View>
-        </Card>
+
 
         <Button
           variant="outline"

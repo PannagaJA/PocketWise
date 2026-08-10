@@ -148,7 +148,7 @@ export default function ReportsScreen() {
           ) : (
             <>
               {/* Financial Summary Card */}
-              <Card className="bg-zinc-900 border-zinc-800 p-5 mb-5 rounded-3xl">
+              <Card className="bg-zinc-900 border-zinc-800 p-5 mb-5 rounded-3xl shadow-md">
                 <Text className="text-xs font-extrabold text-zinc-400 uppercase tracking-widest mb-3">
                   Period Summary
                 </Text>
@@ -173,10 +173,10 @@ export default function ReportsScreen() {
                   </View>
                 </View>
 
-                {/* Savings Rate Bar */}
-                <View className="bg-zinc-800 p-3 rounded-2xl flex-row items-center justify-between">
-                  <View className="flex-row items-center">
-                    <TrendingUp size={16} color="#10B981" className="mr-2" />
+                {/* Savings Rate Bar with Gap Spacing */}
+                <View className="bg-zinc-800/90 p-3 rounded-2xl flex-row items-center justify-between">
+                  <View className="flex-row items-center gap-2.5">
+                    <TrendingUp size={18} color="#10B981" />
                     <Text className="text-xs font-bold text-zinc-300">Savings Rate</Text>
                   </View>
                   <Text className="text-sm font-black text-emerald-400">{summary?.savingsRate || 0}%</Text>
@@ -187,22 +187,32 @@ export default function ReportsScreen() {
               <Text className="text-xs font-extrabold text-zinc-400 uppercase tracking-widest mb-3 ml-1">
                 Top Expense Categories
               </Text>
-              <Card className="p-4 bg-white border border-zinc-200 mb-5 rounded-3xl">
+              <Card className="p-5 bg-white border border-zinc-200 mb-5 rounded-3xl shadow-sm">
                 {categories.length === 0 ? (
                   <Text className="text-xs text-zinc-400 text-center py-2">No category expenses recorded</Text>
                 ) : (
                   categories.slice(0, 5).map((cat, idx) => (
-                    <View key={cat.categoryId} className="mb-3.5 last:mb-0">
-                      <View className="flex-row justify-between items-center mb-1">
-                        <View className="flex-row items-center">
-                          <Text className="text-xs font-black text-zinc-400 w-5">{idx + 1}.</Text>
-                          <Text className="text-xs font-bold text-zinc-900">{cat.categoryName}</Text>
+                    <View key={cat.categoryId} className="mb-4 last:mb-0">
+                      <View className="flex-row justify-between items-center mb-2">
+                        <View className="flex-row items-center gap-2.5 flex-1 pr-2">
+                          <View className="w-6 h-6 rounded-full bg-zinc-100 items-center justify-center">
+                            <Text className="text-[11px] font-black text-zinc-600">{idx + 1}</Text>
+                          </View>
+                          <View className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.categoryColor || '#6366F1' }} />
+                          <Text className="text-sm font-bold text-zinc-900 flex-1" numberOfLines={1}>
+                            {cat.categoryName}
+                          </Text>
                         </View>
-                        <Text className="text-xs font-extrabold text-zinc-900">
-                          {formatMoney(cat.amountMinor)} ({cat.percentage}%)
-                        </Text>
+                        <View className="items-end">
+                          <Text className="text-sm font-black text-zinc-900">
+                            {formatMoney(cat.amountMinor)}
+                          </Text>
+                          <Text className="text-[10px] font-bold text-zinc-400">
+                            {cat.percentage}% of total
+                          </Text>
+                        </View>
                       </View>
-                      <View className="w-full h-2 bg-zinc-100 rounded-full overflow-hidden">
+                      <View className="w-full h-2.5 bg-zinc-100 rounded-full overflow-hidden border border-zinc-200/50 p-0.5">
                         <View
                           className="h-full rounded-full"
                           style={{
@@ -220,7 +230,7 @@ export default function ReportsScreen() {
               <Text className="text-xs font-extrabold text-zinc-400 uppercase tracking-widest mb-3 ml-1">
                 Subscription & Upcoming Commitments
               </Text>
-              <View className="flex-row space-x-3 mb-5">
+              <View className="flex-row gap-3 mb-5">
                 <Card className="flex-1 p-4 bg-white border border-zinc-200 rounded-3xl">
                   <View className="w-8 h-8 rounded-xl bg-indigo-50 items-center justify-center mb-2">
                     <CreditCard size={18} color="#6366F1" />
@@ -252,24 +262,54 @@ export default function ReportsScreen() {
                   <Text className="text-xs font-extrabold text-zinc-400 uppercase tracking-widest mb-3 ml-1">
                     Budget Performance
                   </Text>
-                  <Card className="p-4 bg-white border border-zinc-200 mb-5 rounded-3xl">
-                    {budgets.map((b: Budget) => {
+                  <Card className="p-5 bg-white border border-zinc-200 mb-5 rounded-3xl shadow-sm">
+                    {budgets.map((b: Budget, idx: number) => {
                       const spent = b.amount_spent || 0;
-                      const pct = b.amount_minor > 0 ? Math.round((spent / b.amount_minor) * 100) : 0;
+                      const limit = b.amount_minor || 1;
+                      const pct = Math.round((spent / limit) * 100);
+                      const isExceeded = pct >= 100;
+                      const isWarning = pct >= 80 && pct < 100;
+
                       return (
-                        <View key={b.id} className="mb-3.5 last:mb-0">
-                          <View className="flex-row justify-between items-center mb-1">
-                            <Text className="text-xs font-bold text-zinc-900">{b.category_name || 'Category'}</Text>
-                            <Text className="text-xs font-semibold text-zinc-600">
-                              {formatMoney(spent)} / {formatMoney(b.amount_minor)}
-                            </Text>
+                        <View
+                          key={b.id}
+                          className={`pb-4 border-b border-zinc-100 last:border-b-0 last:pb-0 ${
+                            idx > 0 ? 'pt-4' : 'pt-0'
+                          }`}
+                        >
+                          <View className="flex-row justify-between items-center mb-2">
+                            <View className="flex-row items-center gap-2.5 flex-1 pr-2">
+                              <View className="w-3.5 h-3.5 rounded-full" style={{ backgroundColor: b.category_color || '#6366F1' }} />
+                              <Text className="text-sm font-bold text-zinc-900 flex-1" numberOfLines={1}>
+                                {b.category_name || 'Category'}
+                              </Text>
+                            </View>
+
+                            <View className="flex-row items-center gap-2">
+                              <Text className="text-xs font-extrabold text-zinc-900">
+                                {formatMoney(spent)} <Text className="font-medium text-zinc-400">/ {formatMoney(limit)}</Text>
+                              </Text>
+
+                              <View className={`px-2 py-0.5 rounded-full ${
+                                isExceeded ? 'bg-rose-50 border border-rose-100' : isWarning ? 'bg-amber-50 border border-amber-100' : 'bg-emerald-50 border border-emerald-100'
+                              }`}>
+                                <Text className={`text-[10px] font-extrabold ${
+                                  isExceeded ? 'text-rose-600' : isWarning ? 'text-amber-600' : 'text-emerald-600'
+                                }`}>
+                                  {pct}%
+                                </Text>
+                              </View>
+                            </View>
                           </View>
-                          <View className="w-full h-2 bg-zinc-100 rounded-full overflow-hidden">
+                          <View className="w-full h-3 bg-zinc-100 rounded-full overflow-hidden border border-zinc-200/50 p-0.5">
                             <View
                               className={`h-full rounded-full ${
-                                pct >= 100 ? 'bg-rose-500' : pct >= 80 ? 'bg-amber-500' : 'bg-emerald-500'
+                                isExceeded ? 'bg-rose-500' : isWarning ? 'bg-amber-500' : ''
                               }`}
-                              style={{ width: `${Math.min(100, pct)}%` }}
+                              style={{
+                                width: `${Math.min(100, pct)}%`,
+                                backgroundColor: isExceeded ? '#EF4444' : isWarning ? '#F59E0B' : (b.category_color || '#10B981'),
+                              }}
                             />
                           </View>
                         </View>
