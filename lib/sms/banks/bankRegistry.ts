@@ -33,7 +33,7 @@ export const INDIAN_BANKS: BankDefinition[] = [
     name: 'Axis Bank',
     shortName: 'Axis',
     senderPatterns: [/AXISBK/i, /AXISBN/i, /^AXIS/i, /-AXISBK$/i],
-    messagePatterns: [/Axis Bank/i, /Axis/i],
+    messagePatterns: [/\bAxis Bank\b/i, /\bAxis\b/i],
     color: '#971237',
     isActive: true,
   },

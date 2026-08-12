@@ -46,6 +46,8 @@ export function isFinancialSms(sender: string, body: string): boolean {
   const financialVerbs = [
     'debited',
     'debit',
+    'dr',
+    'dr.',
     'spent',
     'withdrawn',
     'paid',
@@ -54,6 +56,8 @@ export function isFinancialSms(sender: string, body: string): boolean {
     'sent',
     'credited',
     'credit',
+    'cr',
+    'cr.',
     'received',
     'deposited',
     'refund',

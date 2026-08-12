@@ -34,8 +34,7 @@ export function extractMerchantAndCategory(
   // 1. Regex pattern matches for merchant indicators
   const merchantPatterns = [
     /(?:refund\s+from)\s+([A-Za-z0-9\s._&-]+?)(?=\s+(?:to|on|ref|txn|val|bal|via|a\/c|card|link|dated|\.|\n|$))/i,
-    /(?:at|to|vpa|info)\s+([A-Za-z0-9\s._&-]+?)(?=\s+(?:on|ref|txn|val|bal|via|using|a\/c|card|link|dated|\.|\n|$))/i,
-    /(?:paid\s+to|spent\s+at)\s+([A-Za-z0-9\s._&-]+?)(?=\s+(?:on|ref|txn|val|bal|via|\.|\n|$))/i,
+    /(?:paid\s+to|spent\s+at|cr\.?\s+to|to)\s+([a-zA-Z0-9._-]+@[a-zA-Z0-9]+|[A-Za-z0-9\s._&-]+?)(?=\s+(?:on|ref|txn|val|bal|via|using|a\/c|card|link|dated|\.|\n|$))/i,
     /vpa\s+([a-zA-Z0-9._-]+@[a-zA-Z0-9]+)/i,
   ];
 

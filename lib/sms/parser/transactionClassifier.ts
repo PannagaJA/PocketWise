@@ -41,7 +41,7 @@ export function classifyTransaction(body: string): ClassificationResult {
   const transferKeywords = ['transferred from', 'transferred to', 'self transfer', 'own account', 'transfer to a/c'];
   const isTransfer = transferKeywords.some((kw) => normBody.includes(kw));
 
-  // 4. Debit vs Credit Keywords
+  // 4. Debit vs Credit Keywords & Shorthand Patterns (e.g., "Rs.1.00 Dr. from A/C")
   const creditKeywords = ['credited', 'credit', 'received', 'deposited', 'added'];
 
   let type: TransactionType = 'expense';
@@ -51,6 +51,8 @@ export function classifyTransaction(body: string): ClassificationResult {
   } else if (isRefund) {
     type = 'refund';
   } else if (isSalary) {
+    type = 'income';
+  } else if (/\bcr\.?\b/i.test(body) && !/\bdr\.?\s+from\b/i.test(body)) {
     type = 'income';
   } else if (creditKeywords.some((kw) => normBody.includes(kw))) {
     type = 'income';

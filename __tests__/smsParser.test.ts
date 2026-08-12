@@ -170,4 +170,21 @@ describe('Android Bank SMS Transaction Auto-Detection Parser Pipeline', () => {
     expect(extracted?.amount).toBe(125000);
     expect(extracted?.amountMinor).toBe(12500000);
   });
+
+  // Test 11: Bank of Baroda Dr. / Cr. shorthand format
+  test('11. Parses Bank of Baroda shorthand Dr. SMS correctly', () => {
+    const sms: RawSMS = {
+      sender: 'BOBSMS',
+      body: 'Rs.1.00 Dr. from A/C XXXXXX0572 and Cr. to 9538926581@naviaxis. Ref:659048390753. AvlBal:Rs52.84(2026:08:12 01:15:36). Not you? Call 18005700/5000-BOB',
+      timestamp: Date.now(),
+    };
+
+    const parsed = parseBankSms(sms);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.type).toBe('expense');
+    expect(parsed?.amount).toBe(1.00);
+    expect(parsed?.bankId).toBe('bob');
+    expect(parsed?.maskedAccount).toBe('XX0572');
+    expect(parsed?.referenceNumber).toBe('659048390753');
+  });
 });
