@@ -248,8 +248,32 @@ export default function DashboardScreen() {
                 <Text className="text-sm font-bold text-rose-400">{formatMoney(monthlyExpense)}</Text>
               </View>
             </View>
-          </View>
         </Card>
+
+        {/* Pending SMS Transaction Review Alert Banner */}
+        {pendingReviews.length > 0 && (
+          <Pressable
+            onPress={() => setSelectedReviewTx(pendingReviews[0])}
+            className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex-row items-center justify-between"
+          >
+            <View className="flex-row items-center gap-3">
+              <View className="w-10 h-10 rounded-xl bg-amber-500/20 items-center justify-center">
+                <Clock size={20} color="#D97706" />
+              </View>
+              <View>
+                <Text className="text-sm font-extrabold text-amber-950">
+                  {pendingReviews.length} Transaction{pendingReviews.length > 1 ? 's' : ''} Awaiting Review
+                </Text>
+                <Text className="text-xs text-amber-800">
+                  {pendingReviews[0].bankName}: ₹{pendingReviews[0].amount} • Tap to confirm
+                </Text>
+              </View>
+            </View>
+            <View className="px-3 py-1.5 bg-amber-600 rounded-xl">
+              <Text className="text-xs font-bold text-white">Review</Text>
+            </View>
+          </Pressable>
+        )}
 
         {/* Action Buttons */}
         <View className="flex-row gap-3 mb-6">

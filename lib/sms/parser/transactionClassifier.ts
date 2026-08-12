@@ -24,7 +24,7 @@ export function classifyTransaction(body: string): ClassificationResult {
     referenceNumber = refMatch[1];
   }
 
-  const upiMatch = /upi\s*(?:ref|rrn)?\s*:?\s*(\d{10,12})/i.exec(body);
+  const upiMatch = /upi\s*(?:ref|rrn)?\s*(?:no\.?)?\s*:?\s*(\d{10,14})/i.exec(body);
   if (upiMatch && upiMatch[1]) {
     upiReference = upiMatch[1];
   }

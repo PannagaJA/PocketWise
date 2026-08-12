@@ -9,7 +9,8 @@ import { Badge } from '../components/ui/Badge';
 import { ChevronLeft, ShieldCheck, Smartphone, Building2, CheckCircle2, AlertTriangle, Sparkles, RefreshCw } from 'lucide-react-native';
 import { smsStorage } from '../lib/sms/storage/smsStore';
 import { smsListenerService } from '../lib/sms/service/smsListenerService';
-import { AccountMapping, SmsTrackingSettings } from '../lib/sms/types';
+import { AccountMapping, SmsTrackingSettings, ParsedSmsTransaction } from '../lib/sms/types';
+import { SmsTransactionReviewModal } from '../components/SmsTransactionReviewModal';
 
 export default function SmsSettingsScreen() {
   const router = useRouter();
@@ -21,6 +22,8 @@ export default function SmsSettingsScreen() {
   });
 
   const [accountMappings, setAccountMappings] = useState<AccountMapping[]>([]);
+  const [pendingReviews, setPendingReviews] = useState<ParsedSmsTransaction[]>([]);
+  const [selectedReviewTx, setSelectedReviewTx] = useState<ParsedSmsTransaction | null>(null);
   const [simulationLoading, setSimulationLoading] = useState(false);
   const [customSmsText, setCustomSmsText] = useState('');
 
@@ -55,6 +58,9 @@ export default function SmsSettingsScreen() {
 
     const mappings = await smsStorage.getAccountMappings();
     setAccountMappings(mappings);
+
+    const pending = await smsStorage.getPendingReviews();
+    setPendingReviews(pending);
   };
 
   const handleToggleAutoTracking = async (value: boolean) => {
@@ -172,6 +178,35 @@ export default function SmsSettingsScreen() {
           </View>
         </Card>
 
+        {/* Pending Reviews Queue Section */}
+        {pendingReviews.length > 0 && (
+          <>
+            <Text className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-3 ml-1">
+              Pending Transactions Review ({pendingReviews.length})
+            </Text>
+            <Card className="mb-6 p-4 bg-amber-50/70 border border-amber-200 gap-3">
+              {pendingReviews.map((item, idx) => (
+                <View key={idx} className="flex-row items-center justify-between p-3 bg-white rounded-xl border border-amber-100">
+                  <View className="flex-1 mr-2">
+                    <Text className="text-xs font-extrabold text-zinc-900">
+                      {item.bankName} • ₹{item.amount}
+                    </Text>
+                    <Text className="text-[11px] text-zinc-500">{item.merchant || 'Bank Transaction'} ({item.type})</Text>
+                  </View>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    className="bg-amber-600"
+                    onPress={() => setSelectedReviewTx(item)}
+                  >
+                    <Text className="text-xs font-bold text-white">Review</Text>
+                  </Button>
+                </View>
+              ))}
+            </Card>
+          </>
+        )}
+
         {/* Known Accounts Mapping */}
         <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3 ml-1">Connected Bank Accounts</Text>
         <Card className="mb-6 p-4 bg-white border border-zinc-200">
@@ -286,6 +321,20 @@ export default function SmsSettingsScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {selectedReviewTx && (
+        <SmsTransactionReviewModal
+          visible={!!selectedReviewTx}
+          parsedTx={selectedReviewTx}
+          onClose={() => setSelectedReviewTx(null)}
+          onSave={async (finalTx) => {
+            await smsListenerService.saveTransactionToStore(finalTx);
+            await smsStorage.removePendingReview(selectedReviewTx.id);
+            setSelectedReviewTx(null);
+            loadSmsSettings();
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }

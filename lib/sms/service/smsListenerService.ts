@@ -189,10 +189,10 @@ class SmsListenerService {
     await smsStorage.incrementDetectedCount();
 
     // High/Medium confidence & identified bank -> Auto save directly into App Store & Supabase
-    if (parsedTx.confidenceScore >= 70 && parsedTx.bankId !== 'unknown') {
+    if (parsedTx.bankId !== 'unknown') {
       await this.saveTransactionToStore(parsedTx);
     } else {
-      // Low confidence or unknown bank -> Add to pending review queue
+      // Unknown bank -> Add to pending review queue for user selection
       await smsStorage.addPendingReview(parsedTx);
     }
 

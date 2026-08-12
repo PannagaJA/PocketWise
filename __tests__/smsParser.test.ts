@@ -187,4 +187,20 @@ describe('Android Bank SMS Transaction Auto-Detection Parser Pipeline', () => {
     expect(parsed?.maskedAccount).toBe('XX0572');
     expect(parsed?.referenceNumber).toBe('659048390753');
   });
+
+  // Test 12: Bank of Baroda UPI Credit format (Dear BOB UPI User...)
+  test('12. Parses Bank of Baroda UPI Credit SMS correctly', () => {
+    const sms: RawSMS = {
+      sender: 'JK-BOBSMS-S',
+      body: 'Dear BOB UPI User: Your account is credited with INR 1.00 on 2026-08-12 03:45:22 PM by UPI Ref No 846395257524; AvlBal: Rs53.84 - BOB',
+      timestamp: Date.now(),
+    };
+
+    const parsed = parseBankSms(sms);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.type).toBe('income');
+    expect(parsed?.amount).toBe(1.00);
+    expect(parsed?.bankId).toBe('bob');
+    expect(parsed?.upiReference).toBe('846395257524');
+  });
 });
