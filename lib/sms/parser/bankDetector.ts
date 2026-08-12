@@ -50,7 +50,25 @@ export function identifyBank(
     }
   }
 
-  // 4. UNKNOWN Bank Fallback
+  // 4. Sender ID Prefix extraction fallback (e.g., AD-KOTAKB, VM-HDFCBK, AX-PAYTM, VK-CITIBK)
+  const senderMatch = /^[A-Z]{2}-([A-Z0-9]+)$/i.exec(normSender);
+  if (senderMatch && senderMatch[1]) {
+    const rawBankCode = senderMatch[1];
+    return {
+      bank: {
+        id: rawBankCode.toLowerCase(),
+        name: `${rawBankCode} Bank`,
+        shortName: rawBankCode,
+        senderPatterns: [],
+        messagePatterns: [],
+        isActive: true,
+      },
+      confidence: 75,
+      method: 'sender_prefix',
+    };
+  }
+
+  // 5. UNKNOWN Bank Fallback
   return {
     bank: null,
     confidence: 0,

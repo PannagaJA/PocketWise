@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@ta
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { AppLockGate } from '../components/AppLockGate';
 import { deepLinkService } from '../lib/notifications/deep-link.service';
+import { smsListenerService } from '../lib/sms/service/smsListenerService';
 import { supabase } from '../lib/supabase';
 import '../global.css';
 
@@ -37,6 +38,9 @@ function GlobalRealtimeSync() {
   const { user } = useAuth();
 
   useEffect(() => {
+    // Start global native SMS listener immediately on app boot
+    smsListenerService.startListening();
+
     if (!user?.id) return;
 
     // Listen to real-time postgres changes across all financial tables for the user
