@@ -21,6 +21,27 @@ export default function SmsSettingsScreen() {
 
   const [accountMappings, setAccountMappings] = useState<AccountMapping[]>([]);
   const [simulationLoading, setSimulationLoading] = useState(false);
+  const [customSmsText, setCustomSmsText] = useState('');
+
+  const handleTestCustomSms = async () => {
+    if (!customSmsText.trim()) return;
+    setSimulationLoading(true);
+
+    const tx = await smsListenerService.simulateIncomingSms('BANK_NOTIFICATION', customSmsText.trim());
+    setSimulationLoading(false);
+
+    if (tx) {
+      await smsListenerService.saveTransactionToStore(tx);
+      Alert.alert(
+        'Real SMS Parsed & Added',
+        `Successfully extracted from your SMS:\n\nType: ${tx.type.toUpperCase()}\nAmount: ₹${tx.amount.toLocaleString('en-IN')}\nBank: ${tx.bankName}\nMerchant: ${tx.merchant}\nCategory: ${tx.category}`
+      );
+      setCustomSmsText('');
+      loadSmsSettings();
+    } else {
+      Alert.alert('Parser Result', 'SMS was recognized as non-financial, OTP, or duplicate.');
+    }
+  };
 
   useEffect(() => {
     loadSmsSettings();
@@ -228,6 +249,27 @@ export default function SmsSettingsScreen() {
               disabled={simulationLoading}
             >
               <Text className="text-xs font-bold text-amber-700">Test Transfer</Text>
+            </Button>
+          </View>
+
+          {/* Custom SMS Paste & Test Input */}
+          <View className="mt-4 pt-3 border-t border-zinc-100">
+            <Text className="text-xs font-semibold text-zinc-600 mb-1.5">Paste Real SMS from Notification Bar:</Text>
+            <Input
+              placeholder="e.g. HDFC Bank: Rs.450.00 debited from A/c XX1234..."
+              value={customSmsText}
+              onChangeText={setCustomSmsText}
+              multiline
+              numberOfLines={3}
+            />
+            <Button
+              variant="primary"
+              size="md"
+              className="mt-2 bg-indigo-600"
+              onPress={handleTestCustomSms}
+              disabled={simulationLoading || !customSmsText.trim()}
+            >
+              <Text className="text-white font-bold text-xs">Parse & Test My Real SMS</Text>
             </Button>
           </View>
         </Card>
