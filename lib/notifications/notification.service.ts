@@ -2,27 +2,30 @@ import { Platform } from 'react-native';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { supabase } from '../supabase';
 
-const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+const isExpoGo = Constants?.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 let Notifications: any = null;
-try {
-  Notifications = require('expo-notifications');
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    }),
-  });
-} catch {
-  Notifications = null;
+if (!isExpoGo) {
+  try {
+    Notifications = require('expo-notifications');
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+  } catch {
+    Notifications = null;
+  }
 }
 
 export const notificationService = {
   async requestPermissions(): Promise<boolean> {
-    if (!Notifications) {
+    if (isExpoGo || !Notifications) {
+      console.log('Skipping push notification permissions in Expo Go sandbox mode.');
       return false;
     }
 

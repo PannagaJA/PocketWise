@@ -9,6 +9,7 @@ let pendingRoute: string | null = null;
 let isAppLockedState = false;
 
 function getNotificationsModule() {
+  if (isExpoGo) return null;
   try {
     return require('expo-notifications');
   } catch {
