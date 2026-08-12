@@ -50,6 +50,8 @@ export default function DashboardScreen() {
     checkSmsOnboarding();
     smsListenerService.startListening(() => {
       checkSmsOnboarding();
+      refetchAcc();
+      refetchTx();
     });
   }, [user?.id, isLocked]);
 

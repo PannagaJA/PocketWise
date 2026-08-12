@@ -39,10 +39,10 @@ export default function SmsSettingsScreen() {
     if (value) {
       const granted = await smsListenerService.requestSmsPermissions();
       await smsStorage.saveSettings({
-        autoTrackingEnabled: true,
+        autoTrackingEnabled: granted,
         permissionGranted: granted,
       });
-      setSettings((prev) => ({ ...prev, autoTrackingEnabled: true, permissionGranted: granted }));
+      setSettings((prev) => ({ ...prev, autoTrackingEnabled: granted, permissionGranted: granted }));
     } else {
       await smsStorage.saveSettings({ autoTrackingEnabled: false });
       setSettings((prev) => ({ ...prev, autoTrackingEnabled: false }));
@@ -72,9 +72,10 @@ export default function SmsSettingsScreen() {
     setSimulationLoading(false);
 
     if (tx) {
+      await smsListenerService.saveTransactionToStore(tx);
       Alert.alert(
-        'Test SMS Processed',
-        `Successfully detected:\nType: ${tx.type.toUpperCase()}\nAmount: ₹${tx.amount}\nBank: ${tx.bankName}\nMerchant: ${tx.merchant}\nCategory: ${tx.category}`
+        'Test SMS Processed & Saved',
+        `Successfully detected and added to your transactions!\n\nType: ${tx.type.toUpperCase()}\nAmount: ₹${tx.amount}\nBank: ${tx.bankName}\nMerchant: ${tx.merchant}\nCategory: ${tx.category}`
       );
       loadSmsSettings();
     } else {
