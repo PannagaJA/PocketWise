@@ -115,22 +115,39 @@ class SmsListenerService {
   }
 
   /**
-   * Flush any SMS messages received in the background while the app was closed.
+   * Flush background queue from SharedPreferences and scan recent device Inbox for any missed SMS.
    */
   async flushBackgroundQueue() {
-    if (Platform.OS !== 'android' || !PocketWiseSmsModule?.getUnprocessedSms) return;
+    if (Platform.OS !== 'android') return;
 
-    try {
-      const queueJsonString = await PocketWiseSmsModule.getUnprocessedSms();
-      if (queueJsonString && queueJsonString !== '[]') {
-        const queue: RawSMS[] = JSON.parse(queueJsonString);
-        for (const rawSms of queue) {
-          await this.processIncomingSms(rawSms);
+    // 1. Flush queued SMS from Receiver SharedPreferences
+    if (PocketWiseSmsModule?.getUnprocessedSms) {
+      try {
+        const queueJsonString = await PocketWiseSmsModule.getUnprocessedSms();
+        if (queueJsonString && queueJsonString !== '[]') {
+          const queue: RawSMS[] = JSON.parse(queueJsonString);
+          for (const rawSms of queue) {
+            await this.processIncomingSms(rawSms);
+          }
+          await PocketWiseSmsModule.clearUnprocessedSms();
         }
-        await PocketWiseSmsModule.clearUnprocessedSms();
+      } catch (err) {
+        console.warn('[SMS Listener] Error flushing background queue:', err);
       }
-    } catch (err) {
-      console.warn('[SMS Listener] Error flushing background queue:', err);
+    }
+
+    // 2. Scan recent SMS Inbox directly via ContentResolver (Secondary Fallback)
+    if (PocketWiseSmsModule?.readRecentInboxSms) {
+      try {
+        const inboxList: RawSMS[] = await PocketWiseSmsModule.readRecentInboxSms();
+        if (Array.isArray(inboxList)) {
+          for (const rawSms of inboxList) {
+            await this.processIncomingSms(rawSms);
+          }
+        }
+      } catch (err) {
+        console.warn('[SMS Listener] Error reading inbox SMS:', err);
+      }
     }
   }
 
