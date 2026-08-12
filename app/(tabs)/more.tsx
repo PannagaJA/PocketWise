@@ -8,7 +8,7 @@ import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { useAuth } from '../../context/AuthContext';
 import { appLockService } from '../../lib/security/app-lock.service';
-import { Fingerprint, Bell, Database, LogOut, ChevronRight, Calendar, Target, Lock, PieChart, X } from 'lucide-react-native';
+import { Fingerprint, Bell, Database, LogOut, ChevronRight, Calendar, Target, Lock, PieChart, X, Smartphone } from 'lucide-react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as Haptics from 'expo-haptics';
 
@@ -205,22 +205,18 @@ export default function MoreScreen() {
             </View>
           )}
 
-          <View className="p-4 flex-row items-center justify-between">
+          <Pressable onPress={() => router.push('/sms-settings')} className="p-4 flex-row items-center justify-between">
             <View className="flex-row items-center">
-              <View className="w-9 h-9 rounded-xl bg-zinc-100 items-center justify-center mr-3">
-                <Bell size={20} color="#09090B" />
+              <View className="w-9 h-9 rounded-xl bg-indigo-50 items-center justify-center mr-3">
+                <Smartphone size={20} color="#6366F1" />
               </View>
               <View>
-                <Text className="text-sm font-bold text-zinc-900">Push Notifications</Text>
-                <Text className="text-xs text-zinc-500">Bill & Subscription Alerts</Text>
+                <Text className="text-sm font-bold text-zinc-900">Bank & SMS Tracking</Text>
+                <Text className="text-xs text-zinc-500">Auto-detect bank transactions & SMS</Text>
               </View>
             </View>
-            <Switch
-              value={pushEnabled}
-              onValueChange={setPushEnabled}
-              trackColor={{ false: '#E4E4E7', true: '#09090B' }}
-            />
-          </View>
+            <ChevronRight size={18} color="#A1A1AA" />
+          </Pressable>
         </Card>
 
 

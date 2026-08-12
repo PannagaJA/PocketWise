@@ -17,12 +17,37 @@ import { formatMoney, formatDate } from '../../lib/finance/core';
 import { Plus, ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight, ShieldCheck, TrendingUp, TrendingDown, ArrowRightLeft, X, Clock } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
+import { SmsOnboardingModal } from '../../components/SmsOnboardingCard';
+import { SmsTransactionReviewModal } from '../../components/SmsTransactionReviewModal';
+import { smsStorage } from '../../lib/sms/storage/smsStore';
+import { smsListenerService } from '../../lib/sms/service/smsListenerService';
+import { ParsedSmsTransaction } from '../../lib/sms/types';
+
 export default function DashboardScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
 
   const [notifModalVisible, setNotifModalVisible] = useState(false);
+  const [smsOnboardingVisible, setSmsOnboardingVisible] = useState(false);
+  const [pendingReviews, setPendingReviews] = useState<ParsedSmsTransaction[]>([]);
+  const [selectedReviewTx, setSelectedReviewTx] = useState<ParsedSmsTransaction | null>(null);
+
+  const checkSmsOnboarding = async () => {
+    const settings = await smsStorage.getSettings();
+    if (!settings.autoTrackingEnabled && !settings.permissionGranted) {
+      setSmsOnboardingVisible(true);
+    }
+    const pending = await smsStorage.getPendingReviews();
+    setPendingReviews(pending);
+  };
+
+  useEffect(() => {
+    checkSmsOnboarding();
+    smsListenerService.startListening(() => {
+      checkSmsOnboarding();
+    });
+  }, []);
 
   const { data: accounts = [], isLoading: loadingAcc, refetch: refetchAcc } = useQuery({
     queryKey: ['accounts', user?.id],
@@ -435,6 +460,25 @@ export default function DashboardScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* SMS Onboarding Modal */}
+      <SmsOnboardingModal
+        visible={smsOnboardingVisible}
+        onClose={() => setSmsOnboardingVisible(false)}
+        onEnabled={() => checkSmsOnboarding()}
+      />
+
+      {/* SMS Pending Review Modal */}
+      <SmsTransactionReviewModal
+        visible={!!selectedReviewTx}
+        transaction={selectedReviewTx}
+        onClose={() => setSelectedReviewTx(null)}
+        onConfirm={() => {
+          setSelectedReviewTx(null);
+          checkSmsOnboarding();
+          refetchTx();
+        }}
+      />
     </SafeAreaView>
   );
 }
