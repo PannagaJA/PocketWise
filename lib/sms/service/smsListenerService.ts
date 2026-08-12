@@ -53,7 +53,35 @@ class SmsListenerService {
   }
 
   /**
-   * Check if SMS permission is currently granted.
+   * Check if Notification Listener permission is enabled for reading Google Messages notifications.
+   */
+  async isNotificationListenerEnabled(): Promise<boolean> {
+    if (Platform.OS !== 'android' || !PocketWiseSmsModule?.isNotificationListenerEnabled) {
+      return false;
+    }
+    try {
+      return await PocketWiseSmsModule.isNotificationListenerEnabled();
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Open Android Notification Listener Access settings screen.
+   */
+  async openNotificationListenerSettings(): Promise<boolean> {
+    if (Platform.OS !== 'android' || !PocketWiseSmsModule?.openNotificationListenerSettings) {
+      return false;
+    }
+    try {
+      return await PocketWiseSmsModule.openNotificationListenerSettings();
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Check if SMS permission or Notification Listener permission is currently granted.
    */
   async checkSmsPermissions(): Promise<boolean> {
     if (Platform.OS !== 'android') return false;

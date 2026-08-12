@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 function withAndroidSmsReceiver(config) {
-  // 1. AndroidManifest configuration for permissions and broadcast receiver
+  // 1. AndroidManifest configuration for permissions, broadcast receiver, and notification listener service
   config = withAndroidManifest(config, async (config) => {
     const androidManifest = config.modResults;
 
@@ -51,7 +51,6 @@ function withAndroidSmsReceiver(config) {
       };
       mainApplication.receiver.push(receiverObj);
     } else {
-      // Ensure test action is present in existing intent filter
       const filter = receiverObj['intent-filter']?.[0];
       if (filter) {
         if (!filter.action) filter.action = [];
@@ -64,6 +63,38 @@ function withAndroidSmsReceiver(config) {
           });
         }
       }
+    }
+
+    // Register PocketWiseNotificationListenerService in Manifest
+    if (!mainApplication.service) {
+      mainApplication.service = [];
+    }
+
+    const serviceName = '.sms.PocketWiseNotificationListenerService';
+    let serviceObj = mainApplication.service.find(
+      (s) => s.$['android:name'] === serviceName || s.$['android:name'] === 'com.pocketwise.app.sms.PocketWiseNotificationListenerService'
+    );
+
+    if (!serviceObj) {
+      mainApplication.service.push({
+        $: {
+          'android:name': serviceName,
+          'android:label': 'PocketWise SMS Detection',
+          'android:permission': 'android.permission.BIND_NOTIFICATION_LISTENER_SERVICE',
+          'android:exported': 'true',
+        },
+        'intent-filter': [
+          {
+            action: [
+              {
+                $: {
+                  'android:name': 'android.service.notification.NotificationListenerService',
+                },
+              },
+            ],
+          },
+        ],
+      });
     }
 
     return config;
@@ -303,6 +334,34 @@ class PocketWiseSmsModule(private val reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun isNotificationListenerEnabled(promise: Promise) {
+        try {
+            val packageName = reactContext.packageName
+            val flat = android.provider.Settings.Secure.getString(
+                reactContext.contentResolver,
+                "enabled_notification_listeners"
+            )
+            val isEnabled = flat != null && flat.contains(packageName)
+            promise.resolve(isEnabled)
+        } catch (e: Exception) {
+            promise.reject("CHECK_LISTENER_ERROR", e.message, e)
+        }
+    }
+
+    @ReactMethod
+    fun openNotificationListenerSettings(promise: Promise) {
+        try {
+            val intent = android.content.Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS").apply {
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            reactContext.startActivity(intent)
+            promise.resolve(true)
+        } catch (e: Exception) {
+            promise.reject("OPEN_SETTINGS_ERROR", e.message, e)
+        }
+    }
+
+    @ReactMethod
     fun checkPermissionState(promise: Promise) {
         try {
             val receiveGranted = ContextCompat.checkSelfPermission(
@@ -315,10 +374,17 @@ class PocketWiseSmsModule(private val reactContext: ReactApplicationContext) :
                 android.Manifest.permission.READ_SMS
             ) == PackageManager.PERMISSION_GRANTED
 
+            val flat = android.provider.Settings.Secure.getString(
+                reactContext.contentResolver,
+                "enabled_notification_listeners"
+            )
+            val listenerEnabled = flat != null && flat.contains(reactContext.packageName)
+
             val resultMap = Arguments.createMap().apply {
                 putBoolean("receiveSms", receiveGranted)
                 putBoolean("readSms", readGranted)
-                putBoolean("granted", receiveGranted && readGranted)
+                putBoolean("notificationListener", listenerEnabled)
+                putBoolean("granted", (receiveGranted && readGranted) || listenerEnabled)
             }
             promise.resolve(resultMap)
         } catch (e: Exception) {
@@ -356,6 +422,173 @@ class PocketWiseSmsModule(private val reactContext: ReactApplicationContext) :
 }
 `;
 
+      // PocketWiseNotificationListenerService.kt
+      const listenerContent = `package com.pocketwise.app.sms
+
+import android.app.Notification
+import android.content.Context
+import android.service.notification.NotificationListenerService
+import android.service.notification.StatusBarNotification
+import android.util.Log
+import org.json.JSONArray
+import org.json.JSONObject
+import java.security.MessageDigest
+
+class PocketWiseNotificationListenerService : NotificationListenerService() {
+
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        Log.d(TAG, "PocketWiseNotificationListenerService connected successfully")
+    }
+
+    override fun onListenerDisconnected() {
+        super.onListenerDisconnected()
+        Log.d(TAG, "PocketWiseNotificationListenerService disconnected")
+    }
+
+    override fun onNotificationPosted(sbn: StatusBarNotification?) {
+        if (sbn == null) return
+
+        val pkgName = sbn.packageName ?: ""
+        val isMessagingApp = isSupportedMessagingPackage(pkgName)
+
+        if (!isMessagingApp) return
+
+        val notification = sbn.notification ?: return
+        val extras = notification.extras ?: return
+
+        val title = extractStringExtra(extras, Notification.EXTRA_TITLE)
+        val text = extractStringExtra(extras, Notification.EXTRA_TEXT)
+        val bigText = extractStringExtra(extras, Notification.EXTRA_BIG_TEXT)
+
+        val bodyText = when {
+            !bigText.isNullOrBlank() -> bigText
+            !text.isNullOrBlank() -> text
+            else -> ""
+        }
+
+        val hasTitle = !title.isNullOrBlank()
+        val hasText = bodyText.isNotBlank()
+
+        if (!hasText) return
+
+        val isBankCandidate = isLikelyBankMessage(title, bodyText)
+
+        Log.d(TAG, "Notification posted. Package: $pkgName, Has title: $hasTitle, Has text: $hasText, Bank candidate: $isBankCandidate")
+
+        if (!isBankCandidate) return
+
+        val senderName = if (hasTitle) title!! else "Google Messages"
+        val timestamp = sbn.postTime
+
+        val stableId = generateSmsId(senderName, timestamp, bodyText)
+
+        val smsJson = JSONObject().apply {
+            put("id", stableId)
+            put("sender", senderName)
+            put("body", bodyText)
+            put("timestamp", timestamp)
+        }
+
+        val queued = queueUnprocessedSms(applicationContext, smsJson)
+        Log.d(TAG, "Notification SMS persisted to native queue: $queued for ID: $stableId")
+
+        PocketWiseSmsModule.emitSmsEvent(smsJson)
+    }
+
+    private fun isSupportedMessagingPackage(pkgName: String): Boolean {
+        return SUPPORTED_PACKAGES.contains(pkgName)
+    }
+
+    private fun isLikelyBankMessage(title: String?, text: String): Boolean {
+        val combined = "$title $text".lowercase()
+
+        // Filter out non-financial noise
+        val noiseKeywords = listOf("otp", "one time password", "verification code", "secret code", "welcome to", "kyc", "cheque book", "statement is ready", "promotions", "marketing")
+        if (noiseKeywords.some { combined.contains(it) }) {
+            return false
+        }
+
+        // Financial indicator verbs/terms
+        val financialKeywords = listOf(
+            "debited", "credited", "spent", "paid", "transferred", "received", "withdrawn",
+            "a/c", "acct", "account", "avbal", "avlbal", "bal:", "inr", "rs.", "rs ", "upi", "vpa", "ref", "rrn"
+        )
+
+        return financialKeywords.any { combined.contains(it) }
+    }
+
+    private fun extractStringExtra(extras: android.os.Bundle, key: String): String? {
+        return try {
+            val value = extras.get(key)
+            when (value) {
+                is CharSequence -> value.toString()
+                is String -> value
+                else -> value?.toString()
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun queueUnprocessedSms(context: Context, smsJson: JSONObject): Boolean {
+        return try {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val existingString = prefs.getString(QUEUE_KEY, "[]") ?: "[]"
+            val array = JSONArray(existingString)
+
+            val newId = smsJson.optString("id")
+            for (i in 0 until array.length()) {
+                val item = array.optJSONObject(i)
+                if (item != null && item.optString("id") == newId) {
+                    Log.d(TAG_QUEUE, "SMS already exists in native queue, skipping duplicate enqueue: $newId")
+                    return true
+                }
+            }
+
+            array.put(smsJson)
+            prefs.edit().putString(QUEUE_KEY, array.toString()).apply()
+            Log.d(TAG_QUEUE, "Successfully persisted SMS from notification to native queue. Total pending: \${array.length()}")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG_QUEUE, "Error persisting SMS from notification to native queue", e)
+            false
+        }
+    }
+
+    private fun generateSmsId(sender: String, timestamp: Long, body: String): String {
+        return try {
+            val rawKey = "$sender:$timestamp:$body"
+            val bytes = MessageDigest.getInstance("MD5").digest(rawKey.toByteArray())
+            val hex = bytes.joinToString("") { "%02x".format(it) }
+            "sms_$hex"
+        } catch (e: Exception) {
+            "sms_\${timestamp}_\${body.hashCode()}"
+        }
+    }
+
+    private fun List<String>.some(predicate: (String) -> Boolean): Boolean {
+        for (item in this) {
+            if (predicate(item)) return true
+        }
+        return false
+    }
+
+    companion object {
+        private const val TAG = "PocketWiseNotificationListener"
+        private const val TAG_QUEUE = "PocketWiseSmsQueue"
+        private const val PREFS_NAME = "pocketwise_sms_prefs"
+        private const val QUEUE_KEY = "unprocessed_sms_queue"
+
+        private val SUPPORTED_PACKAGES = setOf(
+            "com.google.android.apps.messaging",
+            "com.samsung.android.messaging",
+            "com.oneplus.mms"
+        )
+    }
+}
+`;
+
       // PocketWiseSmsPackage.kt
       const packageContent = `package com.pocketwise.app.sms
 
@@ -377,6 +610,7 @@ class PocketWiseSmsPackage : ReactPackage {
 
       fs.writeFileSync(path.join(targetDir, 'PocketWiseSmsReceiver.kt'), receiverContent);
       fs.writeFileSync(path.join(targetDir, 'PocketWiseSmsModule.kt'), moduleContent);
+      fs.writeFileSync(path.join(targetDir, 'PocketWiseNotificationListenerService.kt'), listenerContent);
       fs.writeFileSync(path.join(targetDir, 'PocketWiseSmsPackage.kt'), packageContent);
 
       // Register PocketWiseSmsPackage in MainApplication.kt if not present

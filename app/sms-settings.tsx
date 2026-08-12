@@ -24,6 +24,7 @@ export default function SmsSettingsScreen() {
   const [accountMappings, setAccountMappings] = useState<AccountMapping[]>([]);
   const [pendingReviews, setPendingReviews] = useState<ParsedSmsTransaction[]>([]);
   const [selectedReviewTx, setSelectedReviewTx] = useState<ParsedSmsTransaction | null>(null);
+  const [notificationListenerEnabled, setNotificationListenerEnabled] = useState(false);
   const [simulationLoading, setSimulationLoading] = useState(false);
   const [customSmsText, setCustomSmsText] = useState('');
 
@@ -54,7 +55,9 @@ export default function SmsSettingsScreen() {
   const loadSmsSettings = async () => {
     const s = await smsStorage.getSettings();
     const isGranted = await smsListenerService.checkSmsPermissions();
-    setSettings({ ...s, permissionGranted: isGranted });
+    const isListenerEnabled = await smsListenerService.isNotificationListenerEnabled();
+    setSettings({ ...s, permissionGranted: isGranted || isListenerEnabled });
+    setNotificationListenerEnabled(isListenerEnabled);
 
     const mappings = await smsStorage.getAccountMappings();
     setAccountMappings(mappings);
@@ -176,6 +179,32 @@ export default function SmsSettingsScreen() {
               <Text className="text-xs font-black text-zinc-900">{settings.totalDetectedCount} total</Text>
             </View>
           </View>
+        </Card>
+
+        {/* Automatic SMS Detection via Google Messages Notifications */}
+        <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3 ml-1">Automatic SMS Detection</Text>
+        <Card className="mb-6 p-4 bg-white border border-zinc-200">
+          <Text className="text-xs font-medium text-zinc-600 leading-5 mb-3">
+            PocketWise can read bank transaction notifications from Google Messages to automatically detect your transactions.
+          </Text>
+          <View className="flex-row items-center justify-between p-3 bg-zinc-50 rounded-xl border border-zinc-100 mb-3">
+            <Text className="text-xs font-bold text-zinc-800">Notification Access</Text>
+            <Badge
+              label={notificationListenerEnabled ? 'Enabled' : 'Not Enabled'}
+              variant={notificationListenerEnabled ? 'income' : 'expense'}
+            />
+          </View>
+          <Button
+            variant={notificationListenerEnabled ? 'outline' : 'primary'}
+            size="sm"
+            onPress={async () => {
+              await smsListenerService.openNotificationListenerSettings();
+            }}
+          >
+            <Text className={`text-xs font-bold ${notificationListenerEnabled ? 'text-zinc-800' : 'text-white'}`}>
+              {notificationListenerEnabled ? 'Manage Notification Access' : 'Enable Notification Access'}
+            </Text>
+          </Button>
         </Card>
 
         {/* Pending Reviews Queue Section */}
