@@ -12,6 +12,7 @@ import { billService } from '../lib/services/bill.service';
 import { accountService } from '../lib/services/account.service';
 import { categoryService } from '../lib/services/category.service';
 import { formatMoney, formatDate, parseMoneyToMinor } from '../lib/finance/core';
+import { notificationService } from '../lib/notifications/notification.service';
 import { Plus, X, ArrowLeft, Calendar, CheckCircle2, Clock, AlertCircle, ShieldAlert, ChevronLeft, ChevronRight, Check } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { TimePickerModal, format12HourTime } from '../components/ui/TimePickerModal';
@@ -98,10 +99,25 @@ export default function BillsScreen() {
         account_id: selectedAccountId || accounts[0]?.id,
       });
     },
-    onSuccess: () => {
+    onSuccess: (newBill: any) => {
       queryClient.invalidateQueries({ queryKey: ['bills', user?.id] });
       queryClient.invalidateQueries({ queryKey: ['transactions', user?.id] });
       queryClient.invalidateQueries({ queryKey: ['accounts', user?.id] });
+
+      // Schedule local FCM push notification for bill due date
+      try {
+        const timePart = dueTime.trim() || '09:00';
+        const triggerDate = new Date(`${dueDate}T${timePart}:00`);
+        notificationService.scheduleDueDateReminder(
+          newBill?.id || `bill_${Date.now()}`,
+          `Upcoming Bill Due: ${name}`,
+          `Your bill payment of ${formatMoney(parseMoneyToMinor(amount))} is due.`,
+          triggerDate
+        );
+      } catch (err) {
+        console.warn('Could not schedule local bill reminder:', err);
+      }
+
       setModalVisible(false);
       setName('');
       setAmount('');

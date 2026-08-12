@@ -69,8 +69,15 @@ export const notificationService = {
       const hasPermission = await this.requestPermissions();
       if (!hasPermission) return null;
 
-      const tokenData = await Notifications.getDevicePushTokenAsync();
-      const token = typeof tokenData === 'string' ? tokenData : tokenData?.data;
+      // Try obtaining native FCM messaging token, fallback to Expo device token
+      let token: string | null = null;
+      try {
+        const messaging = require('@react-native-firebase/messaging').default;
+        token = await messaging().getToken();
+      } catch {
+        const tokenData = await Notifications.getDevicePushTokenAsync();
+        token = typeof tokenData === 'string' ? tokenData : tokenData?.data;
+      }
 
       if (!token) return null;
 
@@ -94,6 +101,38 @@ export const notificationService = {
       return token;
     } catch (err) {
       console.warn('Push token registration skipped or unavailable:', err);
+      return null;
+    }
+  },
+
+  /**
+   * Schedule a local push notification on the device for upcoming bill/subscription due dates.
+   */
+  async scheduleDueDateReminder(id: string, title: string, body: string, triggerDate: Date): Promise<string | null> {
+    if (isExpoGo || !Notifications) return null;
+
+    try {
+      await this.requestPermissions();
+
+      const now = new Date();
+      if (triggerDate <= now) {
+        // If due time has passed, trigger in 10 seconds for testing/immediate visibility
+        triggerDate = new Date(now.getTime() + 10000);
+      }
+
+      const notifId = await Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body,
+          sound: 'default',
+          data: { reminderId: id, type: 'due_date' },
+        },
+        trigger: triggerDate,
+      });
+
+      return notifId;
+    } catch (err) {
+      console.warn('Failed to schedule local due date reminder:', err);
       return null;
     }
   },

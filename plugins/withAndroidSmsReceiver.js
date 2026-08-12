@@ -7,6 +7,7 @@ function withAndroidSmsReceiver(config) {
     // Ensure permissions
     AndroidConfig.Permissions.addPermission(androidManifest, 'android.permission.RECEIVE_SMS');
     AndroidConfig.Permissions.addPermission(androidManifest, 'android.permission.READ_SMS');
+    AndroidConfig.Permissions.addPermission(androidManifest, 'android.permission.POST_NOTIFICATIONS');
 
     const mainApplication = AndroidConfig.Manifest.getMainApplicationOrThrow(androidManifest);
 
