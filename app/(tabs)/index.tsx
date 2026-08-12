@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Pressable, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -13,8 +13,8 @@ import { transactionService } from '../../lib/services/transaction.service';
 import { billService } from '../../lib/services/bill.service';
 import { goalService } from '../../lib/services/goal.service';
 import { reminderService } from '../../lib/services/reminder.service';
-import { formatMoney, formatDate } from '../../lib/finance/core';
-import { Plus, ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight, ShieldCheck, TrendingUp, TrendingDown, ArrowRightLeft, X, Clock } from 'lucide-react-native';
+import { formatMoney, formatDate, formatDateTime } from '../../lib/finance/core';
+import { Plus, ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight, ShieldCheck, TrendingUp, TrendingDown, ArrowRightLeft, X, Clock, Trash2 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 import { SmsOnboardingModal } from '../../components/SmsOnboardingCard';
@@ -414,12 +414,27 @@ export default function DashboardScreen() {
                 </View>
               </View>
 
-              <Pressable
-                onPress={() => setNotifModalVisible(false)}
-                className="w-8 h-8 rounded-full bg-zinc-100 items-center justify-center"
-              >
-                <X size={18} color="#71717A" />
-              </Pressable>
+              <View className="flex-row items-center gap-2">
+                {reminders.length > 0 && (
+                  <TouchableOpacity
+                    onPress={async () => {
+                      if (user?.id) {
+                        await reminderService.clearAllReminders(user.id);
+                        refetchReminders();
+                      }
+                    }}
+                    className="px-2.5 py-1 rounded-full bg-rose-50 border border-rose-200"
+                  >
+                    <Text className="text-xs font-bold text-rose-600">Clear All</Text>
+                  </TouchableOpacity>
+                )}
+                <Pressable
+                  onPress={() => setNotifModalVisible(false)}
+                  className="w-8 h-8 rounded-full bg-zinc-100 items-center justify-center"
+                >
+                  <X size={18} color="#71717A" />
+                </Pressable>
+              </View>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} className="mb-4">
@@ -435,13 +450,26 @@ export default function DashboardScreen() {
                 reminders.map((r) => (
                   <View key={r.id} className="p-4 bg-zinc-50 border border-zinc-200/80 rounded-2xl mb-3">
                     <View className="flex-row items-center justify-between mb-1">
-                      <View className="flex-row items-center gap-2">
+                      <View className="flex-row items-center gap-2 flex-1 mr-2">
                         <View className="w-2 h-2 rounded-full bg-indigo-600" />
-                        <Text className="text-xs font-extrabold text-zinc-900">{r.title}</Text>
+                        <Text className="text-xs font-extrabold text-zinc-900 flex-1">{r.title}</Text>
                       </View>
-                      <View className="flex-row items-center gap-1">
-                        <Clock size={12} color="#A1A1AA" />
-                        <Text className="text-[10px] font-semibold text-zinc-400">{formatDate(r.scheduled_at)}</Text>
+                      <View className="flex-row items-center gap-2">
+                        <View className="flex-row items-center gap-1">
+                          <Clock size={12} color="#A1A1AA" />
+                          <Text className="text-[10px] font-semibold text-zinc-400">{formatDateTime(r.scheduled_at)}</Text>
+                        </View>
+                        {r.id && (
+                          <TouchableOpacity
+                            onPress={async () => {
+                              await reminderService.deleteReminder(r.id!);
+                              refetchReminders();
+                            }}
+                            className="p-1.5 rounded-full bg-zinc-200/60 active:bg-rose-100"
+                          >
+                            <Trash2 size={13} color="#71717A" />
+                          </TouchableOpacity>
+                        )}
                       </View>
                     </View>
                     <Text className="text-xs text-zinc-600 pl-4">{r.body}</Text>

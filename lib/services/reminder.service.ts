@@ -57,4 +57,22 @@ export const reminderService = {
 
     if (error) throw error;
   },
+
+  async deleteReminder(reminderId: string): Promise<void> {
+    const { error } = await supabase
+      .from('reminders')
+      .delete()
+      .eq('id', reminderId);
+
+    if (error) throw error;
+  },
+
+  async clearAllReminders(userId: string): Promise<void> {
+    const { error } = await supabase
+      .from('reminders')
+      .delete()
+      .eq('user_id', userId);
+
+    if (error) throw error;
+  },
 };
