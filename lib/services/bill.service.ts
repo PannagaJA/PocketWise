@@ -58,17 +58,15 @@ export const billService = {
 
     if (error) throw error;
 
-    // Create a reminder 1 day before the due date at 09:00 AM
+    // Create a reminder at the exact due date & time specified by the user
     try {
       const dueDateObj = new Date(bill.due_date);
-      dueDateObj.setDate(dueDateObj.getDate() - 1);
-      dueDateObj.setHours(9, 0, 0, 0);
 
       await reminderService.createReminder({
         user_id: bill.user_id,
         type: 'bill',
         reference_id: data.id,
-        title: `🔔 ${bill.name} due tomorrow`,
+        title: `🔔 ${bill.name} due now`,
         body: `Expected amount: ₹${(bill.expected_amount_minor / 100).toLocaleString('en-IN')}`,
         scheduled_at: dueDateObj.toISOString(),
       });

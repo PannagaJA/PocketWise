@@ -6,6 +6,9 @@ import { deepLinkService } from '../lib/notifications/deep-link.service';
 import { ShieldCheck, Fingerprint, Delete } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
+export const AppLockContext = React.createContext<{ isLocked: boolean }>({ isLocked: false });
+export const useAppLock = () => React.useContext(AppLockContext);
+
 interface AppLockGateProps {
   children: React.ReactNode;
 }
@@ -95,7 +98,7 @@ export function AppLockGate({ children }: AppLockGateProps) {
   };
 
   return (
-    <>
+    <AppLockContext.Provider value={{ isLocked }}>
       {children}
       <Modal visible={isLocked} animationType="fade" transparent={false}>
         <SafeAreaView className="flex-1 bg-white justify-between px-6 py-8">
@@ -197,6 +200,6 @@ export function AppLockGate({ children }: AppLockGateProps) {
           </View>
         </SafeAreaView>
       </Modal>
-    </>
+    </AppLockContext.Provider>
   );
 }

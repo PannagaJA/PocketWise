@@ -1,4 +1,5 @@
 import { supabase } from '../supabase';
+import { reminderService } from './reminder.service';
 
 export interface Subscription {
   id: string;
@@ -33,6 +34,21 @@ export const subscriptionService = {
       .single();
 
     if (error) throw error;
+
+    try {
+      const billingDateObj = new Date(sub.next_billing_date);
+      await reminderService.createReminder({
+        user_id: sub.user_id,
+        type: 'subscription',
+        reference_id: data.id,
+        title: `🔔 Subscription Renewal: ${sub.name}`,
+        body: `Renewal amount: ₹${(sub.amount_minor / 100).toLocaleString('en-IN')}`,
+        scheduled_at: billingDateObj.toISOString(),
+      });
+    } catch (remErr) {
+      console.warn('Could not schedule subscription reminder:', remErr);
+    }
+
     return data;
   },
 
@@ -43,5 +59,6 @@ export const subscriptionService = {
       .eq('id', id);
 
     if (error) throw error;
+    await reminderService.cancelRemindersByReference(id);
   },
 };

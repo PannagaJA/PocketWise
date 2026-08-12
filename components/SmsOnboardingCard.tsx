@@ -78,9 +78,9 @@ export function SmsOnboardingModal({ visible, onClose, onEnabled }: SmsOnboardin
               size="lg"
               onPress={handleEnableTracking}
               disabled={loading}
-              className="bg-indigo-600 active:bg-indigo-700"
+              className="bg-indigo-600 active:bg-indigo-700 flex-row items-center justify-center gap-2.5"
             >
-              <CheckCircle size={18} color="#FFFFFF" className="mr-2" />
+              <CheckCircle size={18} color="#FFFFFF" style={{ marginRight: 10 }} />
               <Text className="text-white font-bold text-base">Enable Automatic Tracking</Text>
             </Button>
 

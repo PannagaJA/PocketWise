@@ -14,6 +14,7 @@ import { categoryService } from '../lib/services/category.service';
 import { formatMoney, formatDate, parseMoneyToMinor } from '../lib/finance/core';
 import { Plus, X, ArrowLeft, Calendar, CheckCircle2, Clock, AlertCircle, ShieldAlert, ChevronLeft, ChevronRight, Check } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { TimePickerModal, format12HourTime } from '../components/ui/TimePickerModal';
 
 export default function BillsScreen() {
   const { user } = useAuth();
@@ -21,12 +22,14 @@ export default function BillsScreen() {
   const queryClient = useQueryClient();
   const [modalVisible, setModalVisible] = useState(false);
   const [calendarModalVisible, setCalendarModalVisible] = useState(false);
+  const [timePickerVisible, setTimePickerVisible] = useState(false);
   const [billToPay, setBillToPay] = useState<any | null>(null);
 
   // Form state
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [dueDate, setDueDate] = useState(new Date().toISOString().split('T')[0]);
+  const [dueTime, setDueTime] = useState('09:00');
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
 
@@ -82,11 +85,14 @@ export default function BillsScreen() {
       const minorAmount = parseMoneyToMinor(amount);
       if (minorAmount <= 0) throw new Error('Amount must be greater than zero');
 
+      const timePart = dueTime.trim() || '09:00';
+      const finalDueDate = `${dueDate}T${timePart}:00`;
+
       return billService.createBill({
         user_id: user!.id,
         name,
         expected_amount_minor: minorAmount,
-        due_date: dueDate,
+        due_date: finalDueDate,
         frequency: 'monthly',
         category_id: selectedCategoryId || undefined,
         account_id: selectedAccountId || accounts[0]?.id,
@@ -99,6 +105,7 @@ export default function BillsScreen() {
       setModalVisible(false);
       setName('');
       setAmount('');
+      setDueTime('09:00');
     },
     onError: (err: any) => {
       Alert.alert('Error', err.message || 'Failed to create bill');
@@ -295,7 +302,7 @@ export default function BillsScreen() {
       {/* Add Bill Modal */}
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View className="flex-1 justify-end bg-black/40">
-          <View className="bg-white rounded-t-3xl p-6 border-t border-zinc-200">
+          <View className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]">
             <View className="flex-row justify-between items-center mb-4">
               <Text className="text-xl font-bold text-zinc-900">Add Bill</Text>
               <Pressable onPress={() => setModalVisible(false)} className="p-1">
@@ -303,48 +310,68 @@ export default function BillsScreen() {
               </Pressable>
             </View>
 
-            <Input
-              label="Bill Name"
-              placeholder="e.g. Electricity Bill, Wifi"
-              value={name}
-              onChangeText={setName}
-            />
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <Input
+                label="Bill Name"
+                placeholder="e.g. Electricity Bill, Wifi"
+                value={name}
+                onChangeText={setName}
+              />
 
-            <Input
-              label="Expected Amount (₹)"
-              placeholder="1450.00"
-              keyboardType="numeric"
-              value={amount}
-              onChangeText={setAmount}
-            />
+              <Input
+                label="Expected Amount (₹)"
+                placeholder="1450.00"
+                keyboardType="numeric"
+                value={amount}
+                onChangeText={setAmount}
+              />
 
-            {/* Interactive Calendar Date Picker Button */}
-            <View className="mb-4">
-              <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Due Date</Text>
-              <Pressable
-                onPress={() => {
-                  try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                  setCalendarModalVisible(true);
-                }}
-                className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
+              {/* Interactive Calendar Date Picker Button */}
+              <View className="mb-4">
+                <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Due Date</Text>
+                <Pressable
+                  onPress={() => {
+                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                    setCalendarModalVisible(true);
+                  }}
+                  className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
+                >
+                  <View className="flex-row items-center gap-2">
+                    <Calendar size={18} color="#6366F1" />
+                    <Text className="text-sm font-medium text-zinc-900">{formatDate(dueDate)}</Text>
+                  </View>
+                  <Text className="text-xs font-bold text-indigo-600">Pick Date</Text>
+                </Pressable>
+              </View>
+
+              {/* Reminder Time Selection */}
+              <View className="mb-4">
+                <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Reminder Time</Text>
+                <Pressable
+                  onPress={() => {
+                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                    setTimePickerVisible(true);
+                  }}
+                  className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
+                >
+                  <View className="flex-row items-center gap-2">
+                    <Clock size={18} color="#6366F1" />
+                    <Text className="text-sm font-bold text-zinc-900">{format12HourTime(dueTime)}</Text>
+                  </View>
+                  <Text className="text-xs font-bold text-indigo-600">Pick Time</Text>
+                </Pressable>
+              </View>
+
+              <Button
+                variant="primary"
+                size="lg"
+                loading={createBillMutation.isPending}
+                className="mt-2 mb-4"
+                onPress={() => createBillMutation.mutate()}
               >
-                <View className="flex-row items-center gap-2">
-                  <Calendar size={18} color="#6366F1" />
-                  <Text className="text-sm font-medium text-zinc-900">{formatDate(dueDate)}</Text>
-                </View>
-                <Text className="text-xs font-bold text-indigo-600">Pick Date</Text>
-              </Pressable>
-            </View>
-
-            <Button
-              variant="primary"
-              size="lg"
-              loading={createBillMutation.isPending}
-              className="mt-2 mb-4"
-              onPress={() => createBillMutation.mutate()}
-            >
-              <Text className="text-white font-semibold">Save Bill & Enable Reminder</Text>
-            </Button>
+                <Text className="text-white font-semibold">Save Bill & Enable Reminder</Text>
+              </Button>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -431,6 +458,14 @@ export default function BillsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Time Picker Modal */}
+      <TimePickerModal
+        visible={timePickerVisible}
+        onClose={() => setTimePickerVisible(false)}
+        selectedTime24={dueTime}
+        onSelectTime={(t24) => setDueTime(t24)}
+      />
     </SafeAreaView>
   );
 }

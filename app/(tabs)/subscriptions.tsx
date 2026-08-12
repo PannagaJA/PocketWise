@@ -10,8 +10,9 @@ import { useAuth } from '../../context/AuthContext';
 import { subscriptionService, Subscription } from '../../lib/services/subscription.service';
 import { formatCurrency, formatDate } from '../../lib/formatters';
 import { parseMoneyToMinor } from '../../lib/finance/core';
-import { Plus, Bell, CreditCard, X, Calendar as CalendarIcon, ChevronLeft, ChevronRight, ShieldCheck, Trash2, AlertTriangle } from 'lucide-react-native';
+import { Plus, Bell, CreditCard, X, Calendar as CalendarIcon, ChevronLeft, ChevronRight, ShieldCheck, Trash2, AlertTriangle, Clock } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { TimePickerModal, format12HourTime } from '../../components/ui/TimePickerModal';
 
 export default function SubscriptionsScreen() {
   const { user } = useAuth();
@@ -21,12 +22,14 @@ export default function SubscriptionsScreen() {
   const [amount, setAmount] = useState('');
   const [cycle, setCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [nextBillingDate, setNextBillingDate] = useState('');
+  const [renewalTime, setRenewalTime] = useState('09:00');
 
   // Delete Confirmation Modal state
   const [subToDelete, setSubToDelete] = useState<Subscription | null>(null);
 
-  // Native Calendar Picker Modal state
+  // Native Calendar & Time Picker Modal state
   const [calendarPickerVisible, setCalendarPickerVisible] = useState(false);
+  const [timePickerVisible, setTimePickerVisible] = useState(false);
   const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
   const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth()); // 0-indexed
 
@@ -48,6 +51,8 @@ export default function SubscriptionsScreen() {
         nextBilling.setDate(nextBilling.getDate() + (cycle === 'monthly' ? 30 : 365));
         finalBillingDate = nextBilling.toISOString().split('T')[0];
       }
+      const timePart = renewalTime.trim() || '09:00';
+      const fullBillingTimestamp = `${finalBillingDate}T${timePart}:00`;
 
       return subscriptionService.createSubscription({
         user_id: user!.id,
@@ -55,7 +60,7 @@ export default function SubscriptionsScreen() {
         amount_minor: minorAmount,
         currency: 'INR',
         billing_cycle: cycle,
-        next_billing_date: finalBillingDate,
+        next_billing_date: fullBillingTimestamp,
         status: 'active',
       });
     },
@@ -70,6 +75,7 @@ export default function SubscriptionsScreen() {
       setName('');
       setAmount('');
       setNextBillingDate('');
+      setRenewalTime('09:00');
     },
     onError: (err: any) => {
       Alert.alert('Error', err.message || 'Failed to create subscription');
@@ -274,7 +280,7 @@ export default function SubscriptionsScreen() {
       {/* Main Add Subscription Modal */}
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View className="flex-1 justify-end bg-black/40">
-          <View className="bg-white rounded-t-3xl p-6 border-t border-zinc-200">
+          <View className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]">
             <View className="flex-row justify-between items-center mb-6">
               <Text className="text-xl font-bold text-zinc-900">Add Subscription</Text>
               <Pressable onPress={() => setModalVisible(false)}>
@@ -282,75 +288,97 @@ export default function SubscriptionsScreen() {
               </Pressable>
             </View>
 
-            <Input
-              label="Service Name"
-              placeholder="e.g. Netflix, Spotify, iCloud"
-              value={name}
-              onChangeText={setName}
-            />
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <Input
+                label="Service Name"
+                placeholder="e.g. Netflix, Spotify, iCloud"
+                value={name}
+                onChangeText={setName}
+              />
 
-            <Input
-              label="Amount (₹)"
-              placeholder="649.00"
-              keyboardType="numeric"
-              value={amount}
-              onChangeText={setAmount}
-            />
+              <Input
+                label="Amount (₹)"
+                placeholder="649.00"
+                keyboardType="numeric"
+                value={amount}
+                onChangeText={setAmount}
+              />
 
-            {/* Renewal Date Picker Button with Perfect Spacing */}
-            <View className="mb-4">
-              <View className="flex-row items-center justify-between mb-1.5">
-                <Text className="text-xs font-semibold text-zinc-700 uppercase tracking-wide">Renewal Date</Text>
-                <Text className="text-xs font-medium text-indigo-600">Optional</Text>
-              </View>
-              <Pressable
-                onPress={() => setCalendarPickerVisible(true)}
-                className="flex-row items-center justify-between bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3.5"
-              >
-                <View className="flex-row items-center gap-3 flex-1 pr-2">
-                  <View className="w-8 h-8 rounded-lg bg-indigo-50 items-center justify-center">
-                    <CalendarIcon size={18} color="#6366F1" />
-                  </View>
-                  <Text className={`text-sm ${nextBillingDate ? 'text-zinc-900 font-bold' : 'text-zinc-400 font-medium'}`}>
-                    {nextBillingDate ? formatDate(nextBillingDate) : 'Select renewal date (defaults to +1 cycle)'}
-                  </Text>
+              {/* Renewal Date Picker Button with Perfect Spacing */}
+              <View className="mb-4">
+                <View className="flex-row items-center justify-between mb-1.5">
+                  <Text className="text-xs font-semibold text-zinc-700 uppercase tracking-wide">Renewal Date</Text>
+                  <Text className="text-xs font-medium text-indigo-600">Optional</Text>
                 </View>
+                <Pressable
+                  onPress={() => setCalendarPickerVisible(true)}
+                  className="flex-row items-center justify-between bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3.5"
+                >
+                  <View className="flex-row items-center gap-3 flex-1 pr-2">
+                    <View className="w-8 h-8 rounded-lg bg-indigo-50 items-center justify-center">
+                      <CalendarIcon size={18} color="#6366F1" />
+                    </View>
+                    <Text className={`text-sm ${nextBillingDate ? 'text-zinc-900 font-bold' : 'text-zinc-400 font-medium'}`}>
+                      {nextBillingDate ? formatDate(nextBillingDate) : 'Select renewal date (defaults to +1 cycle)'}
+                    </Text>
+                  </View>
 
-                {nextBillingDate ? (
-                  <Pressable
-                    onPress={() => setNextBillingDate('')}
-                    className="w-7 h-7 rounded-full bg-zinc-200 items-center justify-center"
-                  >
-                    <X size={14} color="#3F3F46" />
-                  </Pressable>
-                ) : null}
-              </Pressable>
-            </View>
+                  {nextBillingDate ? (
+                    <Pressable
+                      onPress={() => setNextBillingDate('')}
+                      className="w-7 h-7 rounded-full bg-zinc-200 items-center justify-center"
+                    >
+                      <X size={14} color="#3F3F46" />
+                    </Pressable>
+                  ) : null}
+                </Pressable>
+              </View>
 
-            {/* Cycle */}
-            <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-6">
-              <Pressable
-                onPress={() => setCycle('monthly')}
-                className={`flex-1 py-2.5 rounded-xl items-center ${cycle === 'monthly' ? 'bg-white' : ''}`}
+              {/* Reminder Time Selection */}
+              <View className="mb-4">
+                <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Reminder Time</Text>
+                <Pressable
+                  onPress={() => {
+                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                    setTimePickerVisible(true);
+                  }}
+                  className="flex-row justify-between items-center bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3.5"
+                >
+                  <View className="flex-row items-center gap-3">
+                    <View className="w-8 h-8 rounded-lg bg-indigo-50 items-center justify-center">
+                      <Clock size={18} color="#6366F1" />
+                    </View>
+                    <Text className="text-sm font-bold text-zinc-900">{format12HourTime(renewalTime)}</Text>
+                  </View>
+                  <Text className="text-xs font-bold text-indigo-600">Pick Time</Text>
+                </Pressable>
+              </View>
+
+              {/* Cycle */}
+              <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-6">
+                <Pressable
+                  onPress={() => setCycle('monthly')}
+                  className={`flex-1 py-2.5 rounded-xl items-center ${cycle === 'monthly' ? 'bg-white' : ''}`}
+                >
+                  <Text className={`font-semibold ${cycle === 'monthly' ? 'text-zinc-900' : 'text-zinc-500'}`}>Monthly</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setCycle('yearly')}
+                  className={`flex-1 py-2.5 rounded-xl items-center ${cycle === 'yearly' ? 'bg-white' : ''}`}
+                >
+                  <Text className={`font-semibold ${cycle === 'yearly' ? 'text-zinc-900' : 'text-zinc-500'}`}>Yearly</Text>
+                </Pressable>
+              </View>
+
+              <Button
+                variant="primary"
+                size="lg"
+                loading={createSubMutation.isPending}
+                onPress={() => createSubMutation.mutate()}
               >
-                <Text className={`font-semibold ${cycle === 'monthly' ? 'text-zinc-900' : 'text-zinc-500'}`}>Monthly</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setCycle('yearly')}
-                className={`flex-1 py-2.5 rounded-xl items-center ${cycle === 'yearly' ? 'bg-white' : ''}`}
-              >
-                <Text className={`font-semibold ${cycle === 'yearly' ? 'text-zinc-900' : 'text-zinc-500'}`}>Yearly</Text>
-              </Pressable>
-            </View>
-
-            <Button
-              variant="primary"
-              size="lg"
-              loading={createSubMutation.isPending}
-              onPress={() => createSubMutation.mutate()}
-            >
-              <Text className="text-white font-semibold">Save Subscription</Text>
-            </Button>
+                <Text className="text-white font-semibold">Save Subscription</Text>
+              </Button>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -439,6 +467,14 @@ export default function SubscriptionsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Time Picker Modal */}
+      <TimePickerModal
+        visible={timePickerVisible}
+        onClose={() => setTimePickerVisible(false)}
+        selectedTime24={renewalTime}
+        onSelectTime={(t24) => setRenewalTime(t24)}
+      />
     </SafeAreaView>
   );
 }

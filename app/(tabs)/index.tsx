@@ -8,6 +8,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { useAuth } from '../../context/AuthContext';
+import { useAppLock } from '../../components/AppLockGate';
 import { accountService } from '../../lib/services/account.service';
 import { transactionService } from '../../lib/services/transaction.service';
 import { billService } from '../../lib/services/bill.service';
@@ -25,6 +26,7 @@ import { ParsedSmsTransaction } from '../../lib/sms/types';
 
 export default function DashboardScreen() {
   const { user } = useAuth();
+  const { isLocked } = useAppLock();
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -34,6 +36,7 @@ export default function DashboardScreen() {
   const [selectedReviewTx, setSelectedReviewTx] = useState<ParsedSmsTransaction | null>(null);
 
   const checkSmsOnboarding = async () => {
+    if (!user?.id || isLocked) return;
     const settings = await smsStorage.getSettings();
     if (!settings.autoTrackingEnabled && !settings.permissionGranted) {
       setSmsOnboardingVisible(true);
@@ -43,12 +46,12 @@ export default function DashboardScreen() {
   };
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || isLocked) return;
     checkSmsOnboarding();
     smsListenerService.startListening(() => {
       checkSmsOnboarding();
     });
-  }, [user?.id]);
+  }, [user?.id, isLocked]);
 
   const { data: accounts = [], isLoading: loadingAcc, refetch: refetchAcc } = useQuery({
     queryKey: ['accounts', user?.id],
@@ -492,7 +495,7 @@ export default function DashboardScreen() {
 
       {/* SMS Onboarding Modal */}
       <SmsOnboardingModal
-        visible={smsOnboardingVisible}
+        visible={smsOnboardingVisible && !!user?.id && !isLocked}
         onClose={() => setSmsOnboardingVisible(false)}
         onEnabled={() => checkSmsOnboarding()}
       />

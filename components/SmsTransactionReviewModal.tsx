@@ -151,10 +151,10 @@ export function SmsTransactionReviewModal({
                 <Button
                   variant="primary"
                   size="lg"
-                  className="flex-1 bg-indigo-600"
+                  className="flex-1 bg-indigo-600 flex-row items-center justify-center"
                   onPress={handleConfirm}
                 >
-                  <CheckCircle size={18} color="#FFFFFF" className="mr-1.5" />
+                  <CheckCircle size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
                   <Text className="text-white font-bold">Confirm</Text>
                 </Button>
               </View>

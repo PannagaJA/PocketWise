@@ -457,7 +457,7 @@ export default function TransactionsScreen() {
               </Pressable>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {/* Type selector */}
               <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-4">
                 <Pressable
