@@ -171,11 +171,11 @@ class SmsListenerService {
     // Update statistics count
     await smsStorage.incrementDetectedCount();
 
-    // High confidence (Score >= 80 & identified bank/account) -> Auto save directly into App Store
-    if (parsedTx.confidenceScore >= 80 && !parsedTx.needsReview) {
-      this.saveTransactionToStore(parsedTx);
+    // High/Medium confidence & identified bank -> Auto save directly into App Store & Supabase
+    if (parsedTx.confidenceScore >= 70 && parsedTx.bankId !== 'unknown') {
+      await this.saveTransactionToStore(parsedTx);
     } else {
-      // Low/Medium confidence -> Add to pending review queue
+      // Low confidence or unknown bank -> Add to pending review queue
       await smsStorage.addPendingReview(parsedTx);
     }
 

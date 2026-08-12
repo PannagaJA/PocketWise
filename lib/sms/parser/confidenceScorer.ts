@@ -45,10 +45,9 @@ export function calculateConfidenceScore(signals: {
   score = Math.max(0, Math.min(100, score));
 
   // Determine review requirement threshold
-  // Scores >= 80: Auto-save cleanly
-  // Scores 60 - 79: Auto-save with badge / review card
-  // Scores < 60: Request manual user review before adding
-  let needsReview = score < 80;
+  // Scores >= 70 with identified bank: Auto-save cleanly
+  // Scores < 70 or unknown bank: Request manual user review
+  let needsReview = score < 70;
   let reason: string | undefined;
 
   if (signals.bankMethod === 'unknown') {

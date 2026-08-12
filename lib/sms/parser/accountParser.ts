@@ -11,10 +11,11 @@ export function extractAccount(body: string): { maskedAccount: string; rawMatch:
 
   // Patterns for account/card numbers
   const patterns = [
-    /(?:a\/c|acct|account|card|a\/c no\.?|acc\.?|ac\.?)\s*(?:no\.?)?\s*(?:ending\s*)?:?\s*([xX]*\d{3,4}|\d{4})/i,
-    /(?:a\/c|account)\s*(?:[xX*]+(\d{4}))/i,
-    /ending\s+with\s+([xX]*\d{3,4}|\d{4})/i,
-    /card\s+([xX*]*\d{4})/i,
+    /(?:a\/c|acct|account|card|a\/c no\.?|acc\.?|ac\.?)\s*(?:no\.?)?\s*(?:ending\s*)?:?\s*([xX.*]*\d{3,4}|\d{4})/i,
+    /(?:credited|debited|transferred)?\s*(?:to|from|in)?\s*(?:\.{2,}|[xX*]{2,})(\d{3,4})/i,
+    /(?:a\/c|account)\s*(?:[xX*.]+(\d{4}))/i,
+    /ending\s+with\s+([xX.*]*\d{3,4}|\d{4})/i,
+    /card\s+([xX.*]*\d{4})/i,
   ];
 
   for (const pattern of patterns) {

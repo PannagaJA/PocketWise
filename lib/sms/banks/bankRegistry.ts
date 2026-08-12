@@ -59,7 +59,7 @@ export const INDIAN_BANKS: BankDefinition[] = [
     id: 'bob',
     name: 'Bank of Baroda',
     shortName: 'BOB',
-    senderPatterns: [/BOBBK/i, /BARODB/i, /BOBSMS/i, /^BOB/i, /BOBSMS-S$/i, /-BOBSMS/i],
+    senderPatterns: [/BOBBK/i, /BARODB/i, /BOBSMS/i, /BOBTXN/i, /BOB/i, /[A-Z]{2}-BOB/i],
     messagePatterns: [/Bank of Baroda/i, /BOB/i, /Baroda/i],
     color: '#F26522',
     isActive: true,
