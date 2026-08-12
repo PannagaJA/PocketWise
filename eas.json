@@ -15,7 +15,8 @@
       "environment": "preview",
       "distribution": "internal",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease -Pandroid.injected.build.abi.filters=arm64-v8a"
       }
     },
     "production": {
