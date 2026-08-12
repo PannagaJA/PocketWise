@@ -1,12 +1,14 @@
-import { Platform, PermissionsAndroid, Alert } from 'react-native';
+import { Platform, PermissionsAndroid, Alert, NativeModules, DeviceEventEmitter } from 'react-native';
 import { RawSMS, ParsedSmsTransaction } from '../types';
 import { parseBankSms } from '../parser';
 import { isDuplicateTransaction } from '../parser/duplicateDetector';
 import { smsStorage } from '../storage/smsStore';
 import { useAppStore } from '../../../store/useAppStore';
-import { supabase } from '../../services/supabase';
+import { supabase } from '../../supabase';
 import { transactionService } from '../../services/transaction.service';
 import { accountService } from '../../services/account.service';
+
+const { PocketWiseSmsModule } = NativeModules;
 
 type SmsListenerCallback = (tx: ParsedSmsTransaction) => void;
 
@@ -57,6 +59,12 @@ class SmsListenerService {
     if (Platform.OS !== 'android') return false;
 
     try {
+      if (PocketWiseSmsModule?.checkPermissionState) {
+        const state = await PocketWiseSmsModule.checkPermissionState();
+        await smsStorage.saveSettings({ permissionGranted: state.granted });
+        return state.granted;
+      }
+
       const receiveGranted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECEIVE_SMS);
       const readGranted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_SMS);
       const isGranted = receiveGranted && readGranted;
@@ -76,12 +84,53 @@ class SmsListenerService {
       this.callbacks.push(onTransactionDetected);
     }
 
-    if (this.isListening) return;
+    if (this.isListening) {
+      this.flushBackgroundQueue();
+      return;
+    }
     this.isListening = true;
 
     const hasPermission = await this.checkSmsPermissions();
     if (!hasPermission) {
       console.log('[SMS Listener] Running in standby mode (Permission not granted or iOS/Expo Go)');
+    }
+
+    // Subscribe to real-time native SMS receiver events
+    if (Platform.OS === 'android') {
+      DeviceEventEmitter.addListener('onSmsReceived', (event: any) => {
+        if (event && event.body) {
+          const rawSms: RawSMS = {
+            id: event.id || `sms_${Date.now()}`,
+            sender: event.sender || 'Unknown',
+            body: event.body,
+            timestamp: event.timestamp || Date.now(),
+          };
+          this.processIncomingSms(rawSms);
+        }
+      });
+
+      // Process any background queued SMS that arrived while app was closed
+      this.flushBackgroundQueue();
+    }
+  }
+
+  /**
+   * Flush any SMS messages received in the background while the app was closed.
+   */
+  async flushBackgroundQueue() {
+    if (Platform.OS !== 'android' || !PocketWiseSmsModule?.getUnprocessedSms) return;
+
+    try {
+      const queueJsonString = await PocketWiseSmsModule.getUnprocessedSms();
+      if (queueJsonString && queueJsonString !== '[]') {
+        const queue: RawSMS[] = JSON.parse(queueJsonString);
+        for (const rawSms of queue) {
+          await this.processIncomingSms(rawSms);
+        }
+        await PocketWiseSmsModule.clearUnprocessedSms();
+      }
+    } catch (err) {
+      console.warn('[SMS Listener] Error flushing background queue:', err);
     }
   }
 
@@ -187,7 +236,7 @@ class SmsListenerService {
             user_id: userId,
             name: `${parsedTx.bankName} ${parsedTx.maskedAccount ? `(${parsedTx.maskedAccount})` : ''}`.trim(),
             type: 'bank',
-            balance_minor: 0,
+            balance: 0,
             currency: 'INR',
           });
         }
