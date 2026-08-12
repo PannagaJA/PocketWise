@@ -41,6 +41,10 @@ function GlobalRealtimeSync() {
     // Start global native SMS listener immediately on app boot
     smsListenerService.startListening();
 
+    // Register notification response listener for deep linking when clicking phone tray notifications
+    const cleanupListener = deepLinkService.registerNotificationListener();
+    deepLinkService.checkColdStartNotification();
+
     if (!user?.id) return;
 
     // Listen to real-time postgres changes across all financial tables for the user
@@ -57,6 +61,7 @@ function GlobalRealtimeSync() {
 
     return () => {
       supabase.removeChannel(channel);
+      if (cleanupListener) cleanupListener();
     };
   }, [user?.id]);
 

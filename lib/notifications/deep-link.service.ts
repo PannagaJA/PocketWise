@@ -9,7 +9,6 @@ let pendingRoute: string | null = null;
 let isAppLockedState = false;
 
 function getNotificationsModule() {
-  if (isExpoGo) return null;
   try {
     return require('expo-notifications');
   } catch {
@@ -76,7 +75,6 @@ export const deepLinkService = {
   },
 
   async checkColdStartNotification() {
-    if (isExpoGo) return;
     try {
       const Notifications = getNotificationsModule();
       if (!Notifications) return;
@@ -90,7 +88,6 @@ export const deepLinkService = {
   },
 
   registerNotificationListener() {
-    if (isExpoGo) return () => {};
     try {
       const Notifications = getNotificationsModule();
       if (!Notifications) return;

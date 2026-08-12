@@ -5,27 +5,24 @@ import { supabase } from '../supabase';
 const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 let Notifications: any = null;
-if (!isExpoGo) {
-  try {
-    Notifications = require('expo-notifications');
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-        shouldShowBanner: true,
-        shouldShowList: true,
-      }),
-    });
-  } catch {
-    Notifications = null;
-  }
+try {
+  Notifications = require('expo-notifications');
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+} catch {
+  Notifications = null;
 }
 
 export const notificationService = {
   async requestPermissions(): Promise<boolean> {
-    if (isExpoGo || !Notifications) {
-      console.log('Expo Go detected: Remote Push Notifications require a Development Build or standalone APK.');
+    if (!Notifications) {
       return false;
     }
 
@@ -108,8 +105,14 @@ export const notificationService = {
   /**
    * Schedule a local push notification on the device for upcoming bill/subscription due dates.
    */
-  async scheduleDueDateReminder(id: string, title: string, body: string, triggerDate: Date): Promise<string | null> {
-    if (isExpoGo || !Notifications) return null;
+  async scheduleDueDateReminder(
+    id: string,
+    title: string,
+    body: string,
+    triggerDate: Date,
+    type: 'bill' | 'subscription' | 'budget' | 'goal' | 'transaction' = 'bill'
+  ): Promise<string | null> {
+    if (!Notifications) return null;
 
     try {
       await this.requestPermissions();
@@ -125,7 +128,11 @@ export const notificationService = {
           title,
           body,
           sound: 'default',
-          data: { reminderId: id, type: 'due_date' },
+          data: {
+            reminderId: id,
+            type: type,
+            reference_id: id,
+          },
         },
         trigger: triggerDate,
       });

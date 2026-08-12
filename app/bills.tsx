@@ -112,7 +112,8 @@ export default function BillsScreen() {
           newBill?.id || `bill_${Date.now()}`,
           `Upcoming Bill Due: ${name}`,
           `Your bill payment of ${formatMoney(parseMoneyToMinor(amount))} is due.`,
-          triggerDate
+          triggerDate,
+          'bill'
         );
       } catch (err) {
         console.warn('Could not schedule local bill reminder:', err);

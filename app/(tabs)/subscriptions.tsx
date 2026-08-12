@@ -83,7 +83,8 @@ export default function SubscriptionsScreen() {
           newSub?.id || `sub_${Date.now()}`,
           `🔔 Subscription Renewal: ${name}`,
           `Renewal amount of ${formatCurrency(parseMoneyToMinor(amount))} is due.`,
-          triggerDate
+          triggerDate,
+          'subscription'
         );
       } catch (err) {
         console.warn('Could not schedule local subscription reminder:', err);
