@@ -43,11 +43,12 @@ export default function DashboardScreen() {
   };
 
   useEffect(() => {
+    if (!user?.id) return;
     checkSmsOnboarding();
     smsListenerService.startListening(() => {
       checkSmsOnboarding();
     });
-  }, []);
+  }, [user?.id]);
 
   const { data: accounts = [], isLoading: loadingAcc, refetch: refetchAcc } = useQuery({
     queryKey: ['accounts', user?.id],
