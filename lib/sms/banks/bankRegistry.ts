@@ -50,7 +50,7 @@ export const INDIAN_BANKS: BankDefinition[] = [
     id: 'canara',
     name: 'Canara Bank',
     shortName: 'Canara',
-    senderPatterns: [/CANBNK/i, /CNRBK/i, /^CANARA/i],
+    senderPatterns: [/CANBNK/i, /CNRBK/i, /CANARA/i, /[A-Z]{2}-CANBNK/i, /[A-Z]{2}-CNRBK/i],
     messagePatterns: [/Canara Bank/i, /Canara/i],
     color: '#FFB800',
     isActive: true,
