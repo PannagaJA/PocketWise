@@ -26,7 +26,6 @@ function withAndroidSmsReceiver(config) {
         $: {
           'android:name': receiverName,
           'android:exported': 'true',
-          'android:permission': 'android.permission.BROADCAST_SMS',
         },
         'intent-filter': [
           {
