@@ -3,7 +3,7 @@ import { RawSMS, ParsedSmsTransaction } from '../types';
 import { parseBankSms } from '../parser';
 import { isDuplicateTransaction } from '../parser/duplicateDetector';
 import { smsStorage } from '../storage/smsStore';
-import { useAppStore } from '../../store/useAppStore';
+import { useAppStore } from '../../../store/useAppStore';
 
 type SmsListenerCallback = (tx: ParsedSmsTransaction) => void;
 
