@@ -248,6 +248,7 @@ export default function DashboardScreen() {
                 <Text className="text-sm font-bold text-rose-400">{formatMoney(monthlyExpense)}</Text>
               </View>
             </View>
+          </View>
         </Card>
 
         {/* Pending SMS Transaction Review Alert Banner */}

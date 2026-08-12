@@ -322,19 +322,15 @@ export default function SmsSettingsScreen() {
         </View>
       </ScrollView>
 
-      {selectedReviewTx && (
-        <SmsTransactionReviewModal
-          visible={!!selectedReviewTx}
-          parsedTx={selectedReviewTx}
-          onClose={() => setSelectedReviewTx(null)}
-          onSave={async (finalTx) => {
-            await smsListenerService.saveTransactionToStore(finalTx);
-            await smsStorage.removePendingReview(selectedReviewTx.id);
-            setSelectedReviewTx(null);
-            loadSmsSettings();
-          }}
-        />
-      )}
+      <SmsTransactionReviewModal
+        visible={!!selectedReviewTx}
+        transaction={selectedReviewTx}
+        onClose={() => setSelectedReviewTx(null)}
+        onConfirm={() => {
+          setSelectedReviewTx(null);
+          loadSmsSettings();
+        }}
+      />
     </SafeAreaView>
   );
 }
