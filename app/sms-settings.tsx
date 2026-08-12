@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { ChevronLeft, ShieldCheck, Smartphone, Building2, CheckCircle2, AlertTriangle, Sparkles, RefreshCw } from 'lucide-react-native';
 import { smsStorage } from '../lib/sms/storage/smsStore';
