@@ -478,10 +478,24 @@ class PocketWiseNotificationListenerService : NotificationListenerService() {
 
         if (!isBankCandidate) return
 
-        val senderName = if (hasTitle) title!! else "Google Messages"
+        // Resolve clean sender: prefer title if present (e.g., "AD-BOBBK" or "Bank of Baroda" or sender name)
+        var senderName = if (hasTitle) title!! else "Google Messages"
+
+        // If title is a contact or generic header like "Messages", search body for explicit bank name
+        if (senderName == "Google Messages" || senderName.equals("Messages", ignoreCase = true)) {
+            val bodyUpper = bodyText.uppercase()
+            val knownBank = listOf("BANK OF BARODA", "HDFC BANK", "SBI", "ICICI BANK", "AXIS BANK", "KOTAK", "CANARA BANK", "PUNJAB NATIONAL BANK", "UNION BANK")
+                .firstOrNull { bodyUpper.contains(it) }
+            if (knownBank != null) {
+                senderName = knownBank
+            }
+        }
+
         val timestamp = sbn.postTime
 
-        val stableId = generateSmsId(senderName, timestamp, bodyText)
+        // Create timestamp bucket (rounded to 3-minute window) so updated/re-posted notifications get exact same ID
+        val timeBucket = timestamp / (3 * 60 * 1000L)
+        val stableId = generateSmsId(senderName, timeBucket, bodyText)
 
         val smsJson = JSONObject().apply {
             put("id", stableId)

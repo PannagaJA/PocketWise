@@ -34,7 +34,8 @@ export function extractMerchantAndCategory(
   // 1. Regex pattern matches for merchant indicators
   const merchantPatterns = [
     /(?:refund\s+from)\s+([A-Za-z0-9\s._&-]+?)(?=\s+(?:to|on|ref|txn|val|bal|via|a\/c|card|link|dated|\.|\n|$))/i,
-    /(?:paid\s+to|spent\s+at|cr\.?\s+to|to)\s+([a-zA-Z0-9._-]+@[a-zA-Z0-9]+|[A-Za-z0-9\s._&-]+?)(?=\s+(?:on|ref|txn|val|bal|via|using|a\/c|card|link|dated|\.|\n|$))/i,
+    /(?:paid\s+to|spent\s+at|credited\s+by|towards|info:\s*|at)\s+([a-zA-Z0-9._-]+@[a-zA-Z0-9]+|[A-Za-z0-9\s._&-]+?)(?=\s+(?:on|ref|txn|val|bal|via|using|a\/c|card|link|dated|\.|\n|$))/i,
+    /(?:to)\s+([a-zA-Z0-9._-]+@[a-zA-Z0-9]+|[A-Za-z0-9\s._&-]+?)(?=\s+(?:on|ref|txn|val|bal|via|using|a\/c|card|link|dated|\.|\n|$))/i,
     /vpa\s+([a-zA-Z0-9._-]+@[a-zA-Z0-9]+)/i,
   ];
 
@@ -43,7 +44,7 @@ export function extractMerchantAndCategory(
     if (match && match[1]) {
       const candidate = match[1].trim();
       // Filter out invalid generic noise
-      if (candidate.length > 2 && !candidate.toLowerCase().includes('bank') && !candidate.toLowerCase().includes('account')) {
+      if (candidate.length > 2 && !candidate.toLowerCase().includes('bank') && !candidate.toLowerCase().includes('account') && !candidate.toLowerCase().includes('your')) {
         rawExtracted = candidate;
         break;
       }
@@ -60,7 +61,7 @@ export function extractMerchantAndCategory(
   cleanMerchant = cleanMerchant.replace(/^(INF|UPI|PAYTM|BILLDESK|RAZORPAY|CCAVENUE)\*/i, '').trim();
 
   if (!cleanMerchant) {
-    return { merchant: 'Bank Transaction', originalMerchant: rawExtracted, category: 'Other' };
+    return { merchant: '', originalMerchant: rawExtracted, category: 'Other' };
   }
 
   // Format nice display name (capitalized words)

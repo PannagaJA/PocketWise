@@ -143,12 +143,12 @@ class SmsListenerService {
   }
 
   /**
-   * Flush background queue from SharedPreferences and scan recent device Inbox for any missed SMS.
+   * Flush background queue from SharedPreferences.
    */
   async flushBackgroundQueue() {
     if (Platform.OS !== 'android') return;
 
-    // 1. Flush queued SMS from Receiver SharedPreferences
+    // Flush queued SMS from Receiver / Notification Listener SharedPreferences
     if (PocketWiseSmsModule?.getUnprocessedSms) {
       try {
         const queueJsonString = await PocketWiseSmsModule.getUnprocessedSms();
@@ -161,20 +161,6 @@ class SmsListenerService {
         }
       } catch (err) {
         console.warn('[SMS Listener] Error flushing background queue:', err);
-      }
-    }
-
-    // 2. Scan recent SMS Inbox directly via ContentResolver (Secondary Fallback)
-    if (PocketWiseSmsModule?.readRecentInboxSms) {
-      try {
-        const inboxList: RawSMS[] = await PocketWiseSmsModule.readRecentInboxSms();
-        if (Array.isArray(inboxList)) {
-          for (const rawSms of inboxList) {
-            await this.processIncomingSms(rawSms);
-          }
-        }
-      } catch (err) {
-        console.warn('[SMS Listener] Error reading inbox SMS:', err);
       }
     }
   }
@@ -246,6 +232,15 @@ class SmsListenerService {
       localAccount = store.accounts[0]; // fallback to primary account
     }
 
+    // Clean merchant/payee formatting: Avoid 'Bank Transaction (Unknown)' label
+    let merchantLabel = parsedTx.merchant && parsedTx.merchant !== 'Bank Transaction' ? parsedTx.merchant : '';
+    if (!merchantLabel) {
+      merchantLabel = parsedTx.type === 'income' ? 'Received Payment' : 'Bank Payment';
+    }
+
+    const paymentTag = parsedTx.paymentMethod && parsedTx.paymentMethod !== 'Unknown' ? ` (${parsedTx.paymentMethod})` : '';
+    const cleanDescription = `${merchantLabel}${paymentTag} [Auto detected]`;
+
     store.addTransaction({
       id: parsedTx.sourceMessageId || `tx_${Date.now()}`,
       account_id: localAccount?.id || 'acc_1',
@@ -255,7 +250,7 @@ class SmsListenerService {
       currency: parsedTx.currency,
       category_name: parsedTx.category,
       category_color: parsedTx.type === 'income' ? '#10B981' : '#EF4444',
-      description: `${parsedTx.merchant || 'Bank Transaction'} (${parsedTx.paymentMethod}) [Auto detected]`,
+      description: cleanDescription,
       date: parsedTx.transactionDate.split('T')[0],
     });
 
@@ -292,7 +287,7 @@ class SmsListenerService {
           type: parsedTx.type === 'income' ? 'income' : 'expense',
           amount_minor: parsedTx.amountMinor,
           currency: parsedTx.currency,
-          description: `${parsedTx.merchant || parsedTx.bankName || 'Bank Transaction'} (${parsedTx.paymentMethod}) [Auto detected]`,
+          description: cleanDescription,
           date: parsedTx.transactionDate.split('T')[0],
         });
       }
