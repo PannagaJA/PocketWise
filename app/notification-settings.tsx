@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Switch, Pressable, Alert } from 'react-native';
+import { View, Text, ScrollView, Switch, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Card } from '../components/ui/Card';
@@ -27,7 +27,13 @@ export default function NotificationSettingsScreen() {
     setPrefs(updated);
   };
 
-  if (!prefs) return null;
+  if (!prefs) {
+    return (
+      <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+        <ActivityIndicator size="small" color="#09090B" className="py-12" />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>

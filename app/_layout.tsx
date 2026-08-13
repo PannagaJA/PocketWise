@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { AppLockGate } from '../components/AppLockGate';
 import { deepLinkService } from '../lib/notifications/deep-link.service';
@@ -76,14 +77,22 @@ function GlobalRealtimeSync() {
 
 export default function RootLayout() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <AppLockGate>
-          <GlobalRealtimeSync />
-          <StatusBar style="dark" />
-          <Stack screenOptions={{ headerShown: false }} />
-        </AppLockGate>
-      </AuthProvider>
-    </QueryClientProvider>
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <AppLockGate>
+            <GlobalRealtimeSync />
+            <StatusBar style="dark" translucent={true} backgroundColor="transparent" />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: '#FAFAFA' },
+                animation: 'slide_from_right',
+              }}
+            />
+          </AppLockGate>
+        </AuthProvider>
+      </QueryClientProvider>
+    </SafeAreaProvider>
   );
 }

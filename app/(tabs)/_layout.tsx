@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { View, ScrollView, Dimensions, NativeSyntheticEvent, NativeScrollEvent, StyleSheet } from 'react-native';
-import { useRouter, usePathname } from 'expo-router';
+import { usePathname } from 'expo-router';
 import { CustomBottomTabBar } from '../../components/CustomBottomTabBar';
 import DashboardScreen from './index';
 import TransactionsScreen from './transactions';
@@ -16,43 +16,45 @@ export default function TabLayout() {
   const scrollViewRef = useRef<ScrollView>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const pathname = usePathname();
-  const isNavigatingFromTabRef = useRef(false);
 
-  // Sync external route changes with active index
+  // Sync route changes with active index if triggered externally within tab routes
   useEffect(() => {
-    let idx = 0;
+    let idx = -1;
     if (pathname.includes('/transactions')) idx = 1;
     else if (pathname.includes('/subscriptions')) idx = 2;
     else if (pathname.includes('/budgets')) idx = 3;
     else if (pathname.includes('/more')) idx = 4;
+    else if (pathname === '/(tabs)' || pathname === '/(tabs)/' || pathname === '/') {
+      // Preserve activeIndex when returning to tabs root (Dashboard stays Dashboard, Profile stays Profile)
+      idx = activeIndex;
+    }
 
-    if (idx !== activeIndex && !isNavigatingFromTabRef.current) {
+    // Only scroll/switch tabs if pathname actually matches one of the tab screens
+    if (idx !== -1 && idx !== activeIndex) {
       const isAdjacent = Math.abs(idx - activeIndex) === 1;
       setActiveIndex(idx);
       scrollViewRef.current?.scrollTo({ x: idx * SCREEN_WIDTH, animated: isAdjacent });
     }
-    isNavigatingFromTabRef.current = false;
   }, [pathname]);
 
-  // Real-time 1:1 Scroll Event Handler (WhatsApp Paging Style)
-  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+  // Update active tab ONLY when manual swipe gesture finishes snapping
+  const handleMomentumScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const offsetX = event.nativeEvent.contentOffset.x;
     const index = Math.round(offsetX / SCREEN_WIDTH);
-    if (index !== activeIndex && index >= 0 && index < TAB_NAMES.length) {
+    if (index >= 0 && index < TAB_NAMES.length && index !== activeIndex) {
       setActiveIndex(index);
       try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     }
   };
 
-  // Mock Navigation Prop for CustomBottomTabBar
+  // Bottom Tab Bar Navigation handler: Instantly highlight selected tab without intermediate flickering
   const mockNavigation = {
     emit: () => ({ defaultPrevented: false }),
     navigate: (routeName: string) => {
       const idx = TAB_NAMES.indexOf(routeName);
       if (idx !== -1 && idx !== activeIndex) {
         const isAdjacent = Math.abs(idx - activeIndex) === 1;
-        isNavigatingFromTabRef.current = true;
-        setActiveIndex(idx);
+        setActiveIndex(idx); // Instant 100% stable highlight!
         scrollViewRef.current?.scrollTo({ x: idx * SCREEN_WIDTH, animated: isAdjacent });
       }
     },
@@ -65,14 +67,13 @@ export default function TabLayout() {
 
   return (
     <View style={styles.container}>
-      {/* Real-time 1:1 Interactive WhatsApp-style Horizontal Page Slider */}
+      {/* Real-time WhatsApp-style Horizontal Page Slider */}
       <ScrollView
         ref={scrollViewRef}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
+        onMomentumScrollEnd={handleMomentumScrollEnd}
         decelerationRate="fast"
         bounces={false}
         style={styles.pager}
