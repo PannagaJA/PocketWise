@@ -25,15 +25,14 @@ export default function TabLayout() {
     else if (pathname.includes('/budgets')) idx = 3;
     else if (pathname.includes('/more')) idx = 4;
     else if (pathname === '/(tabs)' || pathname === '/(tabs)/' || pathname === '/') {
-      // Preserve activeIndex when returning to tabs root (Dashboard stays Dashboard, Profile stays Profile)
+      // Preserve activeIndex when returning to tabs root
       idx = activeIndex;
     }
 
     // Only scroll/switch tabs if pathname actually matches one of the tab screens
     if (idx !== -1 && idx !== activeIndex) {
-      const isAdjacent = Math.abs(idx - activeIndex) === 1;
       setActiveIndex(idx);
-      scrollViewRef.current?.scrollTo({ x: idx * SCREEN_WIDTH, animated: isAdjacent });
+      scrollViewRef.current?.scrollTo({ x: idx * SCREEN_WIDTH, animated: false });
     }
   }, [pathname]);
 
@@ -53,9 +52,8 @@ export default function TabLayout() {
     navigate: (routeName: string) => {
       const idx = TAB_NAMES.indexOf(routeName);
       if (idx !== -1 && idx !== activeIndex) {
-        const isAdjacent = Math.abs(idx - activeIndex) === 1;
         setActiveIndex(idx); // Instant 100% stable highlight!
-        scrollViewRef.current?.scrollTo({ x: idx * SCREEN_WIDTH, animated: isAdjacent });
+        scrollViewRef.current?.scrollTo({ x: idx * SCREEN_WIDTH, animated: false });
       }
     },
   };
