@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Modal, Alert, ActivityIndicator, Pressable } from 'react-native';
+import { View, Text, ScrollView, Modal, Alert, ActivityIndicator, Pressable, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card } from '../../components/ui/Card';
@@ -280,84 +280,91 @@ export default function SubscriptionsScreen() {
       </Modal>
 
       {/* Main Add Subscription Modal */}
-      <Modal visible={modalVisible} animationType="slide" transparent>
-        <View className="flex-1 justify-end bg-black/40">
-          <View className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]">
-            <View className="flex-row justify-between items-center mb-6">
-              <Text className="text-xl font-bold text-zinc-900">Add Subscription</Text>
-              <Pressable onPress={() => setModalVisible(false)}>
-                <X size={20} color="#71717A" />
-              </Pressable>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              <Input
-                label="Service Name"
-                placeholder="e.g. Netflix, Spotify, iCloud"
-                value={name}
-                onChangeText={setName}
-              />
-
-              <Input
-                label="Amount (₹)"
-                placeholder="649.00"
-                keyboardType="numeric"
-                value={amount}
-                onChangeText={setAmount}
-              />
-
-              {/* Renewal Date & Reminder Time on the Same Row */}
-              <View className="flex-row gap-3 mb-4">
-                {/* Renewal Date */}
-                <View className="flex-1">
-                  <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Renewal Date</Text>
-                  <Pressable
-                    onPress={() => setCalendarPickerVisible(true)}
-                    className="flex-row items-center justify-between bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-3"
-                  >
-                    <View className="flex-row items-center gap-2 flex-1 pr-1">
-                      <CalendarIcon size={16} color="#6366F1" />
-                      <Text className={`text-xs ${nextBillingDate ? 'text-zinc-900 font-bold' : 'text-zinc-400 font-medium'}`} numberOfLines={1}>
-                        {nextBillingDate ? formatDate(nextBillingDate) : 'Auto (+1 cycle)'}
-                      </Text>
-                    </View>
-                    {nextBillingDate ? (
-                      <Pressable
-                        onPress={() => setNextBillingDate('')}
-                        className="w-5 h-5 rounded-full bg-zinc-200 items-center justify-center ml-1"
-                      >
-                        <X size={12} color="#3F3F46" />
-                      </Pressable>
-                    ) : null}
-                  </Pressable>
-                </View>
-
-                {/* Reminder Time */}
-                <View className="flex-1">
-                  <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Reminder Time</Text>
-                  <Pressable
-                    onPress={() => {
-                      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                      setTimePickerVisible(true);
-                    }}
-                    className="flex-row items-center justify-between bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-3"
-                  >
-                    <View className="flex-row items-center gap-2 flex-1">
-                      <Clock size={16} color="#6366F1" />
-                      <Text className="text-xs font-bold text-zinc-900" numberOfLines={1}>
-                        {format12HourTime(renewalTime)}
-                      </Text>
-                    </View>
-                  </Pressable>
-                </View>
+      <Modal visible={modalVisible} animationType="slide" transparent statusBarTranslucent>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <Pressable
+            className="flex-1 justify-end bg-black/40"
+            onPress={() => Keyboard.dismiss()}
+          >
+            <Pressable className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]" onPress={(e) => e.stopPropagation()}>
+              <View className="flex-row justify-between items-center mb-6">
+                <Text className="text-xl font-bold text-zinc-900">Add Subscription</Text>
+                <Pressable onPress={() => setModalVisible(false)}>
+                  <X size={20} color="#71717A" />
+                </Pressable>
               </View>
 
-              {/* Cycle */}
-              <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-6">
-                <Pressable
-                  onPress={() => setCycle('monthly')}
-                  className={`flex-1 py-2.5 rounded-xl items-center ${cycle === 'monthly' ? 'bg-white' : ''}`}
-                >
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <Input
+                  label="Service Name"
+                  placeholder="e.g. Netflix, Spotify, iCloud"
+                  value={name}
+                  onChangeText={setName}
+                />
+
+                <Input
+                  label="Amount (₹)"
+                  placeholder="649.00"
+                  keyboardType="numeric"
+                  value={amount}
+                  onChangeText={setAmount}
+                />
+
+                {/* Renewal Date & Reminder Time on the Same Row */}
+                <View className="flex-row gap-3 mb-4">
+                  {/* Renewal Date */}
+                  <View className="flex-1">
+                    <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Renewal Date</Text>
+                    <Pressable
+                      onPress={() => setCalendarPickerVisible(true)}
+                      className="flex-row items-center justify-between bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-3"
+                    >
+                      <View className="flex-row items-center gap-2 flex-1 pr-1">
+                        <CalendarIcon size={16} color="#6366F1" />
+                        <Text className={`text-xs ${nextBillingDate ? 'text-zinc-900 font-bold' : 'text-zinc-400 font-medium'}`} numberOfLines={1}>
+                          {nextBillingDate ? formatDate(nextBillingDate) : 'Auto (+1 cycle)'}
+                        </Text>
+                      </View>
+                      {nextBillingDate ? (
+                        <Pressable
+                          onPress={() => setNextBillingDate('')}
+                          className="w-5 h-5 rounded-full bg-zinc-200 items-center justify-center ml-1"
+                        >
+                          <X size={12} color="#3F3F46" />
+                        </Pressable>
+                      ) : null}
+                    </Pressable>
+                  </View>
+
+                  {/* Reminder Time */}
+                  <View className="flex-1">
+                    <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Reminder Time</Text>
+                    <Pressable
+                      onPress={() => {
+                        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                        setTimePickerVisible(true);
+                      }}
+                      className="flex-row items-center justify-between bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-3"
+                    >
+                      <View className="flex-row items-center gap-2 flex-1">
+                        <Clock size={16} color="#6366F1" />
+                        <Text className="text-xs font-bold text-zinc-900" numberOfLines={1}>
+                          {format12HourTime(renewalTime)}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  </View>
+                </View>
+
+                {/* Cycle */}
+                <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-6">
+                  <Pressable
+                    onPress={() => setCycle('monthly')}
+                    className={`flex-1 py-2.5 rounded-xl items-center ${cycle === 'monthly' ? 'bg-white' : ''}`}
+                  >
                   <Text className={`font-semibold ${cycle === 'monthly' ? 'text-zinc-900' : 'text-zinc-500'}`}>Monthly</Text>
                 </Pressable>
                 <Pressable
@@ -376,9 +383,10 @@ export default function SubscriptionsScreen() {
               >
                 <Text className="text-white font-semibold">Save Subscription</Text>
               </Button>
-            </ScrollView>
-          </View>
-        </View>
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Calendar Picker Sub-Modal */}

@@ -103,7 +103,7 @@ export function DatePickerButton({ label, value, onSelectDate, placeholder = 'Pi
       </Pressable>
 
       {/* Interactive Calendar Modal */}
-      <Modal visible={modalVisible} animationType="fade" transparent>
+      <Modal visible={modalVisible} animationType="fade" transparent statusBarTranslucent>
         <View className="flex-1 justify-center items-center bg-black/60 px-5">
           <View className="bg-white rounded-3xl p-6 border border-zinc-200 w-full max-w-sm shadow-2xl">
             {/* Header */}

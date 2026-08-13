@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Modal, Alert, ActivityIndicator, Pressable } from 'react-native';
+import { View, Text, ScrollView, Modal, Alert, ActivityIndicator, Pressable, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
@@ -302,80 +302,88 @@ export default function BillsScreen() {
       </Modal>
 
       {/* Add Bill Modal */}
-      <Modal visible={modalVisible} animationType="slide" transparent>
-        <View className="flex-1 justify-end bg-black/40">
-          <View className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]">
-            <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-xl font-bold text-zinc-900">Add Bill</Text>
-              <Pressable onPress={() => setModalVisible(false)} className="p-1">
-                <X size={20} color="#71717A" />
-              </Pressable>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              <Input
-                label="Bill Name"
-                placeholder="e.g. Electricity Bill, Wifi"
-                value={name}
-                onChangeText={setName}
-              />
-
-              <Input
-                label="Expected Amount (₹)"
-                placeholder="1450.00"
-                keyboardType="numeric"
-                value={amount}
-                onChangeText={setAmount}
-              />
-
-              {/* Interactive Calendar Date Picker Button */}
-              <View className="mb-4">
-                <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Due Date</Text>
-                <Pressable
-                  onPress={() => {
-                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                    setCalendarModalVisible(true);
-                  }}
-                  className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
-                >
-                  <View className="flex-row items-center gap-2">
-                    <Calendar size={18} color="#6366F1" />
-                    <Text className="text-sm font-medium text-zinc-900">{formatDate(dueDate)}</Text>
-                  </View>
-                  <Text className="text-xs font-bold text-indigo-600">Pick Date</Text>
+      <Modal visible={modalVisible} animationType="slide" transparent statusBarTranslucent>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <Pressable
+            className="flex-1 justify-end bg-black/40"
+            onPress={() => Keyboard.dismiss()}
+          >
+            <Pressable className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]" onPress={(e) => e.stopPropagation()}>
+              <View className="flex-row justify-between items-center mb-4">
+                <Text className="text-xl font-bold text-zinc-900">Add Bill</Text>
+                <Pressable onPress={() => setModalVisible(false)} className="p-1">
+                  <X size={20} color="#71717A" />
                 </Pressable>
               </View>
 
-              {/* Reminder Time Selection */}
-              <View className="mb-4">
-                <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Reminder Time</Text>
-                <Pressable
-                  onPress={() => {
-                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                    setTimePickerVisible(true);
-                  }}
-                  className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
-                >
-                  <View className="flex-row items-center gap-2">
-                    <Clock size={18} color="#6366F1" />
-                    <Text className="text-sm font-bold text-zinc-900">{format12HourTime(dueTime)}</Text>
-                  </View>
-                  <Text className="text-xs font-bold text-indigo-600">Pick Time</Text>
-                </Pressable>
-              </View>
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <Input
+                  label="Bill Name"
+                  placeholder="e.g. Electricity Bill, Wifi"
+                  value={name}
+                  onChangeText={setName}
+                />
 
-              <Button
-                variant="primary"
-                size="lg"
-                loading={createBillMutation.isPending}
-                className="mt-2 mb-4"
-                onPress={() => createBillMutation.mutate()}
-              >
-                <Text className="text-white font-semibold">Save Bill & Enable Reminder</Text>
-              </Button>
-            </ScrollView>
-          </View>
-        </View>
+                <Input
+                  label="Expected Amount (₹)"
+                  placeholder="1450.00"
+                  keyboardType="numeric"
+                  value={amount}
+                  onChangeText={setAmount}
+                />
+
+                {/* Interactive Calendar Date Picker Button */}
+                <View className="mb-4">
+                  <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Due Date</Text>
+                  <Pressable
+                    onPress={() => {
+                      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                      setCalendarModalVisible(true);
+                    }}
+                    className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
+                  >
+                    <View className="flex-row items-center gap-2">
+                      <Calendar size={18} color="#6366F1" />
+                      <Text className="text-sm font-medium text-zinc-900">{formatDate(dueDate)}</Text>
+                    </View>
+                    <Text className="text-xs font-bold text-indigo-600">Pick Date</Text>
+                  </Pressable>
+                </View>
+
+                {/* Reminder Time Selection */}
+                <View className="mb-4">
+                  <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Reminder Time</Text>
+                  <Pressable
+                    onPress={() => {
+                      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                      setTimePickerVisible(true);
+                    }}
+                    className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
+                  >
+                    <View className="flex-row items-center gap-2">
+                      <Clock size={18} color="#6366F1" />
+                      <Text className="text-sm font-bold text-zinc-900">{format12HourTime(dueTime)}</Text>
+                    </View>
+                    <Text className="text-xs font-bold text-indigo-600">Pick Time</Text>
+                  </Pressable>
+                </View>
+
+                <Button
+                  variant="primary"
+                  size="lg"
+                  loading={createBillMutation.isPending}
+                  className="mt-2 mb-4"
+                  onPress={() => createBillMutation.mutate()}
+                >
+                  <Text className="text-white font-semibold">Save Bill & Enable Reminder</Text>
+                </Button>
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Visual Interactive Calendar Modal */}

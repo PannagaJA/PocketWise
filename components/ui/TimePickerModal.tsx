@@ -53,7 +53,7 @@ export function TimePickerModal({ visible, onClose, selectedTime24, onSelectTime
   const formattedDisplay = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} ${period}`;
 
   return (
-    <Modal visible={visible} animationType="fade" transparent>
+    <Modal visible={visible} animationType="fade" transparent statusBarTranslucent>
       <View className="flex-1 justify-center items-center bg-black/60 px-5">
         <View className="bg-white rounded-3xl p-6 border border-zinc-200 w-full max-w-sm shadow-xl">
           {/* Header */}
