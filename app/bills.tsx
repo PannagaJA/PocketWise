@@ -104,21 +104,6 @@ export default function BillsScreen() {
       queryClient.invalidateQueries({ queryKey: ['transactions', user?.id] });
       queryClient.invalidateQueries({ queryKey: ['accounts', user?.id] });
 
-      // Schedule local FCM push notification for bill due date
-      try {
-        const timePart = dueTime.trim() || '09:00';
-        const triggerDate = new Date(`${dueDate}T${timePart}:00`);
-        notificationService.scheduleDueDateReminder(
-          newBill?.id || `bill_${Date.now()}`,
-          `Upcoming Bill Due: ${name}`,
-          `Your bill payment of ${formatMoney(parseMoneyToMinor(amount))} is due.`,
-          triggerDate,
-          'bill'
-        );
-      } catch (err) {
-        console.warn('Could not schedule local bill reminder:', err);
-      }
-
       setModalVisible(false);
       setName('');
       setAmount('');

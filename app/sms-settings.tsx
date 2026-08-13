@@ -9,6 +9,7 @@ import { Badge } from '../components/ui/Badge';
 import { ChevronLeft, ShieldCheck, Smartphone, Building2, CheckCircle2, AlertTriangle, Sparkles, RefreshCw } from 'lucide-react-native';
 import { smsStorage } from '../lib/sms/storage/smsStore';
 import { smsListenerService } from '../lib/sms/service/smsListenerService';
+import { notificationService } from '../lib/notifications/notification.service';
 import { AccountMapping, SmsTrackingSettings, ParsedSmsTransaction } from '../lib/sms/types';
 import { SmsTransactionReviewModal } from '../components/SmsTransactionReviewModal';
 
@@ -205,6 +206,46 @@ export default function SmsSettingsScreen() {
               {notificationListenerEnabled ? 'Manage Notification Access' : 'Enable Notification Access'}
             </Text>
           </Button>
+        </Card>
+
+        {/* System Notification Diagnostics */}
+        <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3 ml-1">System Notification Diagnostics</Text>
+        <Card className="mb-6 p-4 bg-white border border-zinc-200 gap-3">
+          <Text className="text-xs font-medium text-zinc-600 leading-5">
+            Test whether Android OS system notifications display on your phone tray and lock screen.
+          </Text>
+          <View className="flex-row gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 border-indigo-200 bg-indigo-50/40"
+              onPress={async () => {
+                const ok = await notificationService.sendTestNotification();
+                if (ok) {
+                  Alert.alert('Immediate Test Sent', 'Check your Android notification shade / top banner.');
+                } else {
+                  Alert.alert('Test Failed', 'Notification permission may be denied or running in unsupported environment.');
+                }
+              }}
+            >
+              <Text className="text-xs font-bold text-indigo-700">Immediate Test Alert</Text>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 border-zinc-200"
+              onPress={async () => {
+                const ok = await notificationService.scheduleTestNotification(60);
+                if (ok) {
+                  Alert.alert('Scheduled (60s)', 'Close PocketWise and lock your phone now. A system notification will arrive in 60 seconds.');
+                } else {
+                  Alert.alert('Test Failed', 'Could not schedule test notification.');
+                }
+              }}
+            >
+              <Text className="text-xs font-bold text-zinc-700">60s Background Test</Text>
+            </Button>
+          </View>
         </Card>
 
         {/* Pending Reviews Queue Section */}

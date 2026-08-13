@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@ta
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { AppLockGate } from '../components/AppLockGate';
 import { deepLinkService } from '../lib/notifications/deep-link.service';
+import { notificationService } from '../lib/notifications/notification.service';
 import { smsListenerService } from '../lib/sms/service/smsListenerService';
 import { supabase } from '../lib/supabase';
 import '../global.css';
@@ -40,6 +41,9 @@ function GlobalRealtimeSync() {
   useEffect(() => {
     // Start global native SMS listener immediately on app boot
     smsListenerService.startListening();
+
+    // Idempotently initialize OS notification channels & permissions
+    notificationService.init();
 
     // Register notification response listener for deep linking when clicking phone tray notifications
     const cleanupListener = deepLinkService.registerNotificationListener();

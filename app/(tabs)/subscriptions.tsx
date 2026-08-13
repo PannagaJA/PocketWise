@@ -65,31 +65,9 @@ export default function SubscriptionsScreen() {
         status: 'active',
       });
     },
-    onSuccess: (newSub: any) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subscriptions', user?.id] });
       
-      // Schedule local FCM push notification for subscription renewal date
-      try {
-        let finalBillingDate = nextBillingDate.trim();
-        if (!finalBillingDate) {
-          const nextBilling = new Date();
-          nextBilling.setDate(nextBilling.getDate() + (cycle === 'monthly' ? 30 : 365));
-          finalBillingDate = nextBilling.toISOString().split('T')[0];
-        }
-        const timePart = renewalTime.trim() || '09:00';
-        const triggerDate = new Date(`${finalBillingDate}T${timePart}:00`);
-
-        notificationService.scheduleDueDateReminder(
-          newSub?.id || `sub_${Date.now()}`,
-          `🔔 Subscription Renewal: ${name}`,
-          `Renewal amount of ${formatCurrency(parseMoneyToMinor(amount))} is due.`,
-          triggerDate,
-          'subscription'
-        );
-      } catch (err) {
-        console.warn('Could not schedule local subscription reminder:', err);
-      }
-
       try {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } catch {
