@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Pressable, Modal, BackHandler, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Pressable, Modal, BackHandler, Alert, Dimensions, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -13,7 +13,7 @@ import { accountService } from '../../lib/services/account.service';
 import { transactionService } from '../../lib/services/transaction.service';
 import { billService } from '../../lib/services/bill.service';
 import { goalService } from '../../lib/services/goal.service';
-import { reminderService } from '../../lib/services/reminder.service';
+import { reminderService, Reminder } from '../../lib/services/reminder.service';
 import { financialAnalyticsEngine } from '../../lib/finance/analyticsEngine';
 import { formatMoney, formatDate, formatDateTime } from '../../lib/finance/core';
 import { Plus, ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight, ShieldCheck, TrendingUp, TrendingDown, ArrowRightLeft, X, Clock, Trash2 } from 'lucide-react-native';
@@ -25,6 +25,71 @@ import { smsStorage } from '../../lib/sms/storage/smsStore';
 import { smsListenerService } from '../../lib/sms/service/smsListenerService';
 import { ParsedSmsTransaction } from '../../lib/sms/types';
 import { NetBalanceChartCard } from '../../components/NetBalanceChartCard';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+function SwipeableNotificationItem({
+  item,
+  onDismiss,
+}: {
+  item: Reminder;
+  onDismiss: (id: string) => void;
+}) {
+  const isDismissedRef = useRef(false);
+
+  const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const offsetX = e.nativeEvent.contentOffset.x;
+    if ((offsetX < 70 || offsetX > 230) && !isDismissedRef.current) {
+      isDismissedRef.current = true;
+      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+      if (item.id) onDismiss(item.id);
+    }
+  };
+
+  return (
+    <View className="mb-3 overflow-hidden rounded-2xl">
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentOffset={{ x: 150, y: 0 }}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        bounces={false}
+        decelerationRate="fast"
+      >
+        {/* Left Transparent Spacer */}
+        <View className="w-[150px] bg-transparent" />
+
+        {/* Main Clean Full-Width Notification Card Container */}
+        <View
+          style={{ width: SCREEN_WIDTH - 48 }}
+          className="p-4 bg-white rounded-2xl shadow-sm border border-zinc-200 justify-between"
+        >
+          <View className="flex-row items-center justify-between mb-2">
+            <View className="flex-row items-center gap-2.5 flex-1 mr-2">
+              <View className="w-7 h-7 rounded-xl bg-indigo-50 items-center justify-center">
+                <Bell size={14} color="#6366F1" />
+              </View>
+              <Text className="text-sm font-extrabold text-zinc-900 flex-1" numberOfLines={1}>
+                {item.title}
+              </Text>
+            </View>
+
+            <View className="flex-row items-center gap-1 bg-zinc-100 px-2 py-0.5 rounded-full">
+              <Clock size={11} color="#71717A" />
+              <Text className="text-[10px] font-bold text-zinc-600">{formatDateTime(item.scheduled_at)}</Text>
+            </View>
+          </View>
+
+          <Text className="text-xs text-zinc-600 leading-relaxed pl-0.5">{item.body}</Text>
+        </View>
+
+        {/* Right Transparent Spacer */}
+        <View className="w-[150px] bg-transparent" />
+      </ScrollView>
+    </View>
+  );
+}
 
 export default function DashboardScreen() {
   const { user } = useAuth();
@@ -379,32 +444,14 @@ export default function DashboardScreen() {
                 </View>
               ) : (
                 reminders.map((r) => (
-                  <View key={r.id} className="p-4 bg-zinc-50 border border-zinc-200/80 rounded-2xl mb-3">
-                    <View className="flex-row items-center justify-between mb-1">
-                      <View className="flex-row items-center gap-2 flex-1 mr-2">
-                        <View className="w-2 h-2 rounded-full bg-indigo-600" />
-                        <Text className="text-xs font-extrabold text-zinc-900 flex-1">{r.title}</Text>
-                      </View>
-                      <View className="flex-row items-center gap-2">
-                        <View className="flex-row items-center gap-1">
-                          <Clock size={12} color="#A1A1AA" />
-                          <Text className="text-[10px] font-semibold text-zinc-400">{formatDateTime(r.scheduled_at)}</Text>
-                        </View>
-                        {r.id && (
-                          <TouchableOpacity
-                            onPress={async () => {
-                              await reminderService.deleteReminder(r.id!);
-                              refetchReminders();
-                            }}
-                            className="p-1.5 rounded-full bg-zinc-200/60 active:bg-rose-100"
-                          >
-                            <Trash2 size={13} color="#71717A" />
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                    </View>
-                    <Text className="text-xs text-zinc-600 pl-4">{r.body}</Text>
-                  </View>
+                  <SwipeableNotificationItem
+                    key={r.id}
+                    item={r}
+                    onDismiss={async (id) => {
+                      await reminderService.deleteReminder(id);
+                      refetchReminders();
+                    }}
+                  />
                 ))
               )}
             </ScrollView>
