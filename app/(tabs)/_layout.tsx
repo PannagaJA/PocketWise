@@ -27,8 +27,9 @@ export default function TabLayout() {
     else if (pathname.includes('/more')) idx = 4;
 
     if (idx !== activeIndex && !isNavigatingFromTabRef.current) {
+      const isAdjacent = Math.abs(idx - activeIndex) === 1;
       setActiveIndex(idx);
-      scrollViewRef.current?.scrollTo({ x: idx * SCREEN_WIDTH, animated: true });
+      scrollViewRef.current?.scrollTo({ x: idx * SCREEN_WIDTH, animated: isAdjacent });
     }
     isNavigatingFromTabRef.current = false;
   }, [pathname]);
@@ -48,10 +49,11 @@ export default function TabLayout() {
     emit: () => ({ defaultPrevented: false }),
     navigate: (routeName: string) => {
       const idx = TAB_NAMES.indexOf(routeName);
-      if (idx !== -1) {
+      if (idx !== -1 && idx !== activeIndex) {
+        const isAdjacent = Math.abs(idx - activeIndex) === 1;
         isNavigatingFromTabRef.current = true;
         setActiveIndex(idx);
-        scrollViewRef.current?.scrollTo({ x: idx * SCREEN_WIDTH, animated: true });
+        scrollViewRef.current?.scrollTo({ x: idx * SCREEN_WIDTH, animated: isAdjacent });
       }
     },
   };

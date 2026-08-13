@@ -242,7 +242,7 @@ export function DatePickerButton({ label, value, onSelectDate, placeholder = 'Pi
                   setModalVisible(false);
                 }}
               >
-                <Text className="text-zinc-700 font-semibold text-xs">Clear</Text>
+                <Text className="text-zinc-900 font-extrabold text-xs">Clear</Text>
               </Button>
 
               <Button

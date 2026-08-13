@@ -3,15 +3,16 @@ import { View, Text, ScrollView, Modal, Alert, ActivityIndicator, Pressable } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
-import Svg, { Circle, Path, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Svg, { Circle } from 'react-native-svg';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { useAuth } from '../context/AuthContext';
-import { goalService } from '../lib/services/goal.service';
+import { goalService, Goal } from '../lib/services/goal.service';
 import { formatMoney, parseMoneyToMinor } from '../lib/finance/core';
-import { Plus, X, ArrowLeft, Target, Award, TrendingUp } from 'lucide-react-native';
+import { supabase } from '../lib/supabase';
+import { Plus, X, ArrowLeft, Target, Trash2, Bookmark, CheckCircle2 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 export default function GoalsScreen() {
@@ -21,6 +22,7 @@ export default function GoalsScreen() {
 
   const [modalVisible, setModalVisible] = useState(false);
   const [contribModalVisible, setContribModalVisible] = useState(false);
+  const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
 
   // Form state
   const [selectedGoalId, setSelectedGoalId] = useState('');
@@ -104,6 +106,61 @@ export default function GoalsScreen() {
     },
   });
 
+  // Delete Goal Mutation
+  const deleteGoalMutation = useMutation({
+    mutationFn: async (goalId: string) => {
+      return goalService.deleteGoal(goalId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['goals', user?.id] });
+      try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+    },
+    onError: (err: any) => {
+      Alert.alert('Error', err.message || 'Failed to delete goal');
+    },
+  });
+
+  // Save to History Mutation
+  const saveHistoryMutation = useMutation({
+    mutationFn: async (goal: Goal) => {
+      const existingNotes = goal.notes || '';
+      if (existingNotes.includes('[History]')) return;
+      const updatedNotes = existingNotes ? `${existingNotes} [History]` : '[History]';
+
+      const { error } = await supabase
+        .from('goals')
+        .update({ notes: updatedNotes, updated_at: new Date().toISOString() })
+        .eq('id', goal.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['goals', user?.id] });
+      try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+      Alert.alert('Saved to History! 🎉', 'This goal has been saved to your goal history.');
+    },
+    onError: (err: any) => {
+      Alert.alert('Error', err.message || 'Failed to save to history');
+    },
+  });
+
+  const confirmDeleteGoal = (goalId: string, goalName: string) => {
+    Alert.alert(
+      'Delete Goal',
+      `Are you sure you want to delete "${goalName}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => deleteGoalMutation.mutate(goalId) },
+      ]
+    );
+  };
+
+  // Filter Active vs History goals
+  const activeGoals = goals.filter((g) => !(g.notes || '').includes('[History]'));
+  const historyGoals = goals.filter((g) => (g.notes || '').includes('[History]'));
+
+  const displayedGoals = activeTab === 'active' ? activeGoals : historyGoals;
+
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       <View className="px-4 pt-2 flex-1">
@@ -132,7 +189,7 @@ export default function GoalsScreen() {
 
         {/* Dynamic Real-Time Donut Summary Card */}
         {goals.length > 0 && (
-          <Card className="bg-zinc-900 border-zinc-800 p-5 mb-4 rounded-3xl shadow-md flex-row items-center justify-between">
+          <Card className="bg-zinc-900 border-zinc-800 p-5 mb-3.5 rounded-3xl shadow-md flex-row items-center justify-between">
             <View className="flex-1 pr-3">
               <View className="flex-row items-center gap-1.5 mb-1">
                 <Target size={14} color="#6366F1" />
@@ -190,47 +247,82 @@ export default function GoalsScreen() {
           </Card>
         )}
 
+        {/* Tab Pills: Active Goals vs Goal History */}
+        <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-3">
+          <Pressable
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              setActiveTab('active');
+            }}
+            className={`flex-1 py-2 rounded-xl items-center ${activeTab === 'active' ? 'bg-white' : ''}`}
+          >
+            <Text className={`font-semibold text-xs ${activeTab === 'active' ? 'text-zinc-900' : 'text-zinc-500'}`}>
+              Active Goals ({activeGoals.length})
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              setActiveTab('history');
+            }}
+            className={`flex-1 py-2 rounded-xl items-center ${activeTab === 'history' ? 'bg-white' : ''}`}
+          >
+            <Text className={`font-semibold text-xs ${activeTab === 'history' ? 'text-indigo-600 font-bold' : 'text-zinc-500'}`}>
+              Goal History ({historyGoals.length})
+            </Text>
+          </Pressable>
+        </View>
+
         {/* Goals List */}
         <ScrollView showsVerticalScrollIndicator={false} className="flex-1" contentContainerStyle={{ paddingBottom: 110 }}>
           {loadingGoals ? (
             <ActivityIndicator size="small" color="#09090B" className="py-8" />
-          ) : goals.length === 0 ? (
-            <Card className="p-6 bg-white border border-zinc-200 items-center mt-4 rounded-2xl">
+          ) : displayedGoals.length === 0 ? (
+            <Card className="p-6 bg-white border border-zinc-200 items-center mt-2 rounded-2xl">
               <View className="w-12 h-12 rounded-2xl bg-indigo-50 items-center justify-center mb-3">
                 <Target size={24} color="#6366F1" />
               </View>
-              <Text className="text-sm font-bold text-zinc-900">No savings goals yet</Text>
-              <Text className="text-xs text-zinc-500 mt-1 mb-4 text-center">
-                Start planning for something you want to achieve!
+              <Text className="text-sm font-bold text-zinc-900">
+                {activeTab === 'active' ? 'No active savings goals' : 'No goals saved in history yet'}
               </Text>
-              <Button size="sm" variant="primary" onPress={() => setModalVisible(true)}>
-                <Text className="text-white font-semibold text-xs">Create Goal</Text>
-              </Button>
+              <Text className="text-xs text-zinc-500 mt-1 mb-4 text-center">
+                {activeTab === 'active'
+                  ? 'Start planning for something you want to achieve!'
+                  : 'Completed goals saved to history will appear here.'}
+              </Text>
+              {activeTab === 'active' && (
+                <Button size="sm" variant="primary" onPress={() => setModalVisible(true)}>
+                  <Text className="text-white font-semibold text-xs">Create Goal</Text>
+                </Button>
+              )}
             </Card>
           ) : (
-            goals.map((g) => {
+            displayedGoals.map((g) => {
               const target = g.target_amount_minor || 1;
               const current = g.current_amount_minor || 0;
               const percentage = Math.min(Math.round((current / target) * 100), 100);
               const isCompleted = percentage >= 100;
+              const isSavedInHistory = (g.notes || '').includes('[History]');
 
               return (
-                <Card key={g.id} className="mb-4 p-4 bg-white border border-zinc-200 rounded-2xl">
+                <Card key={g.id} className="mb-3.5 p-4 bg-white border border-zinc-200 rounded-2xl">
                   <View className="flex-row justify-between items-center mb-2">
-                    <View className="flex-row items-center">
+                    <View className="flex-row items-center flex-1 pr-2">
                       <View className="w-9 h-9 rounded-xl bg-indigo-50 items-center justify-center mr-2.5">
                         <Target size={18} color="#6366F1" />
                       </View>
-                      <Text className="text-base font-bold text-zinc-900">{g.name}</Text>
+                      <Text className="text-base font-bold text-zinc-900" numberOfLines={1}>{g.name}</Text>
                     </View>
+
                     <Badge
                       label={isCompleted ? '100% Completed' : `${percentage}%`}
                       variant={isCompleted ? 'income' : 'budget'}
                     />
                   </View>
 
-                  {/* Progress Bar Container with Border Track */}
-                  <View className="w-full h-3.5 bg-zinc-100 rounded-full overflow-hidden border border-zinc-200/60 p-0.5 my-3">
+                  {/* Progress Bar Container */}
+                  <View className="w-full h-3.5 bg-zinc-100 rounded-full overflow-hidden border border-zinc-200/60 p-0.5 my-2.5">
                     <View
                       className={`h-full rounded-full ${isCompleted ? 'bg-emerald-500' : 'bg-indigo-600'}`}
                       style={{ width: `${percentage}%` }}
@@ -246,10 +338,39 @@ export default function GoalsScreen() {
                     </Text>
                   </View>
 
+                  {/* Completed Goal Actions: Save to History & Delete Goal */}
                   {isCompleted ? (
-                    <View className="bg-emerald-50 p-2.5 rounded-xl flex-row items-center justify-center border border-emerald-100">
-                      <Award size={16} color="#10B981" className="mr-1.5" />
-                      <Text className="text-xs font-bold text-emerald-700">🎉 Goal Completed!</Text>
+                    <View className="flex-row gap-2 mt-1">
+                      {/* Save to History Button */}
+                      {!isSavedInHistory ? (
+                        <Pressable
+                          onPress={() => {
+                            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                            saveHistoryMutation.mutate(g);
+                          }}
+                          className="flex-1 flex-row items-center justify-center py-2.5 px-3 bg-emerald-600 rounded-xl active:bg-emerald-700 shadow-xs"
+                        >
+                          <Bookmark size={15} color="#FFF" />
+                          <Text className="text-white font-bold text-xs ml-1.5">Save to History</Text>
+                        </Pressable>
+                      ) : (
+                        <View className="flex-1 flex-row items-center justify-center py-2.5 px-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                          <CheckCircle2 size={15} color="#10B981" />
+                          <Text className="text-emerald-700 font-bold text-xs ml-1.5">Saved in History</Text>
+                        </View>
+                      )}
+
+                      {/* Delete Goal Button */}
+                      <Pressable
+                        onPress={() => {
+                          try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                          confirmDeleteGoal(g.id, g.name);
+                        }}
+                        className="flex-1 flex-row items-center justify-center py-2.5 px-3 bg-rose-50 border border-rose-200 rounded-xl active:bg-rose-100 shadow-xs"
+                      >
+                        <Trash2 size={15} color="#EF4444" />
+                        <Text className="text-rose-600 font-bold text-xs ml-1.5">Delete Goal</Text>
+                      </Pressable>
                     </View>
                   ) : (
                     <Button
