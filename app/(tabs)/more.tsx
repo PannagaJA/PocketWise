@@ -92,10 +92,24 @@ export default function MoreScreen() {
     Alert.alert('App Lock Enabled', 'PocketWise is now secured with your 4-digit PIN.');
   };
 
-  const handleSignOut = async () => {
-    await appLockService.clearPin();
-    await signOut();
-    router.replace('/(auth)/login');
+  const handleSignOut = () => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out of PocketWise?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            await appLockService.clearPin();
+            await signOut();
+            router.replace('/(auth)/login');
+          },
+        },
+      ]
+    );
   };
 
   return (
