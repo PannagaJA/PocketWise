@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Pressable, Modal } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Pressable, Modal, BackHandler, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -107,6 +107,8 @@ export default function DashboardScreen() {
       }
     }, [user?.id, refetchAcc, refetchTx, refetchBills, refetchGoals, refetchReminders, transactions])
   );
+
+
 
   const upcomingBills = bills.filter((b) => !b.is_paid).slice(0, 3);
   const activeGoals = goals.slice(0, 2);

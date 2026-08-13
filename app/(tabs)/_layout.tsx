@@ -1,6 +1,6 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { View, ScrollView, Dimensions, NativeSyntheticEvent, NativeScrollEvent, StyleSheet } from 'react-native';
-import { usePathname } from 'expo-router';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { View, ScrollView, Dimensions, NativeSyntheticEvent, NativeScrollEvent, StyleSheet, BackHandler, Alert } from 'react-native';
+import { usePathname, useFocusEffect } from 'expo-router';
 import { CustomBottomTabBar } from '../../components/CustomBottomTabBar';
 import DashboardScreen from './index';
 import TransactionsScreen from './transactions';
@@ -35,6 +35,40 @@ export default function TabLayout() {
       scrollViewRef.current?.scrollTo({ x: idx * SCREEN_WIDTH, animated: false });
     }
   }, [pathname]);
+
+  // Hardware Back Button Navigation Handler (Exit App ONLY on Dashboard, otherwise return to Dashboard)
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (activeIndex > 0) {
+          // On non-Dashboard tabs (More, Budgets, Subscriptions, Transactions): Return to Dashboard
+          try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+          setActiveIndex(0);
+          scrollViewRef.current?.scrollTo({ x: 0, animated: false });
+          return true; // Handled
+        } else {
+          // On Dashboard tab: Show Exit App Confirmation Dialog
+          try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+          Alert.alert(
+            'Exit PocketWise',
+            'Are you sure you want to exit the app?',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Exit',
+                style: 'destructive',
+                onPress: () => BackHandler.exitApp(),
+              },
+            ]
+          );
+          return true; // Handled
+        }
+      };
+
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => subscription.remove();
+    }, [activeIndex])
+  );
 
   // Update active tab ONLY when manual swipe gesture finishes snapping
   const handleMomentumScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
