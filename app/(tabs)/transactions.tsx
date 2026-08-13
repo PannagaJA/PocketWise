@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, ScrollView, Modal, Alert, ActivityIndicator, Pressable, RefreshControl, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -11,8 +11,11 @@ import { transactionService } from '../../lib/services/transaction.service';
 import { accountService } from '../../lib/services/account.service';
 import { categoryService } from '../../lib/services/category.service';
 import { formatMoney, formatDate, parseMoneyToMinor } from '../../lib/finance/core';
-import { Plus, ArrowUpRight, ArrowDownLeft, X, ArrowRightLeft, ChevronDown, Check, Wallet, BarChart2, Filter, Search } from 'lucide-react-native';
+import { DatePickerButton } from '../../components/ui/DatePickerModal';
+import { Plus, ArrowUpRight, ArrowDownLeft, X, ArrowRightLeft, ChevronDown, Check, Wallet, BarChart2, Filter, Search, Calendar } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+
+export type DateFilterMode = 'all' | 'today' | 'this_month' | 'last_month' | 'custom_month' | 'custom_range';
 
 export default function TransactionsScreen() {
   const { user } = useAuth();
@@ -20,13 +23,21 @@ export default function TransactionsScreen() {
 
   const [modalVisible, setModalVisible] = useState(false);
   const [accModalVisible, setAccModalVisible] = useState(false);
+  const [dateFilterModalVisible, setDateFilterModalVisible] = useState(false);
+
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
   const [destAccountDropdownOpen, setDestAccountDropdownOpen] = useState(false);
 
-  // Search & Filter state
+  // Search & Type Filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'all' | 'income' | 'expense' | 'transfer'>('all');
+
+  // Custom Date / Month Filter State
+  const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>('all');
+  const [selectedCustomMonth, setSelectedCustomMonth] = useState<string>(''); // e.g. "2026-08"
+  const [customStartDate, setCustomStartDate] = useState<string>(''); // e.g. "2026-08-01"
+  const [customEndDate, setCustomEndDate] = useState<string>(''); // e.g. "2026-08-31"
 
   // Form state
   const [type, setType] = useState<'income' | 'expense' | 'transfer'>('expense');
@@ -43,7 +54,7 @@ export default function TransactionsScreen() {
   // Data Queries
   const { data: transactions = [], isLoading: loadingTx, refetch: refetchTx } = useQuery({
     queryKey: ['transactions', user?.id],
-    queryFn: () => transactionService.getTransactions(user?.id || ''),
+    queryFn: () => transactionService.getTransactions(user?.id || '', 500),
     enabled: !!user?.id,
   });
 
@@ -66,22 +77,48 @@ export default function TransactionsScreen() {
     setRefreshing(false);
   };
 
-  // Apply search query and active filter
+
+
+  // Apply search query, type filter, and custom date/month filter
   const displayedTransactions = transactions.filter((t) => {
     const matchesFilter = activeFilter === 'all' || t.type === activeFilter;
+
+    // Date/Month Filtering
+    let matchesDate = true;
+    if (t.date && dateFilterMode !== 'all') {
+      const txDateStr = t.date.substring(0, 10);
+      const now = new Date();
+      const todayStr = now.toISOString().substring(0, 10);
+      const thisMonthStr = now.toISOString().substring(0, 7);
+
+      if (dateFilterMode === 'today') {
+        matchesDate = txDateStr === todayStr;
+      } else if (dateFilterMode === 'this_month') {
+        matchesDate = txDateStr.startsWith(thisMonthStr);
+      } else if (dateFilterMode === 'last_month') {
+        const lastM = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lastMonthStr = `${lastM.getFullYear()}-${String(lastM.getMonth() + 1).padStart(2, '0')}`;
+        matchesDate = txDateStr.startsWith(lastMonthStr);
+      } else if (dateFilterMode === 'custom_month' && selectedCustomMonth) {
+        matchesDate = txDateStr.startsWith(selectedCustomMonth);
+      } else if (dateFilterMode === 'custom_range') {
+        if (customStartDate && txDateStr < customStartDate) matchesDate = false;
+        if (customEndDate && txDateStr > customEndDate) matchesDate = false;
+      }
+    }
+
     const q = searchQuery.toLowerCase().trim();
-    if (!q) return matchesFilter;
+    if (!q) return matchesFilter && matchesDate;
 
     const matchesDesc = t.description.toLowerCase().includes(q);
     const matchesCat = (t.category?.name || '').toLowerCase().includes(q);
     const matchesAcc = (t.account?.name || '').toLowerCase().includes(q);
 
-    // Format amount in rupees (e.g. 500 or 500.00)
     const rupeesAmount = (t.amount_minor / 100).toString();
     const formattedMoneyStr = formatMoney(t.amount_minor).toLowerCase();
     const matchesAmount = rupeesAmount.includes(q) || formattedMoneyStr.includes(q);
 
-    return matchesFilter && (matchesDesc || matchesCat || matchesAcc || matchesAmount);
+    return matchesFilter && matchesDate && (matchesDesc || matchesCat || matchesAcc || matchesAmount);
   });
 
   const filteredCategories = categories.filter((c) => c.type === (type === 'transfer' ? 'expense' : type));
@@ -90,13 +127,12 @@ export default function TransactionsScreen() {
   const selectedDestAccObj = accounts.find((a) => a.id === selectedDestAccountId);
 
   // Calculate Breakdown for Unique Cashflow Bar Graph
-  const incomeTotal = transactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount_minor, 0);
-  const expenseTotal = transactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount_minor, 0);
+  const incomeTotal = displayedTransactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount_minor, 0);
+  const expenseTotal = displayedTransactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount_minor, 0);
   const maxBar = Math.max(incomeTotal, expenseTotal, 1);
   const incomeHeight = Math.max(12, Math.round((incomeTotal / maxBar) * 44));
   const expenseHeight = Math.max(12, Math.round((expenseTotal / maxBar) * 44));
 
-  // Dynamic Placeholder Helper based on selected tab
   const getPlaceholders = () => {
     switch (type) {
       case 'expense':
@@ -118,6 +154,22 @@ export default function TransactionsScreen() {
   };
 
   const currentPlaceholders = getPlaceholders();
+
+  // Label Helper for Date Filter Button
+  const getDateFilterLabel = () => {
+    switch (dateFilterMode) {
+      case 'today':
+        return 'Today';
+      case 'this_month':
+        return 'This Month';
+      case 'last_month':
+        return 'Last Month';
+      case 'custom_range':
+        return 'Custom Range';
+      default:
+        return 'Date Filter';
+    }
+  };
 
   // Mutations
   const createTxMutation = useMutation({
@@ -151,9 +203,7 @@ export default function TransactionsScreen() {
       queryClient.invalidateQueries();
       try {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } catch {
-        // Ignore haptics error if unavailable
-      }
+      } catch {}
       setModalVisible(false);
       resetForm();
     },
@@ -178,9 +228,7 @@ export default function TransactionsScreen() {
       queryClient.invalidateQueries();
       try {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } catch {
-        // Ignore haptics error if unavailable
-      }
+      } catch {}
       setAccModalVisible(false);
       setAccName('');
       setAccBalance('');
@@ -261,44 +309,62 @@ export default function TransactionsScreen() {
                       <Stop offset="100%" stopColor="#DC2626" stopOpacity="0.8" />
                     </LinearGradient>
                   </Defs>
-                  {/* Income Bar */}
-                  <Rect
-                    x="12"
-                    y={48 - incomeHeight}
-                    width="22"
-                    height={incomeHeight}
-                    rx="6"
-                    fill="url(#incomeGrad)"
-                  />
-                  {/* Expense Bar */}
-                  <Rect
-                    x="46"
-                    y={48 - expenseHeight}
-                    width="22"
-                    height={expenseHeight}
-                    rx="6"
-                    fill="url(#expenseGrad)"
-                  />
+                  <Rect x="12" y={48 - incomeHeight} width="22" height={incomeHeight} rx="6" fill="url(#incomeGrad)" />
+                  <Rect x="46" y={48 - expenseHeight} width="22" height={expenseHeight} rx="6" fill="url(#expenseGrad)" />
                 </Svg>
               </View>
             </View>
           </Card>
 
-          {/* Search Bar Input */}
-          <View className="flex-row items-center gap-3 bg-white border border-zinc-200 rounded-2xl px-4 py-3 mb-3 shadow-sm">
-            <Search size={18} color="#71717A" />
-            <TextInput
-              placeholder="Search description, category, or account..."
-              placeholderTextColor="#A1A1AA"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              className="flex-1 text-sm font-medium text-zinc-900 p-0 ml-1"
-            />
-            {searchQuery ? (
-              <Pressable onPress={() => setSearchQuery('')} className="p-1">
-                <X size={16} color="#71717A" />
-              </Pressable>
-            ) : null}
+          {/* Search Bar Input & Custom Date/Month Filter Button on the Same Line */}
+          <View className="flex-row items-center gap-2 mb-3">
+            {/* Search Bar */}
+            <View className="flex-1 flex-row items-center bg-white border border-zinc-200 rounded-2xl px-3.5 py-2.5 shadow-sm">
+              <Search size={18} color="#71717A" />
+              <TextInput
+                placeholder="Search description, category..."
+                placeholderTextColor="#A1A1AA"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                className="flex-1 text-sm font-medium text-zinc-900 p-0 ml-2"
+              />
+              {searchQuery ? (
+                <Pressable onPress={() => setSearchQuery('')} className="p-1">
+                  <X size={16} color="#71717A" />
+                </Pressable>
+              ) : null}
+            </View>
+
+            {/* Custom Date/Month Filter Button */}
+            <Pressable
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                setDateFilterModalVisible(true);
+              }}
+              className={`flex-row items-center gap-1.5 py-2.5 px-3 rounded-2xl border ${
+                dateFilterMode !== 'all'
+                  ? 'bg-indigo-600 border-indigo-600'
+                  : 'bg-white border-zinc-200 shadow-sm'
+              }`}
+            >
+              <Calendar size={17} color={dateFilterMode !== 'all' ? '#FFF' : '#09090B'} />
+              <Text className={`text-xs font-bold ${dateFilterMode !== 'all' ? 'text-white' : 'text-zinc-900'}`}>
+                {getDateFilterLabel()}
+              </Text>
+              {dateFilterMode !== 'all' ? (
+                <Pressable
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    setDateFilterMode('all');
+                  }}
+                  className="ml-0.5"
+                >
+                  <X size={14} color="#FFF" />
+                </Pressable>
+              ) : (
+                <ChevronDown size={14} color="#71717A" />
+              )}
+            </Pressable>
           </View>
 
           {/* Filter Pills */}
@@ -348,7 +414,7 @@ export default function TransactionsScreen() {
           <View className="flex-row gap-3">
             <Pressable
               onPress={() => {
-                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch { }
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                 setAccModalVisible(true);
               }}
               className="flex-1 flex-row items-center justify-center py-2.5 px-3 bg-white border border-zinc-200 rounded-xl active:bg-zinc-100 shadow-sm"
@@ -359,7 +425,7 @@ export default function TransactionsScreen() {
 
             <Pressable
               onPress={() => {
-                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch { }
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                 setSelectedAccountId(accounts[0]?.id || '');
                 setModalVisible(true);
               }}
@@ -388,17 +454,19 @@ export default function TransactionsScreen() {
                 <Filter size={20} color="#71717A" />
               </View>
               <Text className="text-sm font-bold text-zinc-800">
-                {searchQuery ? 'No matching transactions' : `No ${activeFilter === 'all' ? '' : activeFilter} transactions found`}
+                {searchQuery || dateFilterMode !== 'all' ? 'No matching transactions' : `No ${activeFilter === 'all' ? '' : activeFilter} transactions found`}
               </Text>
               <Text className="text-xs text-zinc-400 mt-0.5 mb-4 text-center">
                 {searchQuery
                   ? `No transactions matched "${searchQuery}".`
+                  : dateFilterMode !== 'all'
+                  ? `No transactions match the selected ${getDateFilterLabel()} period.`
                   : activeFilter === 'all'
                   ? 'Record your first transaction to get started!'
                   : `No transactions matched the "${activeFilter}" filter.`}
               </Text>
-              {searchQuery || activeFilter !== 'all' ? (
-                <Button size="sm" variant="outline" onPress={() => { setSearchQuery(''); setActiveFilter('all'); }}>
+              {searchQuery || activeFilter !== 'all' || dateFilterMode !== 'all' ? (
+                <Button size="sm" variant="outline" onPress={() => { setSearchQuery(''); setActiveFilter('all'); setDateFilterMode('all'); }}>
                   <Text className="text-zinc-900 font-semibold text-xs">Clear Search & Filters</Text>
                 </Button>
               ) : (
@@ -446,7 +514,120 @@ export default function TransactionsScreen() {
         </ScrollView>
       </View>
 
-      {/* Transaction Modal */}
+      {/* Custom Date / Month Filter Modal */}
+      <Modal visible={dateFilterModalVisible} animationType="slide" transparent>
+        <View className="flex-1 justify-end bg-black/40">
+          <View className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]">
+            <View className="flex-row justify-between items-center mb-4">
+              <View className="flex-row items-center gap-2">
+                <View className="w-8 h-8 rounded-full bg-indigo-50 items-center justify-center">
+                  <Calendar size={18} color="#6366F1" />
+                </View>
+                <Text className="text-xl font-bold text-zinc-900">Date & Month Filter</Text>
+              </View>
+              <Pressable onPress={() => setDateFilterModalVisible(false)} className="p-1">
+                <X size={20} color="#71717A" />
+              </Pressable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Presets Section */}
+              <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5">Quick Presets</Text>
+              <View className="flex-row flex-wrap gap-2 mb-5">
+                {[
+                  { mode: 'all', label: 'All Time' },
+                  { mode: 'today', label: 'Today' },
+                  { mode: 'this_month', label: 'This Month' },
+                  { mode: 'last_month', label: 'Last Month' },
+                ].map((item) => {
+                  const isSelected = dateFilterMode === item.mode;
+                  return (
+                    <Pressable
+                      key={item.mode}
+                      onPress={() => {
+                        setDateFilterMode(item.mode as DateFilterMode);
+                        setDateFilterModalVisible(false);
+                      }}
+                      className={`px-4 py-2.5 rounded-xl border ${
+                        isSelected
+                          ? 'bg-zinc-900 border-zinc-900'
+                          : 'bg-zinc-50 border-zinc-200 active:bg-zinc-100'
+                      }`}
+                    >
+                      <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-zinc-800'}`}>
+                        {item.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+
+
+              {/* Custom Date Range Section */}
+              <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5">Custom Date Range</Text>
+              <View className="flex-row gap-3 mb-4">
+                <View className="flex-1">
+                  <DatePickerButton
+                    label="Start Date"
+                    value={customStartDate}
+                    placeholder="Pick a start date"
+                    onSelectDate={(val) => {
+                      setCustomStartDate(val);
+                      if (val) setDateFilterMode('custom_range');
+                    }}
+                  />
+                </View>
+                <View className="flex-1">
+                  <DatePickerButton
+                    label="End Date"
+                    value={customEndDate}
+                    placeholder="Pick an end date"
+                    onSelectDate={(val) => {
+                      setCustomEndDate(val);
+                      if (val) setDateFilterMode('custom_range');
+                    }}
+                  />
+                </View>
+              </View>
+
+              {/* Modal Actions */}
+              <View className="flex-row gap-3 mt-2 mb-4">
+                <Button
+                  variant="outline"
+                  size="md"
+                  className="flex-1 border-zinc-200"
+                  onPress={() => {
+                    setDateFilterMode('all');
+                    setSelectedCustomMonth('');
+                    setCustomStartDate('');
+                    setCustomEndDate('');
+                    setDateFilterModalVisible(false);
+                  }}
+                >
+                  <Text className="text-zinc-800 font-bold text-xs">Reset All</Text>
+                </Button>
+
+                <Button
+                  variant="primary"
+                  size="md"
+                  className="flex-1"
+                  onPress={() => {
+                    if (customStartDate || customEndDate) {
+                      setDateFilterMode('custom_range');
+                    }
+                    setDateFilterModalVisible(false);
+                  }}
+                >
+                  <Text className="text-white font-bold text-xs">Apply Filter</Text>
+                </Button>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Transaction Creation Modal */}
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View className="flex-1 justify-end bg-black/40">
           <View className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]">
@@ -458,7 +639,6 @@ export default function TransactionsScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              {/* Type selector */}
               <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-4">
                 <Pressable
                   onPress={() => setType('expense')}
@@ -495,7 +675,6 @@ export default function TransactionsScreen() {
                 onChangeText={setAmount}
               />
 
-              {/* Category Dropdown */}
               {type !== 'transfer' && (
                 <View className="mb-4">
                   <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Category</Text>
@@ -531,7 +710,6 @@ export default function TransactionsScreen() {
                 </View>
               )}
 
-              {/* Account Dropdown */}
               <View className="mb-4">
                 <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">
                   {type === 'transfer' ? 'From Account' : 'Account'}
@@ -567,7 +745,6 @@ export default function TransactionsScreen() {
                 )}
               </View>
 
-              {/* Destination Account for Transfer */}
               {type === 'transfer' && (
                 <View className="mb-4">
                   <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">To Account</Text>
