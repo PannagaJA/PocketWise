@@ -7,6 +7,8 @@ import { useAppStore } from '../../../store/useAppStore';
 import { supabase } from '../../supabase';
 import { transactionService } from '../../services/transaction.service';
 import { accountService } from '../../services/account.service';
+import { notificationEngine } from '../../notifications/notification.engine';
+import { financialAnalyticsEngine } from '../../finance/analyticsEngine';
 
 const { PocketWiseSmsModule } = NativeModules;
 
@@ -293,6 +295,44 @@ class SmsListenerService {
       }
     } catch (err) {
       console.warn('[SMS Listener] Error persisting to Supabase:', err);
+    }
+
+    // 3. Trigger Real Android System Notification via Central Notification Engine
+    try {
+      const isIncome = parsedTx.type === 'income';
+      const formattedAmount = `₹${(parsedTx.amountMinor / 100).toLocaleString('en-IN')}`;
+      const title = isIncome ? 'Money Received 💰' : 'Expense Recorded 💳';
+      const merchantPart = parsedTx.merchant && parsedTx.merchant !== 'Bank Transaction' ? ` at ${parsedTx.merchant}` : '';
+      const body = isIncome
+        ? `${formattedAmount} received into your ${parsedTx.bankName} account.`
+        : `${formattedAmount} spent${merchantPart} (${parsedTx.bankName}).`;
+
+      const category = isIncome ? 'income' : parsedTx.amountMinor >= 1000000 ? 'large_transaction' : 'expense';
+
+      await notificationEngine.notify({
+        eventId: `tx_alert_${parsedTx.sourceMessageId}`,
+        category: category,
+        title: title,
+        body: body,
+        priority: category === 'large_transaction' ? 'high' : 'medium',
+        data: {
+          transactionId: parsedTx.sourceMessageId,
+          type: 'transaction',
+        },
+      });
+
+      // Evaluate Unusual Spending Anomaly Alert
+      const storeState = useAppStore.getState();
+      const existingTxs = storeState.transactions || [];
+      await financialAnalyticsEngine.evaluateUnusualSpending({
+        id: parsedTx.sourceMessageId || `tx_${Date.now()}`,
+        amount_minor: parsedTx.amountMinor,
+        category_name: parsedTx.category,
+        description: cleanDescription,
+        type: parsedTx.type === 'income' ? 'income' : 'expense',
+      }, existingTxs);
+    } catch (notifErr) {
+      console.warn('[SMS Listener] Non-fatal notification error:', notifErr);
     }
   }
 

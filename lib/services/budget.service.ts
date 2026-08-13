@@ -115,17 +115,24 @@ export const budgetService = {
     const monthKey = startDate.substring(0, 7); // e.g. 2026-08
 
     if (percentage >= 100) {
-      const title = `🔔 ${categoryName} budget exceeded`;
+      const title = `🚨 ${categoryName} budget exceeded`;
       const body = `You've spent 100%+ of your ₹${(limitMinor / 100).toLocaleString('en-IN')} ${categoryName} budget for ${monthKey}.`;
-      await this.ensureReminderExists(userId, budgetId, title, body, 'budget_100_' + monthKey);
+      await this.ensureReminderExists(userId, budgetId, title, body, 'budget_100_' + monthKey, 'budget_exceeded');
     } else if (percentage >= 80) {
-      const title = `🔔 ${categoryName} budget alert`;
+      const title = `⚠️ ${categoryName} budget warning`;
       const body = `You've used ${Math.round(percentage)}% of your ₹${(limitMinor / 100).toLocaleString('en-IN')} ${categoryName} budget for ${monthKey}.`;
-      await this.ensureReminderExists(userId, budgetId, title, body, 'budget_80_' + monthKey);
+      await this.ensureReminderExists(userId, budgetId, title, body, 'budget_80_' + monthKey, 'budget');
     }
   },
 
-  async ensureReminderExists(userId: string, budgetId: string, title: string, body: string, key: string): Promise<void> {
+  async ensureReminderExists(
+    userId: string,
+    budgetId: string,
+    title: string,
+    body: string,
+    key: string,
+    categoryType: 'budget' | 'budget_exceeded'
+  ): Promise<void> {
     const { data: existing } = await supabase
       .from('reminders')
       .select('id')
@@ -136,7 +143,7 @@ export const budgetService = {
 
     if (existing && existing.length > 0) return;
 
-    await reminderService.createReminder({
+    const createdReminder = await reminderService.createReminder({
       user_id: userId,
       type: 'budget',
       reference_id: budgetId,
@@ -144,5 +151,20 @@ export const budgetService = {
       body,
       scheduled_at: new Date().toISOString(),
     });
+
+    // Fire immediate Android system alert via NotificationEngine
+    try {
+      const { notificationEngine } = await import('../notifications/notification.engine');
+      await notificationEngine.notify({
+        eventId: `budget_alert_${budgetId}_${key}`,
+        category: categoryType,
+        title,
+        body,
+        priority: categoryType === 'budget_exceeded' ? 'high' : 'medium',
+        data: { budgetId, type: 'budget' },
+      });
+    } catch (err) {
+      console.warn('[BudgetService] Failed to dispatch OS alert:', err);
+    }
   },
 };

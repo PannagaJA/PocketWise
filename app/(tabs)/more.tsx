@@ -217,6 +217,19 @@ export default function MoreScreen() {
             </View>
             <ChevronRight size={18} color="#A1A1AA" />
           </Pressable>
+
+          <Pressable onPress={() => router.push('/notification-settings')} className="p-4 flex-row items-center justify-between">
+            <View className="flex-row items-center">
+              <View className="w-9 h-9 rounded-xl bg-indigo-50 items-center justify-center mr-3">
+                <Bell size={20} color="#6366F1" />
+              </View>
+              <View>
+                <Text className="text-sm font-bold text-zinc-900">Notification & Alert Settings</Text>
+                <Text className="text-xs text-zinc-500">Customize push categories, limits & quiet hours</Text>
+              </View>
+            </View>
+            <ChevronRight size={18} color="#A1A1AA" />
+          </Pressable>
         </Card>
 
 

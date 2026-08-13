@@ -1,5 +1,16 @@
-import { Platform } from 'react-native';
-import Constants, { ExecutionEnvironment } from 'expo-constants';
+let Platform: any = { OS: 'android' };
+let Constants: any = null;
+let ExecutionEnvironment: any = { StoreClient: 'storeClient' };
+
+try {
+  Platform = require('react-native').Platform;
+  Constants = require('expo-constants').default || require('expo-constants');
+  ExecutionEnvironment = require('expo-constants').ExecutionEnvironment || ExecutionEnvironment;
+} catch {
+  Platform = { OS: 'android' };
+  Constants = { executionEnvironment: 'bare' };
+}
+
 import { supabase } from '../supabase';
 
 const isExpoGo = Constants?.executionEnvironment === ExecutionEnvironment.StoreClient;
@@ -22,11 +33,28 @@ if (!isExpoGo) {
   }
 }
 
+export type NotificationCategory =
+  | 'transaction'
+  | 'income'
+  | 'expense'
+  | 'large_transaction'
+  | 'bill'
+  | 'subscription'
+  | 'budget'
+  | 'budget_exceeded'
+  | 'savings'
+  | 'savings_completed'
+  | 'analytics'
+  | 'unusual_spending'
+  | 'summary'
+  | 'reminder'
+  | 'system';
+
 let isInitialized = false;
 
 export const notificationService = {
   /**
-   * Idempotently initialize notification channel and permissions on app boot.
+   * Idempotently initialize notification channels and permissions on app boot.
    */
   async init(): Promise<boolean> {
     if (isInitialized) return true;
@@ -37,12 +65,23 @@ export const notificationService = {
 
     try {
       if (Platform.OS === 'android') {
+        // High priority channel for transactions, bills, reminders, and alerts
         await Notifications.setNotificationChannelAsync('pocketwise-reminders', {
-          name: 'PocketWise Reminders',
-          description: 'Scheduled reminders for upcoming bills, subscriptions, and financial alerts.',
+          name: 'PocketWise Alerts & Reminders',
+          description: 'Scheduled reminders for upcoming bills, subscriptions, transactions, and urgent alerts.',
           importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 250, 250, 250],
           lightColor: '#6366F1',
+          sound: 'default',
+        });
+
+        // Medium priority channel for summary updates & insights
+        await Notifications.setNotificationChannelAsync('pocketwise-insights', {
+          name: 'PocketWise Insights & Summaries',
+          description: 'Financial analytics, weekly digests, and savings milestone updates.',
+          importance: Notifications.AndroidImportance.DEFAULT,
+          vibrationPattern: [0, 150],
+          lightColor: '#10B981',
           sound: 'default',
         });
       }
@@ -193,14 +232,32 @@ export const notificationService = {
             reference_id: id,
           },
         },
-        trigger: targetDate,
+        trigger: Platform.OS === 'android' ? { type: 'date', date: targetDate } : targetDate,
       });
 
       console.log(`[NotificationService] Successfully scheduled local notification (ID: ${id}) for ${targetDate.toISOString()}`);
       return notifId;
     } catch (err) {
       console.warn('[NotificationService] Failed to schedule local due date reminder:', err);
-      return null;
+      // Fallback try with seconds offset if Date object trigger fails on Android
+      try {
+        const diffSeconds = Math.max(5, Math.floor((triggerDate.getTime() - Date.now()) / 1000));
+        const fallbackId = await Notifications.scheduleNotificationAsync({
+          identifier: id,
+          content: {
+            title,
+            body,
+            sound: 'default',
+            channelId: 'pocketwise-reminders',
+            data: { reminderId: id, type: type, reference_id: id },
+          },
+          trigger: { seconds: diffSeconds, channelId: 'pocketwise-reminders' },
+        });
+        return fallbackId;
+      } catch (fallbackErr) {
+        console.warn('[NotificationService] Fallback trigger also failed:', fallbackErr);
+        return null;
+      }
     }
   },
 
@@ -214,6 +271,45 @@ export const notificationService = {
       console.log(`[NotificationService] Cancelled scheduled notification (ID: ${id})`);
     } catch (err) {
       console.warn('[NotificationService] Error cancelling notification:', err);
+    }
+  },
+
+  /**
+   * Immediately dispatch a real Android system notification for instant financial events (transactions, budget warnings, etc.).
+   */
+  async sendSystemAlert(params: {
+    id: string;
+    category: NotificationCategory;
+    title: string;
+    body: string;
+    priority?: 'high' | 'medium' | 'low';
+    data?: Record<string, any>;
+  }): Promise<string | null> {
+    if (!Notifications) return null;
+    try {
+      await this.init();
+      const channel = params.priority === 'low' ? 'pocketwise-insights' : 'pocketwise-reminders';
+
+      const notifId = await Notifications.scheduleNotificationAsync({
+        identifier: params.id,
+        content: {
+          title: params.title,
+          body: params.body,
+          sound: 'default',
+          channelId: channel,
+          data: {
+            ...params.data,
+            type: params.category,
+            reference_id: params.id,
+          },
+        },
+        trigger: null, // Null trigger presents immediately on OS
+      });
+      console.log(`[NotificationService] Dispatched system alert (${params.category}): ${params.title}`);
+      return notifId;
+    } catch (err) {
+      console.warn('[NotificationService] Error sending system alert:', err);
+      return null;
     }
   },
 
@@ -248,7 +344,6 @@ export const notificationService = {
     if (!Notifications) return false;
     try {
       await this.init();
-      const triggerDate = new Date(Date.now() + delaySeconds * 1000);
       await Notifications.scheduleNotificationAsync({
         identifier: `test_${Date.now()}`,
         content: {
@@ -258,7 +353,7 @@ export const notificationService = {
           channelId: 'pocketwise-reminders',
           data: { type: 'test' },
         },
-        trigger: triggerDate,
+        trigger: { seconds: delaySeconds, channelId: 'pocketwise-reminders' },
       });
       return true;
     } catch (err) {

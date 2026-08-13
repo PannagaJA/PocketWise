@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from '../context/AuthContext';
 import { AppLockGate } from '../components/AppLockGate';
 import { deepLinkService } from '../lib/notifications/deep-link.service';
 import { notificationService } from '../lib/notifications/notification.service';
+import { financialAnalyticsEngine } from '../lib/finance/analyticsEngine';
 import { smsListenerService } from '../lib/sms/service/smsListenerService';
 import { supabase } from '../lib/supabase';
 import '../global.css';
@@ -44,6 +45,7 @@ function GlobalRealtimeSync() {
 
     // Idempotently initialize OS notification channels & permissions
     notificationService.init();
+    financialAnalyticsEngine.scheduleOfflineSummaryAlarms();
 
     // Register notification response listener for deep linking when clicking phone tray notifications
     const cleanupListener = deepLinkService.registerNotificationListener();

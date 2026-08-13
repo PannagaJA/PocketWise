@@ -14,6 +14,7 @@ import { transactionService } from '../../lib/services/transaction.service';
 import { billService } from '../../lib/services/bill.service';
 import { goalService } from '../../lib/services/goal.service';
 import { reminderService } from '../../lib/services/reminder.service';
+import { financialAnalyticsEngine } from '../../lib/finance/analyticsEngine';
 import { formatMoney, formatDate, formatDateTime } from '../../lib/finance/core';
 import { Plus, ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight, ShieldCheck, TrendingUp, TrendingDown, ArrowRightLeft, X, Clock, Trash2 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -94,8 +95,16 @@ export default function DashboardScreen() {
         refetchBills();
         refetchGoals();
         refetchReminders();
+
+        if (transactions.length > 0) {
+          const currentMonth = new Date().toISOString().substring(0, 7);
+          const currentMonthTxs = transactions.filter((t) => t.date && t.date.startsWith(currentMonth));
+          const prevMonth = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().substring(0, 7);
+          const prevMonthTxs = transactions.filter((t) => t.date && t.date.startsWith(prevMonth));
+          financialAnalyticsEngine.evaluateMonthlyAnalytics(currentMonthTxs, prevMonthTxs);
+        }
       }
-    }, [user?.id, refetchAcc, refetchTx, refetchBills, refetchGoals, refetchReminders])
+    }, [user?.id, refetchAcc, refetchTx, refetchBills, refetchGoals, refetchReminders, transactions])
   );
 
   const upcomingBills = bills.filter((b) => !b.is_paid).slice(0, 3);

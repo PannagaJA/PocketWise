@@ -97,6 +97,7 @@ export const goalService = {
 
   async ensureCompletionNotification(userId: string, goalId: string, goalName: string): Promise<void> {
     const title = `🎉 Savings Goal Completed!`;
+    const body = `Congratulations! You've reached 100% of your target for "${goalName}".`;
     const { data: existing } = await supabase
       .from('reminders')
       .select('id')
@@ -112,8 +113,22 @@ export const goalService = {
       type: 'goal',
       reference_id: goalId,
       title,
-      body: `Congratulations! You've reached 100% of your target for "${goalName}".`,
+      body,
       scheduled_at: new Date().toISOString(),
     });
+
+    try {
+      const { notificationEngine } = await import('../notifications/notification.engine');
+      await notificationEngine.notify({
+        eventId: `goal_achieved_${goalId}`,
+        category: 'savings_completed',
+        title,
+        body,
+        priority: 'high',
+        data: { goalId, type: 'goal' },
+      });
+    } catch (err) {
+      console.warn('[GoalService] Failed to dispatch OS alert:', err);
+    }
   },
 };

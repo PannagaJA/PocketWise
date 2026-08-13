@@ -1,5 +1,6 @@
 import { supabase } from '../supabase';
 import { notificationService } from '../notifications/notification.service';
+import { notificationEngine } from '../notifications/notification.engine';
 
 export interface Reminder {
   id?: string;
@@ -39,17 +40,20 @@ export const reminderService = {
 
     if (error) throw error;
 
-    // 2. Schedule local Android/iOS OS notification safely AFTER database success
+    // 2. Schedule local Android/iOS OS notification via NotificationEngine (enforces Master Push & Category Preferences)
     if (data && data.scheduled_at) {
       try {
         const triggerDate = new Date(data.scheduled_at);
-        await notificationService.scheduleDueDateReminder(
-          data.id,
-          data.title,
-          data.body,
-          triggerDate,
-          data.type
-        );
+        const category = data.type === 'subscription' ? 'subscription' : data.type === 'bill' ? 'bill' : 'reminder';
+        await notificationEngine.notify({
+          eventId: data.id,
+          category: category,
+          title: data.title,
+          body: data.body,
+          triggerDate: triggerDate,
+          priority: 'medium',
+          data: { reminderId: data.id, type: data.type },
+        });
       } catch (notifErr) {
         console.warn('[ReminderService] Non-fatal error scheduling local notification:', notifErr);
       }
