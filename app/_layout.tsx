@@ -9,6 +9,8 @@ import { deepLinkService } from '../lib/notifications/deep-link.service';
 import { notificationService } from '../lib/notifications/notification.service';
 import { financialAnalyticsEngine } from '../lib/finance/analyticsEngine';
 import { smsListenerService } from '../lib/sms/service/smsListenerService';
+import { shakeService } from '../lib/shake/shakeService';
+import { QuickExpenseModal } from '../components/QuickExpenseModal';
 import { supabase } from '../lib/supabase';
 import '../global.css';
 
@@ -48,6 +50,9 @@ function GlobalRealtimeSync() {
     notificationService.init();
     financialAnalyticsEngine.scheduleOfflineSummaryAlarms();
 
+    // Initialize native shake detection service & session sync
+    shakeService.init(user?.id);
+
     // Register notification response listener for deep linking when clicking phone tray notifications
     const cleanupListener = deepLinkService.registerNotificationListener();
     deepLinkService.checkColdStartNotification();
@@ -82,6 +87,7 @@ export default function RootLayout() {
         <AuthProvider>
           <AppLockGate>
             <GlobalRealtimeSync />
+            <QuickExpenseModal />
             <StatusBar style="dark" translucent={true} backgroundColor="transparent" />
             <Stack
               screenOptions={{

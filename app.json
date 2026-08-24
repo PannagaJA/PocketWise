@@ -36,7 +36,8 @@
       "expo-secure-store",
       "expo-notifications",
       "@react-native-firebase/app",
-      "./plugins/withAndroidSmsReceiver"
+      "./plugins/withAndroidSmsReceiver",
+      "./plugins/withAndroidShakeDetector"
     ]
   }
 }

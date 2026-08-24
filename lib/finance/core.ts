@@ -15,9 +15,10 @@ export function formatMoney(amountInMinor: number, currency: string = 'INR'): st
 }
 
 export function parseMoneyToMinor(amountString: string): number {
+  if (!amountString || amountString.trim().startsWith('-')) return 0;
   const cleanString = amountString.replace(/[^0-9.]/g, '');
   const parsed = parseFloat(cleanString);
-  if (isNaN(parsed) || parsed < 0) return 0;
+  if (isNaN(parsed) || parsed <= 0) return 0;
   return Math.round(parsed * 100);
 }
 

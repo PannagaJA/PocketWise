@@ -3,6 +3,7 @@ import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { profileService } from '../lib/services/profile.service';
 import { notificationService } from '../lib/notifications/notification.service';
+import { shakeService } from '../lib/shake/shakeService';
 
 interface AuthContextType {
   session: Session | null;
@@ -40,6 +41,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (session?.user) {
         profileService.ensureProfile(session.user.id, session.user.email?.split('@')[0]).catch(console.error);
         notificationService.registerDeviceToken(session.user.id).catch(console.error);
+        shakeService.init(session.user.id).catch(console.error);
+      } else {
+        shakeService.clearUserSession().catch(console.error);
       }
       setLoading(false);
     });
@@ -48,6 +52,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signOut = async () => {
+    await shakeService.clearUserSession().catch(console.error);
     await supabase.auth.signOut();
   };
 

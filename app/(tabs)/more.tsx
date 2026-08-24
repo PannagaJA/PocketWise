@@ -8,7 +8,7 @@ import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { useAuth } from '../../context/AuthContext';
 import { appLockService } from '../../lib/security/app-lock.service';
-import { Fingerprint, Bell, Database, LogOut, ChevronRight, Calendar, Target, Lock, PieChart, X, Smartphone } from 'lucide-react-native';
+import { Fingerprint, Bell, Database, LogOut, ChevronRight, Calendar, Target, Lock, PieChart, X, Smartphone, Zap } from 'lucide-react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as Haptics from 'expo-haptics';
 
@@ -227,6 +227,19 @@ export default function MoreScreen() {
               <View>
                 <Text className="text-sm font-bold text-zinc-900">Bank & SMS Tracking</Text>
                 <Text className="text-xs text-zinc-500">Auto-detect bank transactions & SMS</Text>
+              </View>
+            </View>
+            <ChevronRight size={18} color="#A1A1AA" />
+          </Pressable>
+
+          <Pressable onPress={() => router.push('/shake-settings')} className="p-4 flex-row items-center justify-between">
+            <View className="flex-row items-center">
+              <View className="w-9 h-9 rounded-xl bg-emerald-50 items-center justify-center mr-3">
+                <Zap size={20} color="#10B981" />
+              </View>
+              <View>
+                <Text className="text-sm font-bold text-zinc-900">Quick Expense (Shake to Add)</Text>
+                <Text className="text-xs text-zinc-500">Shake phone to immediately record expenses</Text>
               </View>
             </View>
             <ChevronRight size={18} color="#A1A1AA" />
