@@ -23,6 +23,16 @@ export interface ShakeDiagnostics {
   setBackgroundCallable: boolean;
 }
 
+export interface SensorSelfTestResult {
+  eventsReceived: number;
+  durationMs: number;
+  sensorAvailable: boolean;
+  sensorName: string;
+  sensorVendor: string;
+  registrationSuccess: boolean;
+  lastEventTimeMs: number;
+}
+
 export interface NativeServiceDiagnostics {
   serviceRunning: boolean;
   sensorAvailable: boolean;
@@ -38,6 +48,13 @@ export interface NativeServiceDiagnostics {
   popupActive: boolean;
   lastLinearMagnitude: number;
   lastGForce: number;
+  serviceInstanceId?: string;
+  serviceStartCount?: number;
+  serviceStartTimestamp?: number;
+  sensorRegistrationTimestamp?: number;
+  sensorRegistrationResult?: boolean;
+  sensorName?: string;
+  sensorVendor?: string;
 }
 
 class ShakeService {
@@ -107,9 +124,67 @@ class ShakeService {
         popupActive: Boolean(res?.popupActive),
         lastLinearMagnitude: Number(res?.lastLinearMagnitude || 0),
         lastGForce: Number(res?.lastGForce || 0),
+        serviceInstanceId: String(res?.serviceInstanceId || ''),
+        serviceStartCount: Number(res?.serviceStartCount || 0),
+        serviceStartTimestamp: Number(res?.serviceStartTimestamp || 0),
+        sensorRegistrationTimestamp: Number(res?.sensorRegistrationTimestamp || 0),
+        sensorRegistrationResult: Boolean(res?.sensorRegistrationResult),
+        sensorName: String(res?.sensorName || 'Unknown'),
+        sensorVendor: String(res?.sensorVendor || 'Unknown'),
       };
     } catch {
       return null;
+    }
+  }
+
+  /**
+   * Run a native 2-3 second hardware accelerometer test directly on Android.
+   */
+  async runSensorSelfTest(durationMs: number = 2000): Promise<SensorSelfTestResult> {
+    if (!this.isNativeAvailable()) {
+      return {
+        eventsReceived: 0,
+        durationMs,
+        sensorAvailable: false,
+        sensorName: 'Not Available',
+        sensorVendor: 'Not Available',
+        registrationSuccess: false,
+        lastEventTimeMs: 0,
+      };
+    }
+    const mod = this.nativeModule;
+    if (typeof mod?.runSensorSelfTest !== 'function') {
+      return {
+        eventsReceived: 0,
+        durationMs,
+        sensorAvailable: false,
+        sensorName: 'Method Missing',
+        sensorVendor: 'Method Missing',
+        registrationSuccess: false,
+        lastEventTimeMs: 0,
+      };
+    }
+    try {
+      const res = await mod.runSensorSelfTest(durationMs);
+      return {
+        eventsReceived: Number(res?.eventsReceived || 0),
+        durationMs: Number(res?.durationMs || durationMs),
+        sensorAvailable: Boolean(res?.sensorAvailable),
+        sensorName: String(res?.sensorName || 'Unknown'),
+        sensorVendor: String(res?.sensorVendor || 'Unknown'),
+        registrationSuccess: Boolean(res?.registrationSuccess),
+        lastEventTimeMs: Number(res?.lastEventTimeMs || 0),
+      };
+    } catch (e) {
+      return {
+        eventsReceived: 0,
+        durationMs,
+        sensorAvailable: false,
+        sensorName: 'Error',
+        sensorVendor: 'Error',
+        registrationSuccess: false,
+        lastEventTimeMs: 0,
+      };
     }
   }
 
@@ -310,8 +385,9 @@ class ShakeService {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token || '';
-      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-      const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+      const envObj: Record<string, string | undefined> = typeof process !== 'undefined' && process.env ? process.env : {};
+      const supabaseUrl = envObj['EXPO_PUBLIC_SUPABASE_URL'] || '';
+      const supabaseAnonKey = envObj['EXPO_PUBLIC_SUPABASE_ANON_KEY'] || '';
 
       const accounts = await accountService.getAccounts(userId).catch(() => []);
       const categories = await categoryService.getCategories(userId).catch(() => []);

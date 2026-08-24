@@ -5,9 +5,9 @@ import { useRouter } from 'expo-router';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
-import { shakeService, ShakeDiagnostics, NativeServiceDiagnostics } from '../lib/shake/shakeService';
+import { shakeService, ShakeDiagnostics, NativeServiceDiagnostics, SensorSelfTestResult } from '../lib/shake/shakeService';
 import { shakeStorage, ShakeSensitivity } from '../lib/shake/storage/shakeStore';
-import { ArrowLeft, Zap, Shield, Smartphone, Layers, Play, CheckCircle2, AlertCircle, Cpu, RefreshCw, Activity } from 'lucide-react-native';
+import { ArrowLeft, Zap, Shield, Smartphone, Layers, Play, CheckCircle2, AlertCircle, Cpu, RefreshCw, Activity, Check } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 export default function ShakeSettingsScreen() {
@@ -21,6 +21,8 @@ export default function ShakeSettingsScreen() {
   const [serviceRunning, setServiceRunning] = useState(false);
   const [diagnostics, setDiagnostics] = useState<ShakeDiagnostics | null>(null);
   const [serviceDiagnostics, setServiceDiagnostics] = useState<NativeServiceDiagnostics | null>(null);
+  const [isTestingSensor, setIsTestingSensor] = useState(false);
+  const [sensorTestResult, setSensorTestResult] = useState<SensorSelfTestResult | null>(null);
 
   useEffect(() => {
     loadSettings();
@@ -59,214 +61,208 @@ export default function ShakeSettingsScreen() {
     setLoading(false);
   };
 
-  const toggleEnabled = async (value: boolean) => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-    setEnabled(value);
-    await shakeStorage.saveSettings({ enabled: value });
-    try {
-      if (value) {
-        const ok = await shakeService.startService();
-        setServiceRunning(ok);
-      } else {
-        await shakeService.stopService();
-        setServiceRunning(false);
-      }
-    } catch (err: any) {
-      Alert.alert(
-        'Native Service Error',
-        `Failed to ${value ? 'start' : 'stop'} shake service:\n\n${err?.message || err}`
-      );
-      // Revert UI state on failure
-      setEnabled(!value);
-      await shakeStorage.saveSettings({ enabled: !value });
+  const handleToggleEnabled = async (val: boolean) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setEnabled(val);
+    await shakeStorage.saveSettings({ enabled: val });
+
+    if (val) {
+      const ok = await shakeService.startService();
+      setServiceRunning(ok);
+    } else {
+      await shakeService.stopService();
+      setServiceRunning(false);
     }
-    setDiagnostics(shakeService.getDiagnostics());
     const sDiag = await shakeService.getNativeServiceDiagnostics().catch(() => null);
     setServiceDiagnostics(sDiag);
   };
 
-  const toggleBackgroundEnabled = async (value: boolean) => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-    setBackgroundEnabled(value);
-    await shakeStorage.saveSettings({ backgroundEnabled: value });
-    try {
-      await shakeService.setBackgroundEnabled(value);
-    } catch (err: any) {
+  const handleToggleBackground = async (val: boolean) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setBackgroundEnabled(val);
+    await shakeService.setBackgroundEnabled(val);
+
+    // If enabling background detection and overlay permission is missing, prompt user
+    if (val && !overlayGranted) {
       Alert.alert(
-        'Native Background Preference Error',
-        `Failed to set background preference:\n\n${err?.message || err}`
+        'Display Over Other Apps Required',
+        'To show the Quick Expense popup over your home screen or other apps after a shake, PocketWise needs overlay permission.',
+        [
+          { text: 'Later', style: 'cancel' },
+          { text: 'Grant Permission', onPress: handleRequestOverlay },
+        ]
       );
     }
     const sDiag = await shakeService.getNativeServiceDiagnostics().catch(() => null);
     setServiceDiagnostics(sDiag);
   };
 
-  const changeSensitivity = async (newSens: ShakeSensitivity) => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-    setSensitivity(newSens);
-    try {
-      await shakeService.setSensitivity(newSens);
-    } catch (err: any) {
-      console.warn('[ShakeSettings] Failed to set sensitivity natively:', err);
-    }
+  const handleSelectSensitivity = async (s: ShakeSensitivity) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSensitivity(s);
+    await shakeService.setSensitivity(s);
     const sDiag = await shakeService.getNativeServiceDiagnostics().catch(() => null);
     setServiceDiagnostics(sDiag);
   };
 
   const handleRequestOverlay = async () => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await shakeService.requestOverlayPermission();
-    } catch (err: any) {
-      Alert.alert(
-        'Permission Request Error',
-        `Unable to open Android overlay settings:\n\n${err?.message || err}`
-      );
+    } catch (e: any) {
+      Alert.alert('Permission Request Error', e?.message || 'Unable to open overlay settings.');
     }
-    setDiagnostics(shakeService.getDiagnostics());
   };
 
   const handleSimulateShake = async () => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); } catch {}
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     try {
       await shakeService.simulateShake();
-    } catch (err: any) {
-      Alert.alert(
-        'Simulate Shake Error',
-        `Native shake simulation failed:\n\n${err?.message || err}`
-      );
+    } catch (e: any) {
+      Alert.alert('Simulate Shake Error', e?.message || 'Unable to simulate shake event.');
     }
-    setDiagnostics(shakeService.getDiagnostics());
+  };
+
+  const handleRunSensorTest = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsTestingSensor(true);
+    setSensorTestResult(null);
+    try {
+      const res = await shakeService.runSensorSelfTest(2000);
+      setSensorTestResult(res);
+      // Also refresh background service diagnostics
+      const sDiag = await shakeService.getNativeServiceDiagnostics().catch(() => null);
+      setServiceDiagnostics(sDiag);
+    } catch (e: any) {
+      Alert.alert('Sensor Self-Test Error', e?.message || 'Failed to run test.');
+    } finally {
+      setIsTestingSensor(false);
+    }
   };
 
   const refreshDiagnostics = async () => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setDiagnostics(shakeService.getDiagnostics());
     const isOverlayOk = await shakeService.checkOverlayPermission().catch(() => false);
     const isRunning = await shakeService.isServiceRunning().catch(() => false);
     const serviceDiag = await shakeService.getNativeServiceDiagnostics().catch(() => null);
     setOverlayGranted(isOverlayOk);
     setServiceRunning(isRunning);
-    setDiagnostics(shakeService.getDiagnostics());
     setServiceDiagnostics(serviceDiag);
   };
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-background justify-center items-center">
-        <ActivityIndicator size="large" color="#09090B" />
+      <SafeAreaView className="flex-1 bg-zinc-50 items-center justify-center">
+        <ActivityIndicator size="large" color="#10B981" />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      <View className="px-4 pt-2 pb-3 border-b border-zinc-200 flex-row items-center justify-between">
-        <Pressable onPress={() => router.back()} className="p-2 -ml-2 rounded-xl active:bg-zinc-100">
-          <ArrowLeft size={22} color="#09090B" />
+    <SafeAreaView className="flex-1 bg-zinc-50" edges={['top']}>
+      {/* Header */}
+      <View className="flex-row items-center justify-between px-5 py-3 border-b border-zinc-200 bg-white">
+        <Pressable
+          onPress={() => router.back()}
+          className="w-10 h-10 items-center justify-center rounded-full bg-zinc-100 active:bg-zinc-200"
+        >
+          <ArrowLeft size={20} color="#18181B" />
         </Pressable>
-        <Text className="text-base font-extrabold text-zinc-900">Quick Expense</Text>
-        <View className="w-8" />
+        <Text className="text-lg font-bold text-zinc-900">Shake to Add Expense</Text>
+        <View className="w-10" />
       </View>
 
-      <ScrollView
-        className="flex-1 px-4 pt-4"
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 }}
-      >
-        {/* Banner Card */}
-        <Card className="mb-5 p-5 bg-zinc-900 border-zinc-800 rounded-3xl overflow-hidden shadow-md">
-          <View className="flex-row items-center gap-3 mb-3">
-            <View className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 items-center justify-center">
-              <Zap size={20} color="#10B981" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-lg font-black text-white">Shake to Add Expense</Text>
-              <Text className="text-xs text-zinc-400">Record expenses instantly by shaking your phone</Text>
-            </View>
-          </View>
-          <Text className="text-xs text-zinc-300 leading-relaxed">
-            Whenever you make a payment, shake your device to open the compact Quick Expense popup. Enter the amount and description in seconds.
-          </Text>
-        </Card>
-
-        {/* Master Toggle */}
-        <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5 ml-1">General</Text>
-        <Card className="mb-5 p-0 bg-white border border-zinc-200 divide-y divide-zinc-100 rounded-2xl">
-          <View className="p-4 flex-row items-center justify-between">
-            <View className="flex-row items-center flex-1 mr-3">
-              <View className="w-9 h-9 rounded-xl bg-emerald-50 items-center justify-center mr-3">
-                <Smartphone size={20} color="#10B981" />
+      <ScrollView className="flex-1 px-5 pt-4" showsVerticalScrollIndicator={false}>
+        {/* Main Toggle Card */}
+        <Card className="mb-4 p-4 bg-white border border-zinc-200 rounded-2xl">
+          <View className="flex-row items-center justify-between">
+            <View className="flex-row items-center gap-3 flex-1 pr-4">
+              <View className="w-10 h-10 rounded-xl bg-emerald-50 items-center justify-center">
+                <Zap size={22} color="#10B981" />
               </View>
               <View className="flex-1">
-                <Text className="text-sm font-bold text-zinc-900">Shake to Add Expense</Text>
-                <Text className="text-xs text-zinc-500">Enable physical motion trigger</Text>
+                <Text className="text-base font-bold text-zinc-900">Shake to Add Expense</Text>
+                <Text className="text-xs text-zinc-500 mt-0.5">
+                  Shake your device to instantly trigger the quick expense recording modal.
+                </Text>
               </View>
             </View>
             <Switch
               value={enabled}
-              onValueChange={toggleEnabled}
+              onValueChange={handleToggleEnabled}
               trackColor={{ false: '#E4E4E7', true: '#10B981' }}
+              thumbColor="#FFFFFF"
             />
           </View>
+        </Card>
 
-          <View className="p-4 flex-row items-center justify-between">
-            <View className="flex-row items-center flex-1 mr-3">
-              <View className="w-9 h-9 rounded-xl bg-indigo-50 items-center justify-center mr-3">
-                <Layers size={20} color="#6366F1" />
+        {/* Background Detection Toggle Card */}
+        <Card className="mb-4 p-4 bg-white border border-zinc-200 rounded-2xl">
+          <View className="flex-row items-center justify-between">
+            <View className="flex-row items-center gap-3 flex-1 pr-4">
+              <View className="w-10 h-10 rounded-xl bg-indigo-50 items-center justify-center">
+                <Layers size={22} color="#6366F1" />
               </View>
               <View className="flex-1">
-                <Text className="text-sm font-bold text-zinc-900">Background Shake Detection</Text>
-                <Text className="text-xs text-zinc-500">Detect shakes when app is minimized or swiped from recents</Text>
+                <Text className="text-base font-bold text-zinc-900">Background Shake Detection</Text>
+                <Text className="text-xs text-zinc-500 mt-0.5">
+                  Detect shakes even when PocketWise is minimized or in the background.
+                </Text>
               </View>
             </View>
             <Switch
-              disabled={!enabled}
               value={backgroundEnabled && enabled}
-              onValueChange={toggleBackgroundEnabled}
+              disabled={!enabled}
+              onValueChange={handleToggleBackground}
               trackColor={{ false: '#E4E4E7', true: '#6366F1' }}
+              thumbColor="#FFFFFF"
             />
           </View>
         </Card>
 
         {/* Sensitivity Selector */}
-        <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5 ml-1">Shake Sensitivity</Text>
-        <Card className="mb-5 p-4 bg-white border border-zinc-200 rounded-2xl">
-          <Text className="text-xs text-zinc-500 mb-3">
-            Choose how firmly you need to shake the device to open the expense popup.
-          </Text>
+        <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5 ml-1">Motion Sensitivity</Text>
+        <Card className="mb-4 p-4 bg-white border border-zinc-200 rounded-2xl">
+          <View className="flex-row items-center gap-2 mb-3">
+            <Smartphone size={16} color="#71717A" />
+            <Text className="text-xs text-zinc-500">
+              Adjust how firmly you need to shake the device to trigger the modal.
+            </Text>
+          </View>
 
-          <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-3">
+          <View className="flex-row gap-2">
             {(['low', 'normal', 'high'] as ShakeSensitivity[]).map((level) => {
               const isSelected = sensitivity === level;
               return (
                 <Pressable
                   key={level}
-                  onPress={() => changeSensitivity(level)}
-                  className={`flex-1 py-2.5 rounded-xl items-center ${isSelected ? 'bg-zinc-900' : ''}`}
+                  onPress={() => handleSelectSensitivity(level)}
+                  className={`flex-1 py-3 px-2 rounded-xl items-center justify-center border ${
+                    isSelected
+                      ? 'bg-zinc-900 border-zinc-900 shadow-sm'
+                      : 'bg-zinc-50 border-zinc-200 active:bg-zinc-100'
+                  }`}
                 >
-                  <Text className={`text-xs font-bold capitalize ${isSelected ? 'text-white' : 'text-zinc-600'}`}>
+                  <Text
+                    className={`text-xs font-bold capitalize ${
+                      isSelected ? 'text-white' : 'text-zinc-700'
+                    }`}
+                  >
                     {level}
                   </Text>
                 </Pressable>
               );
             })}
           </View>
-
-          <Text className="text-[11px] text-zinc-400 text-center font-medium">
-            {sensitivity === 'low' && 'Low: Requires a firmer, deliberate shake to avoid accidental triggers.'}
-            {sensitivity === 'normal' && 'Normal (Default): Balanced detection for everyday physical hand shakes.'}
-            {sensitivity === 'high' && 'High: Opens popup with a lighter shake.'}
-          </Text>
         </Card>
 
-        {/* Display Over Other Apps Permission Card */}
-        <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5 ml-1">Android Permissions</Text>
-        <Card className="mb-5 p-4 bg-white border border-zinc-200 rounded-2xl">
+        {/* Overlay Permission Status Card */}
+        <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5 ml-1">Android System Permission</Text>
+        <Card className="mb-4 p-4 bg-white border border-zinc-200 rounded-2xl">
           <View className="flex-row items-center justify-between mb-2">
             <View className="flex-row items-center gap-2">
-              <View className="w-8 h-8 rounded-xl bg-indigo-50 items-center justify-center">
-                <Shield size={18} color="#6366F1" />
-              </View>
+              <Shield size={18} color={overlayGranted ? '#10B981' : '#F59E0B'} />
               <Text className="text-sm font-bold text-zinc-900">Display Over Other Apps</Text>
             </View>
             <Badge
@@ -313,27 +309,62 @@ export default function ShakeSettingsScreen() {
           )}
         </Card>
 
-        {/* Test Section */}
-        <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5 ml-1">Test & Verification</Text>
+        {/* Hardware Self-Test & Simulation Section */}
+        <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5 ml-1">Hardware Sensor Self-Test</Text>
         <Card className="mb-5 p-4 bg-white border border-zinc-200 rounded-2xl">
-          <Text className="text-xs text-zinc-500 mb-3">
-            Simulate a physical shake event right now to verify the Quick Expense popup and submission flow.
+          <Text className="text-xs text-zinc-500 mb-3 leading-relaxed">
+            Run a direct 2-second native accelerometer hardware test to verify real physical sensor event delivery on this device.
           </Text>
 
-          <Button
-            variant="primary"
-            size="md"
-            className="bg-zinc-900"
-            onPress={handleSimulateShake}
-          >
-            <Play size={16} color="#FFFFFF" className="mr-2" />
-            <Text className="text-white font-bold text-xs">Simulate Shake Event</Text>
-          </Button>
+          <View className="flex-row gap-2 mb-3">
+            <Button
+              variant="primary"
+              size="md"
+              className="flex-1 bg-emerald-600 active:bg-emerald-700"
+              onPress={handleRunSensorTest}
+              disabled={isTestingSensor}
+            >
+              {isTestingSensor ? (
+                <ActivityIndicator size="small" color="#FFFFFF" className="mr-2" />
+              ) : (
+                <Activity size={16} color="#FFFFFF" className="mr-2" />
+              )}
+              <Text className="text-white font-bold text-xs">
+                {isTestingSensor ? 'Testing Accelerometer...' : 'Run 2s Sensor Self-Test'}
+              </Text>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="md"
+              className="bg-zinc-900 border-zinc-900"
+              onPress={handleSimulateShake}
+            >
+              <Play size={16} color="#FFFFFF" className="mr-1.5" />
+              <Text className="text-white font-bold text-xs">Simulate Popup</Text>
+            </Button>
+          </View>
+
+          {sensorTestResult && (
+            <View className={`p-3 rounded-xl border ${sensorTestResult.eventsReceived > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
+              <View className="flex-row items-center justify-between mb-1">
+                <Text className={`text-xs font-bold ${sensorTestResult.eventsReceived > 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
+                  {sensorTestResult.eventsReceived > 0 ? '✓ Hardware Accelerometer Active' : '✕ No Sensor Events Received'}
+                </Text>
+                <Text className="text-[11px] font-mono text-zinc-600">
+                  {sensorTestResult.eventsReceived} events in {sensorTestResult.durationMs}ms
+                </Text>
+              </View>
+              <Text className="text-[11px] text-zinc-600">
+                Sensor: {sensorTestResult.sensorName} ({sensorTestResult.sensorVendor})
+              </Text>
+            </View>
+          )}
         </Card>
 
         {/* Native Bridge & Sensor Diagnostics Card */}
         <View className="flex-row items-center justify-between mb-2.5 ml-1">
-          <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Native Bridge & Sensor Diagnostics</Text>
+          <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Native Bridge & Persisted Telemetry</Text>
           <Pressable onPress={refreshDiagnostics} className="flex-row items-center gap-1 active:opacity-60">
             <RefreshCw size={12} color="#71717A" />
             <Text className="text-[11px] font-semibold text-zinc-500">Refresh</Text>
@@ -342,7 +373,7 @@ export default function ShakeSettingsScreen() {
         <Card className="mb-5 p-4 bg-zinc-900 border-zinc-800 rounded-2xl">
           <View className="flex-row items-center gap-2 mb-3">
             <Cpu size={16} color="#A1A1AA" />
-            <Text className="text-xs font-bold text-white">Installed APK Native Status</Text>
+            <Text className="text-xs font-bold text-white">Installed APK Native Telemetry</Text>
           </View>
 
           <View className="divide-y divide-zinc-800">
@@ -350,34 +381,6 @@ export default function ShakeSettingsScreen() {
               <Text className="text-xs text-zinc-400">Native module available:</Text>
               <Text className={`text-xs font-bold ${diagnostics?.moduleAvailable ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {diagnostics?.moduleAvailable ? 'YES' : 'NO'}
-              </Text>
-            </View>
-
-            <View className="py-2 flex-row items-center justify-between">
-              <Text className="text-xs text-zinc-400">Overlay check callable:</Text>
-              <Text className={`text-xs font-bold ${diagnostics?.overlayCheckCallable ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {diagnostics?.overlayCheckCallable ? 'YES' : 'NO'}
-              </Text>
-            </View>
-
-            <View className="py-2 flex-row items-center justify-between">
-              <Text className="text-xs text-zinc-400">Start service callable:</Text>
-              <Text className={`text-xs font-bold ${diagnostics?.startServiceCallable ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {diagnostics?.startServiceCallable ? 'YES' : 'NO'}
-              </Text>
-            </View>
-
-            <View className="py-2 flex-row items-center justify-between">
-              <Text className="text-xs text-zinc-400">Stop service callable:</Text>
-              <Text className={`text-xs font-bold ${diagnostics?.stopServiceCallable ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {diagnostics?.stopServiceCallable ? 'YES' : 'NO'}
-              </Text>
-            </View>
-
-            <View className="py-2 flex-row items-center justify-between">
-              <Text className="text-xs text-zinc-400">Simulate shake callable:</Text>
-              <Text className={`text-xs font-bold ${diagnostics?.simulateShakeCallable ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {diagnostics?.simulateShakeCallable ? 'YES' : 'NO'}
               </Text>
             </View>
 
@@ -403,21 +406,28 @@ export default function ShakeSettingsScreen() {
             </View>
 
             <View className="py-2 flex-row items-center justify-between">
-              <Text className="text-xs text-zinc-400">Sensor available:</Text>
+              <Text className="text-xs text-zinc-400">Sensor hardware available:</Text>
               <Text className={`text-xs font-bold ${serviceDiagnostics?.sensorAvailable ?? true ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {serviceDiagnostics?.sensorAvailable ?? true ? 'YES' : 'NO'}
               </Text>
             </View>
 
             <View className="py-2 flex-row items-center justify-between">
-              <Text className="text-xs text-zinc-400">Sensor listening:</Text>
+              <Text className="text-xs text-zinc-400">Sensor listener registered:</Text>
               <Text className={`text-xs font-bold ${serviceDiagnostics?.sensorListening ?? serviceRunning ? 'text-emerald-400' : 'text-zinc-500'}`}>
                 {serviceDiagnostics?.sensorListening ?? serviceRunning ? 'YES' : 'NO'}
               </Text>
             </View>
 
             <View className="py-2 flex-row items-center justify-between">
-              <Text className="text-xs text-zinc-400">Sensor events received:</Text>
+              <Text className="text-xs text-zinc-400">Hardware Sensor Name:</Text>
+              <Text className="text-xs font-semibold text-zinc-300">
+                {serviceDiagnostics?.sensorName || 'Accelerometer'}
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Sensor events (persisted):</Text>
               <Text className="text-xs font-bold text-amber-300 font-mono">
                 {serviceDiagnostics?.sensorEventsReceived !== undefined ? serviceDiagnostics.sensorEventsReceived.toLocaleString() : '0'}
               </Text>
@@ -442,6 +452,20 @@ export default function ShakeSettingsScreen() {
             </View>
 
             <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Service start count:</Text>
+              <Text className="text-xs font-mono text-zinc-300">
+                {serviceDiagnostics?.serviceStartCount ?? 1}
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Service Instance ID:</Text>
+              <Text className="text-[11px] font-mono text-zinc-400">
+                {serviceDiagnostics?.serviceInstanceId ? serviceDiagnostics.serviceInstanceId.slice(0, 8) + '...' : 'Active'}
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
               <Text className="text-xs text-zinc-400">Popup active lock:</Text>
               <Text className={`text-xs font-bold ${serviceDiagnostics?.popupActive ? 'text-amber-400' : 'text-zinc-400'}`}>
                 {serviceDiagnostics?.popupActive ? 'YES (locked)' : 'NO (ready)'}
@@ -454,8 +478,8 @@ export default function ShakeSettingsScreen() {
         <View className="p-4 bg-zinc-100 rounded-2xl mb-8 flex-row items-start gap-2.5">
           <AlertCircle size={16} color="#71717A" className="mt-0.5" />
           <Text className="text-xs text-zinc-500 flex-1 leading-relaxed">
-            <Text className="font-bold text-zinc-700">Task Continuity: </Text>
-            Shake detection runs via an optimized foreground service with <Text className="font-semibold text-zinc-800">stopWithTask="false"</Text> and persistent restart policies so that motion detection continues reliably even when PocketWise is dismissed from Recent Apps.
+            <Text className="font-bold text-zinc-700">Task Continuity & CPU WakeLock: </Text>
+            Shake detection runs via an isolated background HandlerThread with a safe <Text className="font-semibold text-zinc-800">PARTIAL_WAKE_LOCK</Text> and persistent telemetry to maintain sensor delivery without draining battery.
           </Text>
         </View>
       </ScrollView>

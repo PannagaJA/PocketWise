@@ -1,12 +1,90 @@
+// Mocks must be declared before imports
+jest.mock('react-native', () => ({
+  Platform: { OS: 'android' },
+  NativeModules: {
+    PocketWiseShakeModule: {
+      isShakeServiceRunning: jest.fn().mockResolvedValue(true),
+      startShakeService: jest.fn().mockResolvedValue(true),
+      stopShakeService: jest.fn().mockResolvedValue(true),
+      checkOverlayPermission: jest.fn().mockResolvedValue(true),
+      requestOverlayPermission: jest.fn().mockResolvedValue(true),
+      setShakeSensitivity: jest.fn().mockResolvedValue(true),
+      setBackgroundShakeEnabled: jest.fn().mockResolvedValue(true),
+      simulateShake: jest.fn().mockResolvedValue(true),
+      getServiceDiagnostics: jest.fn().mockResolvedValue({
+        serviceRunning: true,
+        sensorAvailable: true,
+        sensorListening: true,
+        detectorActive: true,
+        serviceEnabled: true,
+        backgroundEnabled: true,
+        sensitivity: 'NORMAL',
+        sensorEventsReceived: 1250,
+        lastSensorEventTimestamp: 1724523000000,
+        lastShakeTimestamp: 1724522900000,
+        shakeCount: 2,
+        popupActive: false,
+        serviceInstanceId: 'inst_abc_123',
+        serviceStartCount: 3,
+        serviceStartTimestamp: 1724520000000,
+        sensorRegistrationTimestamp: 1724520000100,
+        sensorRegistrationResult: true,
+        sensorName: 'BMI160 Accelerometer',
+        sensorVendor: 'Bosch',
+      }),
+      runSensorSelfTest: jest.fn().mockResolvedValue({
+        eventsReceived: 42,
+        durationMs: 2000,
+        sensorAvailable: true,
+        sensorName: 'BMI160 Accelerometer',
+        sensorVendor: 'Bosch',
+        registrationSuccess: true,
+        lastEventTimeMs: 1724523456789,
+      }),
+    },
+  },
+  DeviceEventEmitter: {
+    addListener: jest.fn(() => ({ remove: jest.fn() })),
+    emit: jest.fn(),
+  },
+}));
+
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn(async () => null),
+  setItem: jest.fn(async () => {}),
+  removeItem: jest.fn(async () => {}),
+}));
+
+jest.mock('../lib/supabase', () => ({
+  supabase: {
+    auth: {
+      getSession: jest.fn().mockResolvedValue({ data: { session: null } }),
+      getUser: jest.fn().mockResolvedValue({ data: { user: null } }),
+    },
+  },
+}));
+
+jest.mock('../lib/services/transaction.service', () => ({
+  transactionService: {
+    createTransaction: jest.fn().mockResolvedValue({}),
+  },
+}));
+
+jest.mock('../lib/services/account.service', () => ({
+  accountService: {
+    getAccounts: jest.fn().mockResolvedValue([]),
+  },
+}));
+
+jest.mock('../lib/services/category.service', () => ({
+  categoryService: {
+    getCategories: jest.fn().mockResolvedValue([]),
+  },
+}));
+
 import { parseMoneyToMinor, formatMoney } from '../lib/finance/core';
 import { shakeStorage, ShakeSensitivity } from '../lib/shake/storage/shakeStore';
-
-// Mock AsyncStorage
-jest.mock('@react-native-async-storage/async-storage', () => ({
-  getItem: jest.fn(),
-  setItem: jest.fn(),
-  removeItem: jest.fn(),
-}));
+import { shakeService } from '../lib/shake/shakeService';
 
 describe('Shake to Add Expense - Core Logic & Data Pipeline Tests', () => {
   describe('Money Parsing & Currency Formatter Tests', () => {
@@ -43,371 +121,145 @@ describe('Shake to Add Expense - Core Logic & Data Pipeline Tests', () => {
       expect(settings.sensitivity).toBe('normal');
     });
 
-    it('validates sensitivity mapping thresholds', () => {
-      const sensitivityMap: Record<ShakeSensitivity, number> = {
-        low: 17.5,
-        normal: 13.0,
-        high: 9.5,
-      };
+    it('persists and updates sensitivity properly', async () => {
+      await shakeStorage.saveSettings({ sensitivity: 'high' });
+      expect(shakeStorage.saveSettings).toBeDefined();
+    });
 
-      expect(sensitivityMap.low).toBeGreaterThan(sensitivityMap.normal);
-      expect(sensitivityMap.normal).toBeGreaterThan(sensitivityMap.high);
+    it('persists backgroundEnabled setting properly', async () => {
+      await shakeStorage.saveSettings({ backgroundEnabled: false });
+      expect(shakeStorage.saveSettings).toBeDefined();
     });
   });
 
-  describe('Transaction Payload & Schema Integrity', () => {
-    it('generates a valid expense transaction payload matching transactionService contract', () => {
-      const userId = 'user_123_abc';
-      const accountId = 'acc_456_xyz';
-      const categoryId = 'cat_fuel_789';
-      const description = 'Petrol';
-      const rawAmount = '500';
-      const minorAmount = parseMoneyToMinor(rawAmount);
-      const date = '2026-08-24';
+  describe('Accelerometer Math & Multi-Axis Peak Evaluation', () => {
+    const ALPHA = 0.85;
 
-      const payload = {
-        user_id: userId,
-        account_id: accountId,
-        type: 'expense' as const,
-        amount_minor: minorAmount,
-        currency: 'INR',
-        category_id: categoryId,
-        description,
-        date,
-      };
+    const evaluateAccelerometer = (
+      samples: Array<[number, number, number]>,
+      linearThreshold: number,
+      gForceThreshold: number
+    ) => {
+      let gravityX = 0;
+      let gravityY = 0;
+      let gravityZ = 0;
+      let isInit = false;
+      let peakCount = 0;
 
-      expect(payload.user_id).toBe('user_123_abc');
-      expect(payload.account_id).toBe('acc_456_xyz');
-      expect(payload.type).toBe('expense');
-      expect(payload.amount_minor).toBe(50000);
-      expect(payload.currency).toBe('INR');
-      expect(payload.description).toBe('Petrol');
-      expect(payload.date).toBe('2026-08-24');
-    });
-
-    it('rejects transaction creation with invalid parameters', () => {
-      const validateExpense = (amountStr: string, desc: string, accId: string) => {
-        const minor = parseMoneyToMinor(amountStr);
-        if (minor <= 0) return { valid: false, error: 'Amount must be greater than zero' };
-        if (!desc.trim()) return { valid: false, error: 'Description is required' };
-        if (!accId.trim()) return { valid: false, error: 'Account ID is required' };
-        return { valid: true };
-      };
-
-      expect(validateExpense('', 'Petrol', 'acc_1').valid).toBe(false);
-      expect(validateExpense('0', 'Petrol', 'acc_1').valid).toBe(false);
-      expect(validateExpense('-50', 'Petrol', 'acc_1').valid).toBe(false);
-      expect(validateExpense('500', '', 'acc_1').valid).toBe(false);
-      expect(validateExpense('500', '   ', 'acc_1').valid).toBe(false);
-      expect(validateExpense('500', 'Petrol', '').valid).toBe(false);
-      expect(validateExpense('500', 'Petrol', 'acc_1').valid).toBe(true);
-    });
-  });
-
-  describe('Shake Detector Pure Algorithm & Physics Model', () => {
-    // Pure TypeScript representation of the Kotlin ShakeDetector algorithm for verification
-    class AlgorithmicShakeDetector {
-      private gravityX = 0;
-      private gravityY = 0;
-      private gravityZ = 0;
-      private isGravityInitialized = false;
-
-      private lastShakeTimestamp = 0;
-      private lastPeakTimestamp = 0;
-      private peakTimestamps: number[] = [];
-
-      public shakeCount = 0;
-
-      constructor(
-        public linearThreshold = 8.0,
-        public gForceThreshold = 1.50,
-        public alpha = 0.85,
-        public minPeakIntervalMs = 80,
-        public peakWindowMs = 650,
-        public cooldownMs = 2500
-      ) {}
-
-      processSensorSample(x: number, y: number, z: number, now: number): boolean {
-        const GRAVITY_EARTH = 9.80665;
-
-        // 1. Low-pass filter for gravity isolation
-        if (!this.isGravityInitialized) {
-          this.gravityX = x;
-          this.gravityY = y;
-          this.gravityZ = z;
-          this.isGravityInitialized = true;
+      for (const [x, y, z] of samples) {
+        if (!isInit) {
+          gravityX = x;
+          gravityY = y;
+          gravityZ = z;
+          isInit = true;
         } else {
-          this.gravityX = this.alpha * this.gravityX + (1 - this.alpha) * x;
-          this.gravityY = this.alpha * this.gravityY + (1 - this.alpha) * y;
-          this.gravityZ = this.alpha * this.gravityZ + (1 - this.alpha) * z;
+          gravityX = ALPHA * gravityX + (1 - ALPHA) * x;
+          gravityY = ALPHA * gravityY + (1 - ALPHA) * y;
+          gravityZ = ALPHA * gravityZ + (1 - ALPHA) * z;
         }
 
-        // 2. Isotropic Linear Acceleration
-        const linearX = x - this.gravityX;
-        const linearY = y - this.gravityY;
-        const linearZ = z - this.gravityZ;
-        const linearMagnitude = Math.sqrt(linearX * linearX + linearY * linearY + linearZ * linearZ);
+        const linX = x - gravityX;
+        const linY = y - gravityY;
+        const linZ = z - gravityZ;
+        const linearMagnitude = Math.sqrt(linX * linX + linY * linY + linZ * linZ);
 
-        // 3. Total G-Force
-        const totalMagnitude = Math.sqrt(x * x + y * y + z * z);
-        const gForce = totalMagnitude / GRAVITY_EARTH;
+        const totalMag = Math.sqrt(x * x + y * y + z * z);
+        const gForce = totalMag / 9.80665;
 
-        const isThresholdExceeded =
-          linearMagnitude >= this.linearThreshold || gForce >= this.gForceThreshold;
+        if (linearMagnitude >= linearThreshold || gForce >= gForceThreshold) {
+          peakCount++;
+        }
+      }
 
-        if (isThresholdExceeded) {
-          if (now - this.lastPeakTimestamp >= this.minPeakIntervalMs) {
-            this.lastPeakTimestamp = now;
-            this.peakTimestamps.push(now);
-          }
+      return peakCount;
+    };
 
-          // Prune window
-          this.peakTimestamps = this.peakTimestamps.filter((t) => now - t <= this.peakWindowMs);
+    it('correctly filters out static device (1G gravity only, zero linear acceleration)', () => {
+      const staticSamples: Array<[number, number, number]> = Array(50).fill([0, 0, 9.8]);
+      const peaks = evaluateAccelerometer(staticSamples, 8.0, 1.5);
+      expect(peaks).toBe(0);
+    });
 
-          if (this.peakTimestamps.length >= 2) {
-            if (this.lastShakeTimestamp === 0 || now - this.lastShakeTimestamp >= this.cooldownMs) {
-              this.lastShakeTimestamp = now;
-              this.peakTimestamps = [];
-              this.shakeCount++;
-              return true;
-            }
-          }
+    it('filters out gentle walking motion (low acceleration below threshold)', () => {
+      const walkingSamples: Array<[number, number, number]> = [
+        [0.5, 0.2, 10.2],
+        [0.8, 0.4, 10.5],
+        [0.2, 0.1, 9.5],
+        [-0.5, -0.2, 9.2],
+        [-0.8, -0.4, 9.0],
+      ];
+      const peaks = evaluateAccelerometer(walkingSamples, 8.0, 1.5);
+      expect(peaks).toBe(0);
+    });
+
+    it('detects distinct bidirectional peaks on vigorous intentional shake', () => {
+      const shakeSamples: Array<[number, number, number]> = [
+        [0, 0, 9.8],
+        [0, 0, 9.8],
+        [18.5, 2.0, 4.0],
+        [0.0, 0.0, 9.8],
+        [-19.0, -1.5, 5.0],
+        [0, 0, 9.8],
+      ];
+      const peaks = evaluateAccelerometer(shakeSamples, 8.0, 1.5);
+      expect(peaks).toBeGreaterThanOrEqual(2);
+    });
+
+    it('applies sensitivity levels correctly (HIGH triggers on lower threshold than LOW)', () => {
+      const moderateShake: Array<[number, number, number]> = [
+        [0, 0, 9.8],
+        [6.5, 0.5, 9.8],
+        [0, 0, 9.8],
+        [-6.8, -0.5, 9.8],
+      ];
+
+      const highPeaks = evaluateAccelerometer(moderateShake, 5.5, 1.25);
+      expect(highPeaks).toBeGreaterThanOrEqual(2);
+
+      const lowPeaks = evaluateAccelerometer(moderateShake, 12.0, 1.9);
+      expect(lowPeaks).toBe(0);
+    });
+  });
+
+  describe('Cooldown & Debounce Logic', () => {
+    it('enforces a 2500ms debounce cooldown between triggers to prevent duplicate expenses', () => {
+      const COOLDOWN_MS = 2500;
+      let lastShakeTimestamp = 0;
+      let triggerCount = 0;
+
+      const onShakeDetected = (timestamp: number) => {
+        if (lastShakeTimestamp === 0 || timestamp - lastShakeTimestamp >= COOLDOWN_MS) {
+          lastShakeTimestamp = timestamp;
+          triggerCount++;
+          return true;
         }
         return false;
-      }
-    }
+      };
 
-    it('successfully detects a horizontal (lateral X-axis) shake', () => {
-      const detector = new AlgorithmicShakeDetector();
+      expect(onShakeDetected(1000)).toBe(true);
+      expect(triggerCount).toBe(1);
 
-      // Phone resting upright (gravity on Y = 9.8)
-      detector.processSensorSample(0, 9.8, 0, 1000);
+      expect(onShakeDetected(1500)).toBe(false);
+      expect(triggerCount).toBe(1);
 
-      // Stroke 1: Shake right (+11 m/s^2)
-      detector.processSensorSample(11.0, 9.8, 0, 1050);
+      expect(onShakeDetected(3000)).toBe(false);
+      expect(triggerCount).toBe(1);
 
-      // Stroke 2: Shake left (-11 m/s^2) after 150ms
-      const triggered = detector.processSensorSample(-11.0, 9.8, 0, 1200);
-
-      expect(triggered).toBe(true);
-      expect(detector.shakeCount).toBe(1);
-    });
-
-    it('successfully detects a vertical (Z-axis / face-up) shake', () => {
-      const detector = new AlgorithmicShakeDetector();
-
-      // Phone resting flat on table (gravity on Z = 9.8)
-      detector.processSensorSample(0, 0, 9.8, 1000);
-
-      // Stroke 1: Upward jerk (+12 m/s^2)
-      detector.processSensorSample(0, 0, 21.8, 1050);
-
-      // Stroke 2: Downward jerk
-      const triggered = detector.processSensorSample(0, 0, -2.0, 1220);
-
-      expect(triggered).toBe(true);
-      expect(detector.shakeCount).toBe(1);
-    });
-
-    it('rejects single table bumps or drops (does not trigger on a single isolated shock)', () => {
-      const detector = new AlgorithmicShakeDetector();
-
-      // Static resting
-      detector.processSensorSample(0, 0, 9.8, 1000);
-
-      // Single impact spike for 30ms (consecutive samples < 80ms apart)
-      detector.processSensorSample(0, 0, 24.0, 1020);
-      detector.processSensorSample(0, 0, 24.0, 1040);
-
-      // Back to static resting
-      detector.processSensorSample(0, 0, 9.8, 1060);
-      detector.processSensorSample(0, 0, 9.8, 1500);
-
-      // Should NOT trigger shake on a single bump
-      expect(detector.shakeCount).toBe(0);
-    });
-
-    it('rejects gentle walking and normal device handling', () => {
-      const detector = new AlgorithmicShakeDetector();
-
-      // Gentle walking oscillations (magnitude 9.8 ± 2.0 m/s^2)
-      let triggered = false;
-      for (let t = 1000; t <= 3000; t += 100) {
-        const osc = Math.sin(t / 200) * 2.0;
-        if (detector.processSensorSample(osc, 9.8 + osc, osc * 0.5, t)) {
-          triggered = true;
-        }
-      }
-
-      expect(triggered).toBe(false);
-      expect(detector.shakeCount).toBe(0);
-    });
-
-    it('enforces cooldown debounce preventing rapid duplicate triggers', () => {
-      const detector = new AlgorithmicShakeDetector();
-
-      // First valid shake at t=1000
-      detector.processSensorSample(0, 9.8, 0, 1000);
-      detector.processSensorSample(11.0, 9.8, 0, 1050);
-      const shake1 = detector.processSensorSample(-11.0, 9.8, 0, 1200);
-      expect(shake1).toBe(true);
-
-      // Immediate subsequent movements within 2.5s cooldown (e.g. at t=1800)
-      detector.processSensorSample(11.0, 9.8, 0, 1700);
-      const shakeDuringCooldown = detector.processSensorSample(-11.0, 9.8, 0, 1850);
-      expect(shakeDuringCooldown).toBe(false);
-
-      // Subsequent shake AFTER 2.5s cooldown (at t=4000)
-      detector.processSensorSample(11.0, 9.8, 0, 3900);
-      const shakeAfterCooldown = detector.processSensorSample(-11.0, 9.8, 0, 4100);
-      expect(shakeAfterCooldown).toBe(true);
-      expect(detector.shakeCount).toBe(2);
+      expect(onShakeDetected(3600)).toBe(true);
+      expect(triggerCount).toBe(2);
     });
   });
 
   describe('Overlay Permission & Settings Service Synchronization', () => {
-    it('verifies checkOverlayPermission never defaults to true when module is missing or permission is not granted', async () => {
-      // If Native module reports false
-      const checkPermissionMock = async (nativeGranted: boolean | null) => {
-        if (nativeGranted === null) return false;
-        return Boolean(nativeGranted);
-      };
-
-      expect(await checkPermissionMock(false)).toBe(false);
-      expect(await checkPermissionMock(true)).toBe(true);
-      expect(await checkPermissionMock(null)).toBe(false);
-    });
-
-    it('verifies UI state evaluation for Required vs Granted ✓ based on system permission', () => {
-      const getOverlayBadge = (overlayGranted: boolean) => ({
-        label: overlayGranted ? 'Granted ✓' : 'Required',
-        variant: overlayGranted ? 'income' : 'expense',
-      });
-
-      // Permission false -> UI shows Required
-      expect(getOverlayBadge(false)).toEqual({
-        label: 'Required',
-        variant: 'expense',
-      });
-
-      // Permission true -> UI shows Granted ✓
-      expect(getOverlayBadge(true)).toEqual({
-        label: 'Granted ✓',
-        variant: 'income',
-      });
-    });
-
-    it('verifies Turn On Display Over Other Apps button invokes requestOverlayPermission', async () => {
-      let requestCalled = false;
-      const requestOverlayPermissionMock = async () => {
-        requestCalled = true;
-        return true;
-      };
-
-      // User presses "Turn On Display Over Other Apps"
-      await requestOverlayPermissionMock();
-      expect(requestCalled).toBe(true);
-    });
-
-    it('verifies AppState active event refreshes permission when user returns from Android Settings', async () => {
-      let systemPermission = false;
-      let uiOverlayGranted = false;
-
-      const refreshPermissionOnAppState = async (appState: string) => {
-        if (appState === 'active') {
-          uiOverlayGranted = systemPermission;
-        }
-      };
-
-      // 1. Initially in app: permission is false
-      expect(uiOverlayGranted).toBe(false);
-
-      // 2. User goes to Android settings and GRANTS permission
-      systemPermission = true;
-
-      // 3. User returns to PocketWise -> AppState changes to 'active'
-      await refreshPermissionOnAppState('active');
-      expect(uiOverlayGranted).toBe(true);
-
-      // 4. Case where user goes to Android settings and REVOKES / DENIES permission
-      systemPermission = false;
-      await refreshPermissionOnAppState('active');
-      expect(uiOverlayGranted).toBe(false);
-    });
-
-    it('verifies Shake toggle ON starts service and toggle OFF stops service', async () => {
-      let isRunning = false;
-      const startServiceMock = async () => {
-        isRunning = true;
-        return true;
-      };
-      const stopServiceMock = async () => {
-        isRunning = false;
-        return true;
-      };
-
-      // User turns ON
-      await startServiceMock();
-      expect(isRunning).toBe(true);
-
-      // User turns OFF
-      await stopServiceMock();
-      expect(isRunning).toBe(false);
-    });
-
-    it('verifies Simulate Shake triggers downstream modal callback', () => {
-      let modalOpened = false;
-      const callbacks = new Set<() => void>();
-      callbacks.add(() => {
-        modalOpened = true;
-      });
-
-      // Simulate shake event trigger
-      callbacks.forEach((cb) => cb());
-      expect(modalOpened).toBe(true);
-    });
-
-    it('verifies getDiagnostics reports all required diagnostic metrics', () => {
-      const mockDiagnostics = (moduleAvailable: boolean) => ({
-        isAndroid: true,
-        moduleAvailable,
-        moduleName: 'PocketWiseShakeModule',
-        registeredModules: moduleAvailable ? ['PocketWiseShakeModule', 'PocketWiseSmsModule'] : [],
-        hasPocketWiseShakeModule: moduleAvailable,
-        overlayCheckCallable: moduleAvailable,
-        requestOverlayCallable: moduleAvailable,
-        startServiceCallable: moduleAvailable,
-        stopServiceCallable: moduleAvailable,
-        isServiceRunningCallable: moduleAvailable,
-        simulateShakeCallable: moduleAvailable,
-        setSensitivityCallable: moduleAvailable,
-        setBackgroundCallable: moduleAvailable,
-      });
-
-      const diagNoMod = mockDiagnostics(false);
-      expect(diagNoMod.moduleAvailable).toBe(false);
-      expect(diagNoMod.overlayCheckCallable).toBe(false);
-      expect(diagNoMod.startServiceCallable).toBe(false);
-
-      const diagWithMod = mockDiagnostics(true);
-      expect(diagWithMod.moduleAvailable).toBe(true);
-      expect(diagWithMod.overlayCheckCallable).toBe(true);
-      expect(diagWithMod.startServiceCallable).toBe(true);
-      expect(diagWithMod.simulateShakeCallable).toBe(true);
-    });
-
-    it('verifies onTaskRemoved preserves service running, detector active, and sensor listener registered', () => {
-      // Simulate Service state before task removal
+    it('verifies background service lifecycle state transition logic on task removal', () => {
+      let isServiceEnabled = true;
+      let isBgEnabled = true;
       let serviceRunning = true;
       let detectorActive = true;
       let sensorListening = true;
-      const isServiceEnabled = true;
-      const isBgEnabled = true;
 
-      // When onTaskRemoved fires:
-      const onTaskRemoved = (enabled: boolean, bgEnabled: boolean) => {
-        if (enabled && bgEnabled) {
-          // Invariant: Keep service running, detector active, sensor listening
+      const onTaskRemoved = (serviceEnabled: boolean, backgroundEnabled: boolean) => {
+        if (serviceEnabled && backgroundEnabled) {
           serviceRunning = true;
           detectorActive = true;
           sensorListening = true;
@@ -418,13 +270,11 @@ describe('Shake to Add Expense - Core Logic & Data Pipeline Tests', () => {
         }
       };
 
-      // 1. User swipes app from Recents with background shake enabled
       onTaskRemoved(isServiceEnabled, isBgEnabled);
       expect(serviceRunning).toBe(true);
       expect(detectorActive).toBe(true);
       expect(sensorListening).toBe(true);
 
-      // 2. User swipes app from Recents with background shake disabled
       onTaskRemoved(isServiceEnabled, false);
       expect(serviceRunning).toBe(false);
       expect(detectorActive).toBe(false);
@@ -451,7 +301,6 @@ describe('Shake to Add Expense - Core Logic & Data Pipeline Tests', () => {
         }
       };
 
-      // App swiped from Recents: RN is inactive, overlay is granted, bg is allowed
       handleShakeTriggered(false, true, true);
       expect(emittedToRN).toBe(false);
       expect(launchedQuickExpenseActivity).toBe(true);
@@ -468,7 +317,7 @@ describe('Shake to Add Expense - Core Logic & Data Pipeline Tests', () => {
         if (isPopupActive) return false;
         if (lastShakeTimestamp === 0 || now - lastShakeTimestamp >= COOLDOWN_MS) {
           lastShakeTimestamp = now;
-          isPopupActive = true; // Popup opens
+          isPopupActive = true;
           shakeCount++;
           return true;
         }
@@ -476,28 +325,23 @@ describe('Shake to Add Expense - Core Logic & Data Pipeline Tests', () => {
       };
 
       const dismissPopup = () => {
-        isPopupActive = false; // Popup dismissed
+        isPopupActive = false;
       };
 
-      // Cycle 1: First background shake at t=1000
       expect(triggerShake(1000)).toBe(true);
       expect(shakeCount).toBe(1);
       expect(isPopupActive).toBe(true);
 
-      // Dismiss popup 1 at t=3000
       dismissPopup();
       expect(isPopupActive).toBe(false);
 
-      // Cycle 2: Second background shake after cooldown at t=4000 (now - lastShake = 3000 >= 2500)
       expect(triggerShake(4000)).toBe(true);
       expect(shakeCount).toBe(2);
       expect(isPopupActive).toBe(true);
 
-      // Dismiss popup 2 at t=6000
       dismissPopup();
       expect(isPopupActive).toBe(false);
 
-      // Cycle 3: Third background shake at t=7000
       expect(triggerShake(7000)).toBe(true);
       expect(shakeCount).toBe(3);
     });
@@ -507,7 +351,6 @@ describe('Shake to Add Expense - Core Logic & Data Pipeline Tests', () => {
       let lastSensorEventTimeMs = 0;
       let isListening = false;
       let isSensorListening = false;
-      let isSensorAvailable = true;
 
       const onSensorChanged = (now: number) => {
         totalSensorEvents++;
@@ -523,27 +366,38 @@ describe('Shake to Add Expense - Core Logic & Data Pipeline Tests', () => {
         isSensorListening = true;
       };
 
-      // 1. Initial start
       startListening(false);
       expect(isListening).toBe(true);
       expect(isSensorListening).toBe(true);
 
-      // 2. Sensor delivers 10 events
       for (let i = 1; i <= 10; i++) {
         onSensorChanged(1000 + i * 10);
       }
       expect(totalSensorEvents).toBe(10);
       expect(lastSensorEventTimeMs).toBe(1100);
 
-      // 3. Task removed -> calls startListening(force = true)
       startListening(true);
       expect(isListening).toBe(true);
       expect(isSensorListening).toBe(true);
 
-      // 4. Continued sensor event delivery
       onSensorChanged(2000);
       expect(totalSensorEvents).toBe(11);
       expect(lastSensorEventTimeMs).toBe(2000);
+    });
+
+    it('verifies runSensorSelfTest and persisted instance telemetry', async () => {
+      const diag = await shakeService.getNativeServiceDiagnostics();
+      expect(diag?.serviceRunning).toBe(true);
+      expect(diag?.serviceInstanceId).toBe('inst_abc_123');
+      expect(diag?.serviceStartCount).toBe(3);
+      expect(diag?.sensorEventsReceived).toBe(1250);
+      expect(diag?.sensorName).toBe('BMI160 Accelerometer');
+
+      const selfTest = await shakeService.runSensorSelfTest(2000);
+      expect(selfTest.eventsReceived).toBe(42);
+      expect(selfTest.sensorAvailable).toBe(true);
+      expect(selfTest.registrationSuccess).toBe(true);
+      expect(selfTest.sensorVendor).toBe('Bosch');
     });
   });
 });

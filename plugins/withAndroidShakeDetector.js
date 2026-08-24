@@ -13,6 +13,7 @@ function withAndroidShakeDetector(config) {
     AndroidConfig.Permissions.addPermission(androidManifest, 'android.permission.FOREGROUND_SERVICE_SPECIAL_USE');
     AndroidConfig.Permissions.addPermission(androidManifest, 'android.permission.SYSTEM_ALERT_WINDOW');
     AndroidConfig.Permissions.addPermission(androidManifest, 'android.permission.RECEIVE_BOOT_COMPLETED');
+    AndroidConfig.Permissions.addPermission(androidManifest, 'android.permission.WAKE_LOCK');
 
     const mainApplication = AndroidConfig.Manifest.getMainApplicationOrThrow(androidManifest);
 
@@ -136,6 +137,8 @@ function withAndroidShakeDetector(config) {
       // 2a. ShakeDetector.kt
       const shakeDetectorContent = `package com.pocketwise.app.shake
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -151,9 +154,12 @@ import kotlin.math.sqrt
  * - Configurable sensitivity (LOW, NORMAL, HIGH).
  * - Cooldown/debounce to prevent duplicate triggers from a single physical shake.
  * - Thread-safe active state suppression with auto-timeout safeguard when a popup is displayed.
- * - Full telemetry tracking for diagnostic verification (events received, timestamps, magnitudes).
+ * - Persistent telemetry tracking in SharedPreferences that survives Activity/process recreation.
  */
-class ShakeDetector(private val onShakeListener: () -> Unit) : SensorEventListener {
+class ShakeDetector(
+    private val appContext: Context? = null,
+    private val onShakeListener: () -> Unit
+) : SensorEventListener {
 
     var sensitivity: Sensitivity = Sensitivity.NORMAL
 
@@ -166,6 +172,7 @@ class ShakeDetector(private val onShakeListener: () -> Unit) : SensorEventListen
     private var lastShakeTimestamp: Long = 0
     private var lastPeakTimestamp: Long = 0
     private val peakTimestamps = mutableListOf<Long>()
+    private var unpersistedEventCount = 0
 
     enum class Sensitivity(
         val linearThreshold: Float,  // m/s^2 linear acceleration (gravity removed)
@@ -176,6 +183,12 @@ class ShakeDetector(private val onShakeListener: () -> Unit) : SensorEventListen
         HIGH(5.5f, 1.25f)      // Lighter shake
     }
 
+    init {
+        appContext?.let { ctx ->
+            loadPersistedTelemetry(ctx)
+        }
+    }
+
     override fun onSensorChanged(event: SensorEvent?) {
         if (event == null || event.sensor.type != Sensor.TYPE_ACCELEROMETER) {
             return
@@ -184,6 +197,7 @@ class ShakeDetector(private val onShakeListener: () -> Unit) : SensorEventListen
         val now = System.currentTimeMillis()
         totalSensorEvents++
         lastSensorEventTimeMs = now
+        unpersistedEventCount++
 
         val x = event.values[0]
         val y = event.values[1]
@@ -214,6 +228,12 @@ class ShakeDetector(private val onShakeListener: () -> Unit) : SensorEventListen
         lastLinearMagnitude = linearMagnitude
         lastGForce = gForce
 
+        // Flush telemetry to SharedPreferences every 50 events so disk is updated without overhead
+        if (unpersistedEventCount >= 50 && appContext != null) {
+            flushTelemetry(appContext)
+            unpersistedEventCount = 0
+        }
+
         // If a popup or expense flow is already active on screen, ignore motion
         if (isPopupCurrentlyActive()) {
             return
@@ -243,6 +263,9 @@ class ShakeDetector(private val onShakeListener: () -> Unit) : SensorEventListen
                     totalShakeCount++
                     peakTimestamps.clear()
                     lastPeakTimestamp = 0L
+                    if (appContext != null) {
+                        flushTelemetry(appContext)
+                    }
                     Log.d(TAG, "Intentional shake detected! Linear: $linearMagnitude m/s^2, G-Force: \${gForce}g, Sensitivity: $currentSensitivity")
                     onShakeListener()
                 }
@@ -256,6 +279,12 @@ class ShakeDetector(private val onShakeListener: () -> Unit) : SensorEventListen
 
     companion object {
         private const val TAG = "ShakeDetector"
+        private const val PREFS_NAME = "pocketwise_shake_prefs"
+        private const val KEY_TOTAL_EVENTS = "diag_total_sensor_events"
+        private const val KEY_LAST_EVENT_MS = "diag_last_sensor_event_ms"
+        private const val KEY_LAST_SHAKE_MS = "diag_last_shake_detected_ms"
+        private const val KEY_TOTAL_SHAKES = "diag_total_shakes_count"
+
         private const val ALPHA = 0.85f // Low-pass filter factor for gravity estimation
         private const val MIN_PEAK_INTERVAL_MS = 80L // Minimum separation between distinct shake strokes
         private const val PEAK_WINDOW_MS = 650L // Sliding window to accumulate shake peaks
@@ -295,6 +324,43 @@ class ShakeDetector(private val onShakeListener: () -> Unit) : SensorEventListen
         private var popupActiveTimestamp: Long = 0
 
         /**
+         * Load persisted telemetry from SharedPreferences on initialization.
+         */
+        fun loadPersistedTelemetry(context: Context) {
+            try {
+                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                val persistedEvents = prefs.getLong(KEY_TOTAL_EVENTS, 0L)
+                val persistedLastEvent = prefs.getLong(KEY_LAST_EVENT_MS, 0L)
+                val persistedLastShake = prefs.getLong(KEY_LAST_SHAKE_MS, 0L)
+                val persistedShakes = prefs.getLong(KEY_TOTAL_SHAKES, 0L)
+
+                if (persistedEvents > totalSensorEvents) totalSensorEvents = persistedEvents
+                if (persistedLastEvent > lastSensorEventTimeMs) lastSensorEventTimeMs = persistedLastEvent
+                if (persistedLastShake > lastDetectedShakeTimeMs) lastDetectedShakeTimeMs = persistedLastShake
+                if (persistedShakes > totalShakeCount) totalShakeCount = persistedShakes
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to load persisted telemetry", e)
+            }
+        }
+
+        /**
+         * Persist current telemetry to SharedPreferences.
+         */
+        fun flushTelemetry(context: Context) {
+            try {
+                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                prefs.edit().apply {
+                    putLong(KEY_TOTAL_EVENTS, totalSensorEvents)
+                    putLong(KEY_LAST_EVENT_MS, lastSensorEventTimeMs)
+                    putLong(KEY_LAST_SHAKE_MS, lastDetectedShakeTimeMs)
+                    putLong(KEY_TOTAL_SHAKES, totalShakeCount)
+                }.apply()
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to flush telemetry to SharedPreferences", e)
+            }
+        }
+
+        /**
          * Safely check if a popup is actively blocking shake triggers,
          * with an automatic timeout fallback to ensure repeatable detection.
          */
@@ -320,12 +386,12 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.hardware.Sensor
 import android.hardware.SensorManager
-import android.os.Build
-import android.os.IBinder
+import android.os.*
 import android.provider.Settings
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.pocketwise.app.R
+import java.util.UUID
 
 class ShakeDetectionService : Service() {
 
@@ -334,23 +400,90 @@ class ShakeDetectionService : Service() {
     private var shakeDetector: ShakeDetector? = null
     private var isListening = false
 
+    private var sensorThread: HandlerThread? = null
+    private var sensorHandler: Handler? = null
+    private var wakeLock: PowerManager.WakeLock? = null
+
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "ShakeDetectionService onCreate")
+
+        // 1. Instance tracking & Start Count
+        serviceInstanceId = UUID.randomUUID().toString()
+        serviceStartTimestamp = System.currentTimeMillis()
         isServiceRunning = true
+
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val currentCount = prefs.getLong(KEY_SERVICE_START_COUNT, 0L) + 1L
+        prefs.edit().apply {
+            putLong(KEY_SERVICE_START_COUNT, currentCount)
+            putString(KEY_SERVICE_INSTANCE_ID, serviceInstanceId)
+            putLong(KEY_SERVICE_START_TIME, serviceStartTimestamp)
+        }.apply()
+        serviceStartCount = currentCount
+
+        // 2. Foreground Notification
         createNotificationChannel()
         startForegroundServiceNotification()
+
+        // 3. Acquire background sensor WakeLock to prevent OEM CPU sleep from freezing accelerometer
+        acquireWakeLock()
+
+        // 4. Start dedicated sensor HandlerThread
+        initSensorThread()
+
+        // 5. Initialize detector and start listening
         initShakeDetector()
+    }
+
+    private fun acquireWakeLock() {
+        try {
+            val powerManager = applicationContext.getSystemService(Context.POWER_SERVICE) as? PowerManager
+            wakeLock = powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "PocketWise:ShakeSensorWakeLock")?.apply {
+                setReferenceCounted(false)
+                acquire(24 * 60 * 60 * 1000L) // 24hr safety timeout
+            }
+            Log.d(TAG, "Acquired PARTIAL_WAKE_LOCK for ShakeDetectionService")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to acquire PARTIAL_WAKE_LOCK", e)
+        }
+    }
+
+    private fun releaseWakeLock() {
+        try {
+            if (wakeLock?.isHeld == true) {
+                wakeLock?.release()
+                Log.d(TAG, "Released PARTIAL_WAKE_LOCK")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error releasing wakeLock", e)
+        }
+    }
+
+    private fun initSensorThread() {
+        try {
+            if (sensorThread == null || !sensorThread!!.isAlive) {
+                sensorThread = HandlerThread("PocketWiseShakeSensorThread", Process.THREAD_PRIORITY_MORE_FAVORABLE).apply {
+                    start()
+                }
+                sensorHandler = Handler(sensorThread!!.looper)
+                Log.d(TAG, "Initialized dedicated HandlerThread for sensor events")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to initialize sensor HandlerThread, defaulting to main looper", e)
+            sensorHandler = Handler(Looper.getMainLooper())
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
-        Log.d(TAG, "ShakeDetectionService onStartCommand action=$action, startId=$startId")
+        Log.d(TAG, "ShakeDetectionService onStartCommand action=$action, startId=$startId, instance=$serviceInstanceId")
 
         when (action) {
             ACTION_STOP -> {
                 Log.d(TAG, "Stopping ShakeDetectionService by intent request")
                 stopListening()
+                releaseWakeLock()
                 stopForeground(true)
                 stopSelf()
                 isServiceRunning = false
@@ -373,7 +506,6 @@ class ShakeDetectionService : Service() {
                 Log.d(TAG, "Updated background shake detection preference to: $bgEnabled")
             }
             else -> {
-                // When started via ACTION_START or restarted by OS (intent == null)
                 val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 val isServiceEnabled = prefs.getBoolean(KEY_SERVICE_ENABLED, true)
                 if (isServiceEnabled) {
@@ -390,18 +522,19 @@ class ShakeDetectionService : Service() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
-        Log.d(TAG, "ShakeDetectionService onTaskRemoved - App swiped away from Recents")
+        Log.d(TAG, "ShakeDetectionService onTaskRemoved - App swiped away from Recents (instance=$serviceInstanceId)")
 
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val isServiceEnabled = prefs.getBoolean(KEY_SERVICE_ENABLED, true)
         val isBgEnabled = prefs.getBoolean(KEY_BACKGROUND_ENABLED, true)
 
         if (isServiceEnabled && isBgEnabled) {
-            Log.d(TAG, "Background Shake Detection is enabled; re-verifying and force-registering accelerometer listener")
-            // Unconditionally re-bind sensor listener to application context across task removal
+            Log.d(TAG, "Background Shake Detection is enabled; re-verifying sensor listener registration across task removal")
+            acquireWakeLock()
+            initSensorThread()
             startListening(force = true)
 
-            // Schedule an immediate alarm restart fallback if the OS decides to kill the process after task removal
+            // Alarm fallback if process is killed
             try {
                 val restartIntent = Intent(applicationContext, ShakeDetectionService::class.java).apply {
                     action = ACTION_START
@@ -418,7 +551,6 @@ class ShakeDetectionService : Service() {
                     System.currentTimeMillis() + 1000,
                     pendingIntent
                 )
-                Log.d(TAG, "Scheduled alarm fallback to ensure service continuity across task removal")
             } catch (e: Exception) {
                 Log.w(TAG, "Could not schedule alarm restart fallback", e)
             }
@@ -432,7 +564,11 @@ class ShakeDetectionService : Service() {
     private fun initShakeDetector() {
         sensorManager = applicationContext.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
         accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+
         isSensorAvailable = accelerometer != null
+        sensorName = accelerometer?.name ?: "Unknown"
+        sensorVendor = accelerometer?.vendor ?: "Unknown"
+        sensorType = accelerometer?.type ?: -1
 
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val sensStr = prefs.getString(KEY_SENSITIVITY, "NORMAL") ?: "NORMAL"
@@ -442,7 +578,7 @@ class ShakeDetectionService : Service() {
             ShakeDetector.Sensitivity.NORMAL
         }
 
-        shakeDetector = ShakeDetector {
+        shakeDetector = ShakeDetector(applicationContext) {
             handleShakeTriggered()
         }.apply {
             sensitivity = initialSensitivity
@@ -455,11 +591,16 @@ class ShakeDetectionService : Service() {
             sensorManager = applicationContext.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
             accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
             isSensorAvailable = accelerometer != null
+            sensorName = accelerometer?.name ?: "Unknown"
+            sensorVendor = accelerometer?.vendor ?: "Unknown"
+            sensorType = accelerometer?.type ?: -1
         }
 
         if (shakeDetector == null) {
             initShakeDetector()
         }
+
+        initSensorThread()
 
         if (accelerometer == null) {
             Log.w(TAG, "Accelerometer hardware sensor not available on this device")
@@ -479,17 +620,32 @@ class ShakeDetectionService : Service() {
 
         if (isListening) return
 
+        sensorRegistrationTimestamp = System.currentTimeMillis()
+        val handler = sensorHandler ?: Handler(Looper.getMainLooper())
+
         val registered = sensorManager?.registerListener(
             shakeDetector,
             accelerometer,
-            SensorManager.SENSOR_DELAY_GAME
+            SensorManager.SENSOR_DELAY_GAME,
+            handler
         ) ?: false
 
+        sensorRegistrationResult = registered
         isListening = registered
         isServiceRunning = true
         isSensorListening = registered
         isDetectorActive = true
-        Log.d(TAG, "ShakeDetectionService registerListener result: $registered (SENSOR_DELAY_GAME, force=$force)")
+
+        // Persist sensor registration state
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().apply {
+            putLong(KEY_REGISTRATION_TIME, sensorRegistrationTimestamp)
+            putBoolean(KEY_REGISTRATION_RESULT, sensorRegistrationResult)
+            putString(KEY_SENSOR_NAME, sensorName)
+            putString(KEY_SENSOR_VENDOR, sensorVendor)
+        }.apply()
+
+        Log.d(TAG, "ShakeDetectionService registerListener result: $registered (SENSOR_DELAY_GAME, force=$force, handler=\${handler.looper.thread.name})")
     }
 
     private fun stopListening() {
@@ -506,13 +662,15 @@ class ShakeDetectionService : Service() {
     }
 
     private fun handleShakeTriggered() {
-        Log.d(TAG, "Shake event triggered from ShakeDetectionService")
+        Log.d(TAG, "Shake event triggered from ShakeDetectionService (instance=$serviceInstanceId)")
+
+        // Flush telemetry immediately on shake
+        ShakeDetector.flushTelemetry(applicationContext)
 
         // First attempt to emit to foreground React Native instance
         val emittedToRN = PocketWiseShakeModule.emitShakeDetected()
 
         if (!emittedToRN) {
-            // Check if background detection is enabled in preferences
             val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val isBackgroundAllowed = prefs.getBoolean(KEY_BACKGROUND_ENABLED, true)
 
@@ -521,10 +679,9 @@ class ShakeDetectionService : Service() {
                 return
             }
 
-            // Always ensure isListening is active and sensor is registered
+            // Verify listening state
             startListening(force = false)
 
-            // App is backgrounded / sleeping / task removed -> check overlay permission and launch floating activity
             val canOverlay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 Settings.canDrawOverlays(this)
             } else {
@@ -613,11 +770,22 @@ class ShakeDetectionService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         stopListening()
+        releaseWakeLock()
+
+        try {
+            sensorThread?.quitSafely()
+        } catch (e: Exception) {
+            // Ignore
+        }
+        sensorThread = null
+        sensorHandler = null
+
+        ShakeDetector.flushTelemetry(applicationContext)
         ShakeDetector.isPopupActive = false
         isServiceRunning = false
         isSensorListening = false
         isDetectorActive = false
-        Log.d(TAG, "ShakeDetectionService destroyed")
+        Log.d(TAG, "ShakeDetectionService destroyed (instance=$serviceInstanceId)")
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -639,12 +807,43 @@ class ShakeDetectionService : Service() {
         private const val KEY_SERVICE_ENABLED = "is_shake_enabled"
         private const val KEY_SENSITIVITY = "shake_sensitivity"
         private const val KEY_BACKGROUND_ENABLED = "is_background_enabled"
+        private const val KEY_SERVICE_START_COUNT = "diag_service_start_count"
+        private const val KEY_SERVICE_INSTANCE_ID = "diag_service_instance_id"
+        private const val KEY_SERVICE_START_TIME = "diag_service_start_time"
+        private const val KEY_REGISTRATION_TIME = "diag_sensor_reg_time"
+        private const val KEY_REGISTRATION_RESULT = "diag_sensor_reg_result"
+        private const val KEY_SENSOR_NAME = "diag_sensor_name"
+        private const val KEY_SENSOR_VENDOR = "diag_sensor_vendor"
+
+        @Volatile
+        var serviceInstanceId: String = ""
+
+        @Volatile
+        var serviceStartCount: Long = 0L
+
+        @Volatile
+        var serviceStartTimestamp: Long = 0L
 
         @Volatile
         var isServiceRunning: Boolean = false
 
         @Volatile
         var isSensorAvailable: Boolean = false
+
+        @Volatile
+        var sensorName: String = "Unknown"
+
+        @Volatile
+        var sensorVendor: String = "Unknown"
+
+        @Volatile
+        var sensorType: Int = -1
+
+        @Volatile
+        var sensorRegistrationTimestamp: Long = 0L
+
+        @Volatile
+        var sensorRegistrationResult: Boolean = false
 
         @Volatile
         var isSensorListening: Boolean = false
@@ -658,18 +857,25 @@ class ShakeDetectionService : Service() {
       // 2c. PocketWiseShakeModule.kt
       const shakeModuleContent = `package com.pocketwise.app.shake
 
-import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.HandlerThread
 import android.provider.Settings
 import android.util.Log
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import org.json.JSONObject
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 
 class PocketWiseShakeModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
@@ -743,6 +949,25 @@ class PocketWiseShakeModule(private val reactContext: ReactApplicationContext) :
             val isBgEnabled = prefs.getBoolean(KEY_BACKGROUND_ENABLED, true)
             val sensitivity = prefs.getString(KEY_SENSITIVITY, "NORMAL") ?: "NORMAL"
 
+            // Persisted counters
+            val persistedEvents = prefs.getLong("diag_total_sensor_events", 0L)
+            val persistedLastEvent = prefs.getLong("diag_last_sensor_event_ms", 0L)
+            val persistedLastShake = prefs.getLong("diag_last_shake_detected_ms", 0L)
+            val persistedShakes = prefs.getLong("diag_total_shakes_count", 0L)
+            val startCount = prefs.getLong("diag_service_start_count", ShakeDetectionService.serviceStartCount)
+            val instanceId = prefs.getString("diag_service_instance_id", ShakeDetectionService.serviceInstanceId) ?: ""
+            val startTime = prefs.getLong("diag_service_start_time", ShakeDetectionService.serviceStartTimestamp)
+            val regTime = prefs.getLong("diag_sensor_reg_time", ShakeDetectionService.sensorRegistrationTimestamp)
+            val regResult = prefs.getBoolean("diag_sensor_reg_result", ShakeDetectionService.sensorRegistrationResult)
+            val sName = prefs.getString("diag_sensor_name", ShakeDetectionService.sensorName) ?: ShakeDetectionService.sensorName
+            val sVendor = prefs.getString("diag_sensor_vendor", ShakeDetectionService.sensorVendor) ?: ShakeDetectionService.sensorVendor
+
+            // Combine live and persisted counts
+            val totalEvents = Math.max(persistedEvents, ShakeDetector.totalSensorEvents)
+            val lastEvent = Math.max(persistedLastEvent, ShakeDetector.lastSensorEventTimeMs)
+            val lastShake = Math.max(persistedLastShake, ShakeDetector.lastDetectedShakeTimeMs)
+            val totalShakes = Math.max(persistedShakes, ShakeDetector.totalShakeCount)
+
             val map = Arguments.createMap().apply {
                 putBoolean("serviceRunning", ShakeDetectionService.isServiceRunning)
                 putBoolean("sensorAvailable", ShakeDetectionService.isSensorAvailable)
@@ -751,18 +976,94 @@ class PocketWiseShakeModule(private val reactContext: ReactApplicationContext) :
                 putBoolean("serviceEnabled", isEnabled)
                 putBoolean("backgroundEnabled", isBgEnabled)
                 putString("sensitivity", sensitivity)
-                putDouble("sensorEventsReceived", ShakeDetector.totalSensorEvents.toDouble())
-                putDouble("lastSensorEventTimestamp", ShakeDetector.lastSensorEventTimeMs.toDouble())
-                putDouble("lastShakeTimestamp", ShakeDetector.lastDetectedShakeTimeMs.toDouble())
-                putDouble("shakeCount", ShakeDetector.totalShakeCount.toDouble())
+                putDouble("sensorEventsReceived", totalEvents.toDouble())
+                putDouble("lastSensorEventTimestamp", lastEvent.toDouble())
+                putDouble("lastShakeTimestamp", lastShake.toDouble())
+                putDouble("shakeCount", totalShakes.toDouble())
                 putBoolean("popupActive", ShakeDetector.isPopupActive)
                 putDouble("lastLinearMagnitude", ShakeDetector.lastLinearMagnitude.toDouble())
                 putDouble("lastGForce", ShakeDetector.lastGForce.toDouble())
+                putString("serviceInstanceId", instanceId)
+                putDouble("serviceStartCount", startCount.toDouble())
+                putDouble("serviceStartTimestamp", startTime.toDouble())
+                putDouble("sensorRegistrationTimestamp", regTime.toDouble())
+                putBoolean("sensorRegistrationResult", regResult)
+                putString("sensorName", sName)
+                putString("sensorVendor", sVendor)
             }
             promise.resolve(map)
         } catch (e: Exception) {
             promise.reject("DIAGNOSTICS_ERROR", e.message, e)
         }
+    }
+
+    @ReactMethod
+    fun runSensorSelfTest(durationMs: Double, promise: Promise) {
+        val testDuration = durationMs.toLong().coerceIn(1000L, 5000L)
+
+        Thread {
+            try {
+                val sensorManager = reactContext.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+                val accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+
+                if (sensorManager == null || accelerometer == null) {
+                    val res = Arguments.createMap().apply {
+                        putInt("eventsReceived", 0)
+                        putDouble("durationMs", testDuration.toDouble())
+                        putBoolean("sensorAvailable", false)
+                        putString("sensorName", "None")
+                        putString("sensorVendor", "None")
+                        putBoolean("registrationSuccess", false)
+                        putDouble("lastEventTimeMs", 0.0)
+                    }
+                    promise.resolve(res)
+                    return@Thread
+                }
+
+                val eventsReceived = AtomicInteger(0)
+                val lastEventTime = AtomicLong(0L)
+
+                val testThread = HandlerThread("PocketWiseSensorSelfTestThread").apply { start() }
+                val testHandler = Handler(testThread.looper)
+                val latch = CountDownLatch(1)
+
+                val testListener = object : SensorEventListener {
+                    override fun onSensorChanged(event: SensorEvent?) {
+                        if (event?.sensor?.type == Sensor.TYPE_ACCELEROMETER) {
+                            eventsReceived.incrementAndGet()
+                            lastEventTime.set(System.currentTimeMillis())
+                        }
+                    }
+
+                    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+                }
+
+                val regSuccess = sensorManager.registerListener(
+                    testListener,
+                    accelerometer,
+                    SensorManager.SENSOR_DELAY_GAME,
+                    testHandler
+                )
+
+                latch.await(testDuration, TimeUnit.MILLISECONDS)
+
+                sensorManager.unregisterListener(testListener)
+                testThread.quitSafely()
+
+                val res = Arguments.createMap().apply {
+                    putInt("eventsReceived", eventsReceived.get())
+                    putDouble("durationMs", testDuration.toDouble())
+                    putBoolean("sensorAvailable", true)
+                    putString("sensorName", accelerometer.name)
+                    putString("sensorVendor", accelerometer.vendor)
+                    putBoolean("registrationSuccess", regSuccess)
+                    putDouble("lastEventTimeMs", lastEventTime.get().toDouble())
+                }
+                promise.resolve(res)
+            } catch (e: Exception) {
+                promise.reject("SELF_TEST_ERROR", e.message, e)
+            }
+        }.start()
     }
 
     @ReactMethod
@@ -789,7 +1090,6 @@ class PocketWiseShakeModule(private val reactContext: ReactApplicationContext) :
             val prefs = reactContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             prefs.edit().putString(KEY_SENSITIVITY, sensitivity.uppercase()).apply()
 
-            // Broadcast sensitivity update to running service
             val intent = Intent(reactContext, ShakeDetectionService::class.java).apply {
                 action = ShakeDetectionService.ACTION_UPDATE_SENSITIVITY
                 putExtra("sensitivity", sensitivity.uppercase())
@@ -830,7 +1130,6 @@ class PocketWiseShakeModule(private val reactContext: ReactApplicationContext) :
                     }
                     reactContext.startActivity(intent)
                 } catch (e: Exception) {
-                    // Fallback to generic overlay settings screen if package-specific URI is not supported
                     val fallbackIntent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
@@ -890,7 +1189,6 @@ class PocketWiseShakeModule(private val reactContext: ReactApplicationContext) :
         try {
             val emitted = emitShakeDetected()
             if (!emitted) {
-                // If React Native is not actively in foreground, open QuickExpenseActivity directly
                 val intent = Intent(reactContext, QuickExpenseActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 }
