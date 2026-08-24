@@ -811,7 +811,418 @@ class PocketWiseShakePackage : ReactPackage {
 }
 `;
 
-      // 2e. ShakeBootReceiver.kt
+      // 2e. QuickExpenseActivity.kt
+      const quickExpenseActivityContent = `package com.pocketwise.app.shake
+
+import android.content.Context
+import android.content.SharedPreferences
+import android.os.Build
+import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.util.Log
+import android.view.View
+import android.view.inputmethod.InputMethodManager
+import android.widget.*
+import androidx.appcompat.app.AppCompatActivity
+import com.pocketwise.app.R
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.OutputStreamWriter
+import java.net.HttpURLConnection
+import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.*
+import java.util.concurrent.Executors
+
+class QuickExpenseActivity : AppCompatActivity() {
+
+    private lateinit var etAmount: EditText
+    private lateinit var etDescription: EditText
+    private lateinit var spAccount: Spinner
+    private lateinit var spCategory: Spinner
+    private lateinit var btnDone: Button
+    private lateinit var btnClose: TextView
+    private lateinit var pbLoading: ProgressBar
+    private lateinit var tvError: TextView
+    private lateinit var rootContainer: FrameLayout
+
+    private val executor = Executors.newSingleThreadExecutor()
+    private var isSubmitting = false
+
+    private val accountList = mutableListOf<AccountItem>()
+    private val categoryList = mutableListOf<CategoryItem>()
+
+    data class AccountItem(val id: String, val name: String, val balance: Long)
+    data class CategoryItem(val id: String, val name: String)
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        ShakeDetector.isPopupActive = true
+        setContentView(R.layout.activity_quick_expense)
+
+        initViews()
+        loadCachedAccountsAndCategories()
+        setupListeners()
+
+        // Auto-focus Amount field and show software keyboard
+        etAmount.postDelayed({
+            etAmount.requestFocus()
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+            imm?.showSoftInput(etAmount, InputMethodManager.SHOW_IMPLICIT)
+        }, 150)
+    }
+
+    private fun initViews() {
+        rootContainer = findViewById(R.id.rootContainer)
+        etAmount = findViewById(R.id.etAmount)
+        etDescription = findViewById(R.id.etDescription)
+        spAccount = findViewById(R.id.spAccount)
+        spCategory = findViewById(R.id.spCategory)
+        btnDone = findViewById(R.id.btnDone)
+        btnClose = findViewById(R.id.btnClose)
+        pbLoading = findViewById(R.id.pbLoading)
+        tvError = findViewById(R.id.tvError)
+    }
+
+    private fun loadCachedAccountsAndCategories() {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+        // Load Accounts
+        val accountsJsonStr = prefs.getString(KEY_ACCOUNTS, "[]") ?: "[]"
+        try {
+            val accountsArray = JSONArray(accountsJsonStr)
+            for (i in 0 until accountsArray.length()) {
+                val obj = accountsArray.optJSONObject(i) ?: continue
+                val id = obj.optString("id", "")
+                val name = obj.optString("name", "Account")
+                val balance = obj.optLong("balance", 0L)
+                if (id.isNotEmpty()) {
+                    accountList.add(AccountItem(id, name, balance))
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to parse cached accounts", e)
+        }
+
+        if (accountList.isEmpty()) {
+            accountList.add(AccountItem("acc_primary", "Primary Account", 0L))
+        }
+
+        val accountAdapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            accountList.map { it.name }
+        )
+        spAccount.adapter = accountAdapter
+
+        // Load Categories
+        val categoriesJsonStr = prefs.getString(KEY_CATEGORIES, "[]") ?: "[]"
+        try {
+            val categoriesArray = JSONArray(categoriesJsonStr)
+            for (i in 0 until categoriesArray.length()) {
+                val obj = categoriesArray.optJSONObject(i) ?: continue
+                val id = obj.optString("id", "")
+                val name = obj.optString("name", "General")
+                val type = obj.optString("type", "expense")
+                if (id.isNotEmpty() && (type == "expense" || type.isEmpty())) {
+                    categoryList.add(CategoryItem(id, name))
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to parse cached categories", e)
+        }
+
+        if (categoryList.isEmpty()) {
+            categoryList.add(CategoryItem("cat_general", "General"))
+            categoryList.add(CategoryItem("cat_fuel", "Fuel & Transport"))
+            categoryList.add(CategoryItem("cat_food", "Food & Dining"))
+            categoryList.add(CategoryItem("cat_groceries", "Groceries"))
+            categoryList.add(CategoryItem("cat_shopping", "Shopping"))
+        }
+
+        val categoryAdapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            categoryList.map { it.name }
+        )
+        spCategory.adapter = categoryAdapter
+    }
+
+    private fun setupListeners() {
+        btnClose.setOnClickListener {
+            dismissPopup()
+        }
+
+        rootContainer.setOnClickListener {
+            dismissPopup()
+        }
+
+        btnDone.setOnClickListener {
+            handleDone()
+        }
+    }
+
+    private fun handleDone() {
+        if (isSubmitting) return
+
+        val rawAmount = etAmount.text.toString().trim()
+        val description = etDescription.text.toString().trim()
+
+        // Validation
+        if (rawAmount.isEmpty()) {
+            showError("Please enter an amount")
+            return
+        }
+
+        val cleanAmountStr = rawAmount.replace("[^0-9.]".toRegex(), "")
+        val parsedDouble = cleanAmountStr.toDoubleOrNull()
+        if (parsedDouble == null || parsedDouble <= 0.0) {
+            showError("Amount must be greater than ₹0")
+            return
+        }
+
+        if (description.isEmpty()) {
+            showError("Please enter a description (e.g. Petrol)")
+            return
+        }
+
+        val minorAmount = Math.round(parsedDouble * 100)
+        val selectedAccount = accountList.getOrNull(spAccount.selectedItemPosition) ?: accountList[0]
+        val selectedCategory = categoryList.getOrNull(spCategory.selectedItemPosition)
+
+        val txId = UUID.randomUUID().toString()
+        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+
+        setLoading(true)
+
+        // Path 1: Check if React Native instance is active
+        val emitted = PocketWiseShakeModule.emitExpenseSubmitted(
+            id = txId,
+            amountMinor = minorAmount,
+            description = description,
+            accountId = selectedAccount.id,
+            categoryId = selectedCategory?.id,
+            date = dateStr
+        )
+
+        if (emitted) {
+            Log.d(TAG, "Expense submitted to active React Native bridge: ID=$txId, Amount=$minorAmount")
+            playSuccessHaptic()
+            dismissPopup()
+            return
+        }
+
+        // Path 2: Background Native direct Supabase REST Fallback
+        Log.d(TAG, "React Native JS runtime sleeping. Executing direct native Supabase persistence...")
+        executor.execute {
+            val success = persistExpenseDirectly(
+                txId = txId,
+                amountMinor = minorAmount,
+                description = description,
+                accountId = selectedAccount.id,
+                categoryId = selectedCategory?.id,
+                dateStr = dateStr
+            )
+
+            runOnUiThread {
+                setLoading(false)
+                if (success) {
+                    playSuccessHaptic()
+                    dismissPopup()
+                } else {
+                    val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    val userId = prefs.getString(KEY_USER_ID, "") ?: ""
+                    if (userId.isEmpty()) {
+                        showError("Please log in to PocketWise to record expenses.")
+                    } else {
+                        showError("Failed to save expense. Please retry.")
+                    }
+                }
+            }
+        }
+    }
+
+    private fun persistExpenseDirectly(
+        txId: String,
+        amountMinor: Long,
+        description: String,
+        accountId: String,
+        categoryId: String?,
+        dateStr: String
+    ): Boolean {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val supabaseUrl = prefs.getString(KEY_SUPABASE_URL, "") ?: ""
+        val supabaseAnonKey = prefs.getString(KEY_SUPABASE_ANON_KEY, "") ?: ""
+        val userId = prefs.getString(KEY_USER_ID, "") ?: ""
+        val accessToken = prefs.getString(KEY_ACCESS_TOKEN, "") ?: ""
+
+        if (supabaseUrl.isEmpty() || supabaseAnonKey.isEmpty() || userId.isEmpty()) {
+            Log.w(TAG, "Missing Supabase credentials in SharedPreferences for background save.")
+            return false
+        }
+
+        try {
+            // 1. Insert into transactions table
+            val txPayload = JSONObject().apply {
+                put("id", txId)
+                put("user_id", userId)
+                put("account_id", accountId)
+                put("type", "expense")
+                put("amount_minor", amountMinor)
+                put("currency", "INR")
+                if (!categoryId.isNullOrEmpty()) {
+                    put("category_id", categoryId)
+                }
+                put("description", description)
+                put("date", dateStr)
+            }
+
+            val txEndpoint = URL("$supabaseUrl/rest/v1/transactions")
+            val conn = txEndpoint.openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.setRequestProperty("apikey", supabaseAnonKey)
+            conn.setRequestProperty("Authorization", "Bearer \${if (accessToken.isNotEmpty()) accessToken else supabaseAnonKey}")
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.setRequestProperty("Prefer", "return=representation")
+            conn.doOutput = true
+            conn.connectTimeout = 8000
+            conn.readTimeout = 8000
+
+            OutputStreamWriter(conn.outputStream).use { writer ->
+                writer.write(txPayload.toString())
+                writer.flush()
+            }
+
+            val responseCode = conn.responseCode
+            if (responseCode in 200..299) {
+                Log.d(TAG, "Successfully persisted transaction directly to Supabase. HTTP $responseCode")
+
+                // 2. Fetch current balance & update account balance
+                try {
+                    val accEndpoint = URL("$supabaseUrl/rest/v1/accounts?id=eq.$accountId&select=balance")
+                    val accConn = accEndpoint.openConnection() as HttpURLConnection
+                    accConn.requestMethod = "GET"
+                    accConn.setRequestProperty("apikey", supabaseAnonKey)
+                    accConn.setRequestProperty("Authorization", "Bearer \${if (accessToken.isNotEmpty()) accessToken else supabaseAnonKey}")
+                    accConn.connectTimeout = 5000
+
+                    if (accConn.responseCode in 200..299) {
+                        val respStr = accConn.inputStream.bufferedReader().use { it.readText() }
+                        val accArr = JSONArray(respStr)
+                        if (accArr.length() > 0) {
+                            val currBalance = accArr.getJSONObject(0).optLong("balance", 0L)
+                            val newBalance = currBalance - amountMinor
+
+                            val patchConn = URL("$supabaseUrl/rest/v1/accounts?id=eq.$accountId").openConnection() as HttpURLConnection
+                            patchConn.requestMethod = "PATCH"
+                            patchConn.setRequestProperty("apikey", supabaseAnonKey)
+                            patchConn.setRequestProperty("Authorization", "Bearer \${if (accessToken.isNotEmpty()) accessToken else supabaseAnonKey}")
+                            patchConn.setRequestProperty("Content-Type", "application/json")
+                            patchConn.doOutput = true
+
+                            val patchPayload = JSONObject().apply {
+                                put("balance", newBalance)
+                            }
+                            OutputStreamWriter(patchConn.outputStream).use { w ->
+                                w.write(patchPayload.toString())
+                                w.flush()
+                            }
+                            patchConn.responseCode
+                        }
+                    }
+                } catch (accErr: Exception) {
+                    Log.w(TAG, "Non-fatal account balance update exception", accErr)
+                }
+
+                // Notify React Native upon wake
+                PocketWiseShakeModule.emitExpenseCreated(txPayload)
+                return true
+            } else {
+                val errBody = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+                Log.e(TAG, "Supabase HTTP error $responseCode: $errBody")
+                return false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Exception persisting expense to Supabase", e)
+            return false
+        }
+    }
+
+    private fun setLoading(loading: Boolean) {
+        isSubmitting = loading
+        btnDone.isEnabled = !loading
+        btnDone.text = if (loading) "" else "DONE"
+        pbLoading.visibility = if (loading) View.VISIBLE else View.GONE
+        tvError.visibility = View.GONE
+    }
+
+    private fun showError(message: String) {
+        tvError.text = message
+        tvError.visibility = View.VISIBLE
+    }
+
+    private fun playSuccessHaptic() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                vibratorManager?.defaultVibrator?.vibrate(
+                    VibrationEffect.createOneShot(80, VibrationEffect.DEFAULT_AMPLITUDE)
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator?.vibrate(VibrationEffect.createOneShot(80, VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator?.vibrate(80)
+                }
+            }
+        } catch (e: Exception) {
+            // Ignore haptic failure
+        }
+    }
+
+    private fun dismissPopup() {
+        ShakeDetector.isPopupActive = false
+        finish()
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        dismissPopup()
+        @Suppress("DEPRECATION")
+        super.onBackPressed()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (isFinishing) {
+            ShakeDetector.isPopupActive = false
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        ShakeDetector.isPopupActive = false
+    }
+
+    companion object {
+        private const val TAG = "QuickExpenseActivity"
+        private const val PREFS_NAME = "pocketwise_shake_prefs"
+        private const val KEY_ACCOUNTS = "cached_accounts"
+        private const val KEY_CATEGORIES = "cached_categories"
+        private const val KEY_SUPABASE_URL = "supabase_url"
+        private const val KEY_SUPABASE_ANON_KEY = "supabase_anon_key"
+        private const val KEY_USER_ID = "user_id"
+        private const val KEY_ACCESS_TOKEN = "access_token"
+    }
+}
+`;
+
+      // 2f. ShakeBootReceiver.kt
       const shakeBootReceiverContent = `package com.pocketwise.app.shake
 
 import android.content.BroadcastReceiver
@@ -858,9 +1269,303 @@ class ShakeBootReceiver : BroadcastReceiver() {
       fs.writeFileSync(path.join(shakeDir, 'ShakeDetectionService.kt'), shakeServiceContent);
       fs.writeFileSync(path.join(shakeDir, 'PocketWiseShakeModule.kt'), shakeModuleContent);
       fs.writeFileSync(path.join(shakeDir, 'PocketWiseShakePackage.kt'), shakePackageContent);
+      fs.writeFileSync(path.join(shakeDir, 'QuickExpenseActivity.kt'), quickExpenseActivityContent);
       fs.writeFileSync(path.join(shakeDir, 'ShakeBootReceiver.kt'), shakeBootReceiverContent);
 
-      // 2f. Ensure MainApplication.kt registers PocketWiseShakePackage
+      // 2g. XML Layout: activity_quick_expense.xml
+      const resLayoutDir = path.join(projectRoot, 'android', 'app', 'src', 'main', 'res', 'layout');
+      if (!fs.existsSync(resLayoutDir)) {
+        fs.mkdirSync(resLayoutDir, { recursive: true });
+      }
+
+      const layoutContent = `<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/rootContainer"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#80000000"
+    android:padding="20dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="@drawable/bg_quick_expense_dialog"
+        android:elevation="12dp"
+        android:orientation="vertical"
+        android:padding="22dp">
+
+        <!-- Header Row -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentStart="true"
+                android:layout_centerVertical="true"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="⚡"
+                    android:textSize="20sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="Quick Expense"
+                    android:textColor="#FFFFFF"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/btnClose"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:gravity="center"
+                android:text="✕"
+                android:textColor="#A1A1AA"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+        </RelativeLayout>
+
+        <!-- Amount Section -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            android:text="AMOUNT (₹)"
+            android:textColor="#A1A1AA"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginBottom="14dp"
+            android:background="@drawable/bg_input_field"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="14dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="₹"
+                android:textColor="#10B981"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <EditText
+                android:id="@+id/etAmount"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginStart="8dp"
+                android:background="@null"
+                android:hint="500"
+                android:inputType="numberDecimal"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#71717A"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Description Section -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            android:text="DESCRIPTION"
+            android:textColor="#A1A1AA"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/etDescription"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginBottom="14dp"
+            android:background="@drawable/bg_input_field"
+            android:hint="e.g. Petrol, Coffee, Groceries"
+            android:inputType="textCapSentences"
+            android:paddingHorizontal="14dp"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#71717A"
+            android:textSize="14sp" />
+
+        <!-- Account Spinner -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            android:text="ACCOUNT"
+            android:textColor="#A1A1AA"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <Spinner
+            android:id="@+id/spAccount"
+            android:layout_width="match_parent"
+            android:layout_height="46dp"
+            android:layout_marginBottom="14dp"
+            android:background="@drawable/bg_input_field"
+            android:paddingHorizontal="10dp"
+            android:spinnerMode="dropdown" />
+
+        <!-- Category Spinner -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            android:text="CATEGORY"
+            android:textColor="#A1A1AA"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <Spinner
+            android:id="@+id/spCategory"
+            android:layout_width="match_parent"
+            android:layout_height="46dp"
+            android:layout_marginBottom="16dp"
+            android:background="@drawable/bg_input_field"
+            android:paddingHorizontal="10dp"
+            android:spinnerMode="dropdown" />
+
+        <!-- Inline Error Message -->
+        <TextView
+            android:id="@+id/tvError"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:gravity="center"
+            android:textColor="#EF4444"
+            android:textSize="12sp"
+            android:visibility="gone" />
+
+        <!-- Done / Submit Button -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="50dp">
+
+            <Button
+                android:id="@+id/btnDone"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_button_done"
+                android:text="DONE"
+                android:textAllCaps="true"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <ProgressBar
+                android:id="@+id/pbLoading"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_gravity="center"
+                android:indeterminateTint="#FFFFFF"
+                android:visibility="gone" />
+        </FrameLayout>
+    </LinearLayout>
+</FrameLayout>
+`;
+      fs.writeFileSync(path.join(resLayoutDir, 'activity_quick_expense.xml'), layoutContent);
+
+      // 2h. XML Drawables
+      const resDrawableDir = path.join(projectRoot, 'android', 'app', 'src', 'main', 'res', 'drawable');
+      if (!fs.existsSync(resDrawableDir)) {
+        fs.mkdirSync(resDrawableDir, { recursive: true });
+      }
+
+      const bgDialogContent = `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#18181B" />
+    <corners android:radius="24dp" />
+    <stroke
+        android:width="1dp"
+        android:color="#27272A" />
+</shape>
+`;
+
+      const bgInputContent = `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#27272A" />
+    <corners android:radius="14dp" />
+    <stroke
+        android:width="1dp"
+        android:color="#3F3F46" />
+</shape>
+`;
+
+      const bgButtonContent = `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#10B981" />
+    <corners android:radius="14dp" />
+</shape>
+`;
+
+      fs.writeFileSync(path.join(resDrawableDir, 'bg_quick_expense_dialog.xml'), bgDialogContent);
+      fs.writeFileSync(path.join(resDrawableDir, 'bg_input_field.xml'), bgInputContent);
+      fs.writeFileSync(path.join(resDrawableDir, 'bg_button_done.xml'), bgButtonContent);
+
+      // 2i. XML Styles: Ensure Theme.PocketWise.QuickExpenseDialog is in styles.xml
+      const resValuesDir = path.join(projectRoot, 'android', 'app', 'src', 'main', 'res', 'values');
+      if (!fs.existsSync(resValuesDir)) {
+        fs.mkdirSync(resValuesDir, { recursive: true });
+      }
+
+      const stylesPath = path.join(resValuesDir, 'styles.xml');
+      const dialogStyleEntry = `  <style name="Theme.PocketWise.QuickExpenseDialog" parent="Theme.AppCompat.DayNight.Dialog">
+    <item name="android:windowIsTranslucent">true</item>
+    <item name="android:windowBackground">@android:color/transparent</item>
+    <item name="android:windowNoTitle">true</item>
+    <item name="android:windowIsFloating">true</item>
+    <item name="android:backgroundDimEnabled">true</item>
+    <item name="android:backgroundDimAmount">0.6</item>
+    <item name="android:windowAnimationStyle">@android:style/Animation.Dialog</item>
+  </style>`;
+
+      if (fs.existsSync(stylesPath)) {
+        let stylesContent = fs.readFileSync(stylesPath, 'utf8');
+        if (!stylesContent.includes('Theme.PocketWise.QuickExpenseDialog')) {
+          if (stylesContent.includes('</resources>')) {
+            stylesContent = stylesContent.replace('</resources>', `${dialogStyleEntry}\n</resources>`);
+          } else {
+            stylesContent = `<resources xmlns:tools="http://schemas.android.com/tools">\n${dialogStyleEntry}\n</resources>`;
+          }
+          fs.writeFileSync(stylesPath, stylesContent);
+        }
+      } else {
+        const fullStylesContent = `<resources xmlns:tools="http://schemas.android.com/tools">
+  <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
+    <item name="android:enforceNavigationBarContrast" tools:targetApi="29">true</item>
+    <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
+    <item name="colorPrimary">@color/colorPrimary</item>
+    <item name="android:statusBarColor">#ffffff</item>
+  </style>
+  <style name="Theme.App.SplashScreen" parent="AppTheme">
+    <item name="android:windowBackground">@drawable/ic_launcher_background</item>
+  </style>
+${dialogStyleEntry}
+</resources>
+`;
+        fs.writeFileSync(stylesPath, fullStylesContent);
+      }
+
+      // 2j. Ensure MainApplication.kt registers PocketWiseShakePackage
       const mainAppPath = path.join(
         projectRoot,
         'android',
