@@ -104,26 +104,164 @@ describe('Shake to Add Expense - Core Logic & Data Pipeline Tests', () => {
     });
   });
 
-  describe('Debounce & Duplicate Prevention Logic', () => {
-    it('verifies 2500ms cooldown window prevents multi-triggers', () => {
-      const COOLDOWN_MS = 2500;
-      let lastTrigger = 10000;
+  describe('Shake Detector Pure Algorithm & Physics Model', () => {
+    // Pure TypeScript representation of the Kotlin ShakeDetector algorithm for verification
+    class AlgorithmicShakeDetector {
+      private gravityX = 0;
+      private gravityY = 0;
+      private gravityZ = 0;
+      private isGravityInitialized = false;
 
-      const canTrigger = (currentTimestamp: number) => {
-        if (currentTimestamp - lastTrigger >= COOLDOWN_MS) {
-          lastTrigger = currentTimestamp;
-          return true;
+      private lastShakeTimestamp = 0;
+      private lastPeakTimestamp = 0;
+      private peakTimestamps: number[] = [];
+
+      public shakeCount = 0;
+
+      constructor(
+        public linearThreshold = 8.0,
+        public gForceThreshold = 1.50,
+        public alpha = 0.85,
+        public minPeakIntervalMs = 80,
+        public peakWindowMs = 650,
+        public cooldownMs = 2500
+      ) {}
+
+      processSensorSample(x: number, y: number, z: number, now: number): boolean {
+        const GRAVITY_EARTH = 9.80665;
+
+        // 1. Low-pass filter for gravity isolation
+        if (!this.isGravityInitialized) {
+          this.gravityX = x;
+          this.gravityY = y;
+          this.gravityZ = z;
+          this.isGravityInitialized = true;
+        } else {
+          this.gravityX = this.alpha * this.gravityX + (1 - this.alpha) * x;
+          this.gravityY = this.alpha * this.gravityY + (1 - this.alpha) * y;
+          this.gravityZ = this.alpha * this.gravityZ + (1 - this.alpha) * z;
+        }
+
+        // 2. Isotropic Linear Acceleration
+        const linearX = x - this.gravityX;
+        const linearY = y - this.gravityY;
+        const linearZ = z - this.gravityZ;
+        const linearMagnitude = Math.sqrt(linearX * linearX + linearY * linearY + linearZ * linearZ);
+
+        // 3. Total G-Force
+        const totalMagnitude = Math.sqrt(x * x + y * y + z * z);
+        const gForce = totalMagnitude / GRAVITY_EARTH;
+
+        const isThresholdExceeded =
+          linearMagnitude >= this.linearThreshold || gForce >= this.gForceThreshold;
+
+        if (isThresholdExceeded) {
+          if (now - this.lastPeakTimestamp >= this.minPeakIntervalMs) {
+            this.lastPeakTimestamp = now;
+            this.peakTimestamps.push(now);
+          }
+
+          // Prune window
+          this.peakTimestamps = this.peakTimestamps.filter((t) => now - t <= this.peakWindowMs);
+
+          if (this.peakTimestamps.length >= 2) {
+            if (this.lastShakeTimestamp === 0 || now - this.lastShakeTimestamp >= this.cooldownMs) {
+              this.lastShakeTimestamp = now;
+              this.peakTimestamps = [];
+              this.shakeCount++;
+              return true;
+            }
+          }
         }
         return false;
-      };
+      }
+    }
 
-      // Shakes within cooldown window should be ignored
-      expect(canTrigger(10100)).toBe(false);
-      expect(canTrigger(11000)).toBe(false);
-      expect(canTrigger(12499)).toBe(false);
+    it('successfully detects a horizontal (lateral X-axis) shake', () => {
+      const detector = new AlgorithmicShakeDetector();
 
-      // Shake after cooldown window should be accepted
-      expect(canTrigger(12500)).toBe(true);
+      // Phone resting upright (gravity on Y = 9.8)
+      detector.processSensorSample(0, 9.8, 0, 1000);
+
+      // Stroke 1: Shake right (+11 m/s^2)
+      detector.processSensorSample(11.0, 9.8, 0, 1050);
+
+      // Stroke 2: Shake left (-11 m/s^2) after 150ms
+      const triggered = detector.processSensorSample(-11.0, 9.8, 0, 1200);
+
+      expect(triggered).toBe(true);
+      expect(detector.shakeCount).toBe(1);
+    });
+
+    it('successfully detects a vertical (Z-axis / face-up) shake', () => {
+      const detector = new AlgorithmicShakeDetector();
+
+      // Phone resting flat on table (gravity on Z = 9.8)
+      detector.processSensorSample(0, 0, 9.8, 1000);
+
+      // Stroke 1: Upward jerk (+12 m/s^2)
+      detector.processSensorSample(0, 0, 21.8, 1050);
+
+      // Stroke 2: Downward jerk
+      const triggered = detector.processSensorSample(0, 0, -2.0, 1220);
+
+      expect(triggered).toBe(true);
+      expect(detector.shakeCount).toBe(1);
+    });
+
+    it('rejects single table bumps or drops (does not trigger on a single isolated shock)', () => {
+      const detector = new AlgorithmicShakeDetector();
+
+      // Static resting
+      detector.processSensorSample(0, 0, 9.8, 1000);
+
+      // Single impact spike for 30ms (consecutive samples < 80ms apart)
+      detector.processSensorSample(0, 0, 24.0, 1020);
+      detector.processSensorSample(0, 0, 24.0, 1040);
+
+      // Back to static resting
+      detector.processSensorSample(0, 0, 9.8, 1060);
+      detector.processSensorSample(0, 0, 9.8, 1500);
+
+      // Should NOT trigger shake on a single bump
+      expect(detector.shakeCount).toBe(0);
+    });
+
+    it('rejects gentle walking and normal device handling', () => {
+      const detector = new AlgorithmicShakeDetector();
+
+      // Gentle walking oscillations (magnitude 9.8 ± 2.0 m/s^2)
+      let triggered = false;
+      for (let t = 1000; t <= 3000; t += 100) {
+        const osc = Math.sin(t / 200) * 2.0;
+        if (detector.processSensorSample(osc, 9.8 + osc, osc * 0.5, t)) {
+          triggered = true;
+        }
+      }
+
+      expect(triggered).toBe(false);
+      expect(detector.shakeCount).toBe(0);
+    });
+
+    it('enforces cooldown debounce preventing rapid duplicate triggers', () => {
+      const detector = new AlgorithmicShakeDetector();
+
+      // First valid shake at t=1000
+      detector.processSensorSample(0, 9.8, 0, 1000);
+      detector.processSensorSample(11.0, 9.8, 0, 1050);
+      const shake1 = detector.processSensorSample(-11.0, 9.8, 0, 1200);
+      expect(shake1).toBe(true);
+
+      // Immediate subsequent movements within 2.5s cooldown (e.g. at t=1800)
+      detector.processSensorSample(11.0, 9.8, 0, 1700);
+      const shakeDuringCooldown = detector.processSensorSample(-11.0, 9.8, 0, 1850);
+      expect(shakeDuringCooldown).toBe(false);
+
+      // Subsequent shake AFTER 2.5s cooldown (at t=4000)
+      detector.processSensorSample(11.0, 9.8, 0, 3900);
+      const shakeAfterCooldown = detector.processSensorSample(-11.0, 9.8, 0, 4100);
+      expect(shakeAfterCooldown).toBe(true);
+      expect(detector.shakeCount).toBe(2);
     });
   });
 });
