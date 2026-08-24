@@ -346,18 +346,37 @@ export default function ShakeSettingsScreen() {
           </View>
 
           {sensorTestResult && (
-            <View className={`p-3 rounded-xl border ${sensorTestResult.eventsReceived > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
-              <View className="flex-row items-center justify-between mb-1">
-                <Text className={`text-xs font-bold ${sensorTestResult.eventsReceived > 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
+            <View className={`p-3.5 rounded-xl border ${sensorTestResult.eventsReceived > 0 ? 'bg-emerald-950/30 border-emerald-500/30' : 'bg-rose-950/30 border-rose-500/30'}`}>
+              <View className="flex-row items-center justify-between mb-2">
+                <Text className={`text-xs font-bold ${sensorTestResult.eventsReceived > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                   {sensorTestResult.eventsReceived > 0 ? '✓ Hardware Accelerometer Active' : '✕ No Sensor Events Received'}
                 </Text>
-                <Text className="text-[11px] font-mono text-zinc-600">
-                  {sensorTestResult.eventsReceived} events in {sensorTestResult.durationMs}ms
-                </Text>
+                <Badge
+                  label={sensorTestResult.registrationSuccess ? 'Registration: SUCCESS' : 'Registration: FAILED'}
+                  variant={sensorTestResult.registrationSuccess ? 'income' : 'expense'}
+                />
               </View>
-              <Text className="text-[11px] text-zinc-600">
-                Sensor: {sensorTestResult.sensorName} ({sensorTestResult.sensorVendor})
-              </Text>
+
+              <View className="gap-1">
+                <View className="flex-row justify-between">
+                  <Text className="text-[11px] text-zinc-500">Events received:</Text>
+                  <Text className={`text-[11px] font-mono font-bold ${sensorTestResult.eventsReceived > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {sensorTestResult.eventsReceived} events in {sensorTestResult.durationMs}ms
+                  </Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-[11px] text-zinc-500">Sensor name:</Text>
+                  <Text className="text-[11px] font-semibold text-zinc-300">
+                    {sensorTestResult.sensorName}
+                  </Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-[11px] text-zinc-500">Sensor vendor:</Text>
+                  <Text className="text-[11px] font-semibold text-zinc-300">
+                    {sensorTestResult.sensorVendor}
+                  </Text>
+                </View>
+              </View>
             </View>
           )}
         </Card>
@@ -406,16 +425,16 @@ export default function ShakeSettingsScreen() {
             </View>
 
             <View className="py-2 flex-row items-center justify-between">
-              <Text className="text-xs text-zinc-400">Sensor hardware available:</Text>
+              <Text className="text-xs text-zinc-400">Sensor available (hardware):</Text>
               <Text className={`text-xs font-bold ${serviceDiagnostics?.sensorAvailable ?? true ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {serviceDiagnostics?.sensorAvailable ?? true ? 'YES' : 'NO'}
               </Text>
             </View>
 
             <View className="py-2 flex-row items-center justify-between">
-              <Text className="text-xs text-zinc-400">Sensor listener registered:</Text>
-              <Text className={`text-xs font-bold ${serviceDiagnostics?.sensorListening ?? serviceRunning ? 'text-emerald-400' : 'text-zinc-500'}`}>
-                {serviceDiagnostics?.sensorListening ?? serviceRunning ? 'YES' : 'NO'}
+              <Text className="text-xs text-zinc-400">Sensor registration successful:</Text>
+              <Text className={`text-xs font-bold ${serviceDiagnostics?.sensorRegistrationResult ?? serviceDiagnostics?.sensorListening ?? serviceRunning ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                {serviceDiagnostics?.sensorRegistrationResult ?? serviceDiagnostics?.sensorListening ?? serviceRunning ? 'YES' : 'NO'}
               </Text>
             </View>
 
@@ -427,7 +446,7 @@ export default function ShakeSettingsScreen() {
             </View>
 
             <View className="py-2 flex-row items-center justify-between">
-              <Text className="text-xs text-zinc-400">Sensor events (persisted):</Text>
+              <Text className="text-xs text-zinc-400">Sensor events actually received:</Text>
               <Text className="text-xs font-bold text-amber-300 font-mono">
                 {serviceDiagnostics?.sensorEventsReceived !== undefined ? serviceDiagnostics.sensorEventsReceived.toLocaleString() : '0'}
               </Text>
