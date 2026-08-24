@@ -206,24 +206,46 @@ export default function ShakeSettingsScreen() {
               <Text className="text-sm font-bold text-zinc-900">Display Over Other Apps</Text>
             </View>
             <Badge
-              label={overlayGranted ? 'Granted' : 'Required'}
+              label={overlayGranted ? 'Granted ✓' : 'Required'}
               variant={overlayGranted ? 'income' : 'expense'}
             />
           </View>
 
-          <Text className="text-xs text-zinc-500 mb-3 leading-relaxed">
-            Allows PocketWise to show the floating Quick Expense popup over other apps (e.g. while using UPI or shopping apps).
+          <Text className="text-xs text-zinc-500 mb-4 leading-relaxed">
+            Allows PocketWise to display the compact floating Quick Expense popup over other applications (such as UPI apps, shopping apps, or your home screen) when you shake your device.
           </Text>
 
-          {!overlayGranted && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-indigo-200 bg-indigo-50/50"
-              onPress={handleRequestOverlay}
-            >
-              <Text className="text-indigo-600 font-bold text-xs">Grant Overlay Permission</Text>
-            </Button>
+          {!overlayGranted ? (
+            <View className="gap-2.5">
+              <Button
+                variant="primary"
+                size="md"
+                className="bg-indigo-600 active:bg-indigo-700 w-full"
+                onPress={handleRequestOverlay}
+              >
+                <Shield size={16} color="#FFFFFF" className="mr-2" />
+                <Text className="text-white font-bold text-xs tracking-wide">Turn On Display Over Other Apps</Text>
+              </Button>
+              <Text className="text-[11px] text-zinc-400 italic text-center">
+                After enabling the permission in Android Settings, return to PocketWise and the status will automatically update to Granted ✓.
+              </Text>
+            </View>
+          ) : (
+            <View className="flex-row items-center justify-between pt-1">
+              <View className="flex-row items-center gap-1.5">
+                <CheckCircle2 size={16} color="#10B981" />
+                <Text className="text-xs font-semibold text-emerald-600">Overlay popup is active & ready</Text>
+              </View>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-zinc-200 bg-zinc-50"
+                onPress={handleRequestOverlay}
+              >
+                <Shield size={14} color="#71717A" className="mr-1.5" />
+                <Text className="text-zinc-700 font-bold text-xs">Manage Permission</Text>
+              </Button>
+            </View>
           )}
         </Card>
 

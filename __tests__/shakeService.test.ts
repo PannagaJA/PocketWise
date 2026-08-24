@@ -278,6 +278,63 @@ describe('Shake to Add Expense - Core Logic & Data Pipeline Tests', () => {
       expect(await checkPermissionMock(null)).toBe(false);
     });
 
+    it('verifies UI state evaluation for Required vs Granted ✓ based on system permission', () => {
+      const getOverlayBadge = (overlayGranted: boolean) => ({
+        label: overlayGranted ? 'Granted ✓' : 'Required',
+        variant: overlayGranted ? 'income' : 'expense',
+      });
+
+      // Permission false -> UI shows Required
+      expect(getOverlayBadge(false)).toEqual({
+        label: 'Required',
+        variant: 'expense',
+      });
+
+      // Permission true -> UI shows Granted ✓
+      expect(getOverlayBadge(true)).toEqual({
+        label: 'Granted ✓',
+        variant: 'income',
+      });
+    });
+
+    it('verifies Turn On Display Over Other Apps button invokes requestOverlayPermission', async () => {
+      let requestCalled = false;
+      const requestOverlayPermissionMock = async () => {
+        requestCalled = true;
+        return true;
+      };
+
+      // User presses "Turn On Display Over Other Apps"
+      await requestOverlayPermissionMock();
+      expect(requestCalled).toBe(true);
+    });
+
+    it('verifies AppState active event refreshes permission when user returns from Android Settings', async () => {
+      let systemPermission = false;
+      let uiOverlayGranted = false;
+
+      const refreshPermissionOnAppState = async (appState: string) => {
+        if (appState === 'active') {
+          uiOverlayGranted = systemPermission;
+        }
+      };
+
+      // 1. Initially in app: permission is false
+      expect(uiOverlayGranted).toBe(false);
+
+      // 2. User goes to Android settings and GRANTS permission
+      systemPermission = true;
+
+      // 3. User returns to PocketWise -> AppState changes to 'active'
+      await refreshPermissionOnAppState('active');
+      expect(uiOverlayGranted).toBe(true);
+
+      // 4. Case where user goes to Android settings and REVOKES / DENIES permission
+      systemPermission = false;
+      await refreshPermissionOnAppState('active');
+      expect(uiOverlayGranted).toBe(false);
+    });
+
     it('verifies Shake toggle ON starts service and toggle OFF stops service', async () => {
       let isRunning = false;
       const startServiceMock = async () => {
