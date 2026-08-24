@@ -5,9 +5,9 @@ import { useRouter } from 'expo-router';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
-import { shakeService, ShakeDiagnostics } from '../lib/shake/shakeService';
+import { shakeService, ShakeDiagnostics, NativeServiceDiagnostics } from '../lib/shake/shakeService';
 import { shakeStorage, ShakeSensitivity } from '../lib/shake/storage/shakeStore';
-import { ArrowLeft, Zap, Shield, Smartphone, Layers, Play, CheckCircle2, AlertCircle, Cpu, RefreshCw } from 'lucide-react-native';
+import { ArrowLeft, Zap, Shield, Smartphone, Layers, Play, CheckCircle2, AlertCircle, Cpu, RefreshCw, Activity } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 export default function ShakeSettingsScreen() {
@@ -20,6 +20,7 @@ export default function ShakeSettingsScreen() {
   const [overlayGranted, setOverlayGranted] = useState(false);
   const [serviceRunning, setServiceRunning] = useState(false);
   const [diagnostics, setDiagnostics] = useState<ShakeDiagnostics | null>(null);
+  const [serviceDiagnostics, setServiceDiagnostics] = useState<NativeServiceDiagnostics | null>(null);
 
   useEffect(() => {
     loadSettings();
@@ -29,9 +30,11 @@ export default function ShakeSettingsScreen() {
       if (nextAppState === 'active') {
         const isOverlayOk = await shakeService.checkOverlayPermission().catch(() => false);
         const isRunning = await shakeService.isServiceRunning().catch(() => false);
+        const serviceDiag = await shakeService.getNativeServiceDiagnostics().catch(() => null);
         setOverlayGranted(isOverlayOk);
         setServiceRunning(isRunning);
         setDiagnostics(shakeService.getDiagnostics());
+        setServiceDiagnostics(serviceDiag);
       }
     });
 
@@ -44,6 +47,7 @@ export default function ShakeSettingsScreen() {
     const isOverlayOk = await shakeService.checkOverlayPermission().catch(() => false);
     const isRunning = await shakeService.isServiceRunning().catch(() => false);
     const diag = shakeService.getDiagnostics();
+    const serviceDiag = await shakeService.getNativeServiceDiagnostics().catch(() => null);
 
     setEnabled(settings.enabled);
     setBackgroundEnabled(settings.backgroundEnabled);
@@ -51,6 +55,7 @@ export default function ShakeSettingsScreen() {
     setOverlayGranted(isOverlayOk);
     setServiceRunning(isRunning);
     setDiagnostics(diag);
+    setServiceDiagnostics(serviceDiag);
     setLoading(false);
   };
 
@@ -76,6 +81,8 @@ export default function ShakeSettingsScreen() {
       await shakeStorage.saveSettings({ enabled: !value });
     }
     setDiagnostics(shakeService.getDiagnostics());
+    const sDiag = await shakeService.getNativeServiceDiagnostics().catch(() => null);
+    setServiceDiagnostics(sDiag);
   };
 
   const toggleBackgroundEnabled = async (value: boolean) => {
@@ -90,6 +97,8 @@ export default function ShakeSettingsScreen() {
         `Failed to set background preference:\n\n${err?.message || err}`
       );
     }
+    const sDiag = await shakeService.getNativeServiceDiagnostics().catch(() => null);
+    setServiceDiagnostics(sDiag);
   };
 
   const changeSensitivity = async (newSens: ShakeSensitivity) => {
@@ -100,6 +109,8 @@ export default function ShakeSettingsScreen() {
     } catch (err: any) {
       console.warn('[ShakeSettings] Failed to set sensitivity natively:', err);
     }
+    const sDiag = await shakeService.getNativeServiceDiagnostics().catch(() => null);
+    setServiceDiagnostics(sDiag);
   };
 
   const handleRequestOverlay = async () => {
@@ -132,9 +143,11 @@ export default function ShakeSettingsScreen() {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     const isOverlayOk = await shakeService.checkOverlayPermission().catch(() => false);
     const isRunning = await shakeService.isServiceRunning().catch(() => false);
+    const serviceDiag = await shakeService.getNativeServiceDiagnostics().catch(() => null);
     setOverlayGranted(isOverlayOk);
     setServiceRunning(isRunning);
     setDiagnostics(shakeService.getDiagnostics());
+    setServiceDiagnostics(serviceDiag);
   };
 
   if (loading) {
@@ -203,7 +216,7 @@ export default function ShakeSettingsScreen() {
               </View>
               <View className="flex-1">
                 <Text className="text-sm font-bold text-zinc-900">Background Shake Detection</Text>
-                <Text className="text-xs text-zinc-500">Detect shakes when app is closed or minimized</Text>
+                <Text className="text-xs text-zinc-500">Detect shakes when app is minimized or swiped from recents</Text>
               </View>
             </View>
             <Switch
@@ -318,9 +331,9 @@ export default function ShakeSettingsScreen() {
           </Button>
         </Card>
 
-        {/* Native Bridge Diagnostics Card */}
+        {/* Native Bridge & Sensor Diagnostics Card */}
         <View className="flex-row items-center justify-between mb-2.5 ml-1">
-          <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Native Bridge Diagnostics</Text>
+          <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Native Bridge & Sensor Diagnostics</Text>
           <Pressable onPress={refreshDiagnostics} className="flex-row items-center gap-1 active:opacity-60">
             <RefreshCw size={12} color="#71717A" />
             <Text className="text-[11px] font-semibold text-zinc-500">Refresh</Text>
@@ -329,7 +342,7 @@ export default function ShakeSettingsScreen() {
         <Card className="mb-5 p-4 bg-zinc-900 border-zinc-800 rounded-2xl">
           <View className="flex-row items-center gap-2 mb-3">
             <Cpu size={16} color="#A1A1AA" />
-            <Text className="text-xs font-bold text-white">Installed APK Native Bridge Status</Text>
+            <Text className="text-xs font-bold text-white">Installed APK Native Status</Text>
           </View>
 
           <View className="divide-y divide-zinc-800">
@@ -369,9 +382,30 @@ export default function ShakeSettingsScreen() {
             </View>
 
             <View className="py-2 flex-row items-center justify-between">
-              <Text className="text-xs text-zinc-400">Background service live state:</Text>
+              <Text className="text-xs text-zinc-400">Service running:</Text>
               <Text className={`text-xs font-bold ${serviceRunning ? 'text-emerald-400' : 'text-zinc-500'}`}>
-                {serviceRunning ? 'RUNNING' : 'STOPPED'}
+                {serviceRunning ? 'YES' : 'NO'}
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Shake detector active:</Text>
+              <Text className={`text-xs font-bold ${serviceDiagnostics?.detectorActive ?? serviceRunning ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                {serviceDiagnostics?.detectorActive ?? serviceRunning ? 'YES' : 'NO'}
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Accelerometer listener registered:</Text>
+              <Text className={`text-xs font-bold ${serviceDiagnostics?.sensorListening ?? serviceRunning ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                {serviceDiagnostics?.sensorListening ?? serviceRunning ? 'YES' : 'NO'}
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Background detection enabled:</Text>
+              <Text className={`text-xs font-bold ${backgroundEnabled && enabled ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                {backgroundEnabled && enabled ? 'YES' : 'NO'}
               </Text>
             </View>
           </View>
@@ -381,8 +415,8 @@ export default function ShakeSettingsScreen() {
         <View className="p-4 bg-zinc-100 rounded-2xl mb-8 flex-row items-start gap-2.5">
           <AlertCircle size={16} color="#71717A" className="mt-0.5" />
           <Text className="text-xs text-zinc-500 flex-1 leading-relaxed">
-            <Text className="font-bold text-zinc-700">Battery Optimized: </Text>
-            Shake detection uses minimal hardware accelerometer resources. Turning this setting OFF unregisters sensors and shuts down all background services immediately.
+            <Text className="font-bold text-zinc-700">Task Continuity: </Text>
+            Shake detection runs via an optimized foreground service with <Text className="font-semibold text-zinc-800">stopWithTask="false"</Text> and persistent restart policies so that motion detection continues reliably even when PocketWise is dismissed from Recent Apps.
           </Text>
         </View>
       </ScrollView>

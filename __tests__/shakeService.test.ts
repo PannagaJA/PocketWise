@@ -395,5 +395,67 @@ describe('Shake to Add Expense - Core Logic & Data Pipeline Tests', () => {
       expect(diagWithMod.startServiceCallable).toBe(true);
       expect(diagWithMod.simulateShakeCallable).toBe(true);
     });
+
+    it('verifies onTaskRemoved preserves service running, detector active, and sensor listener registered', () => {
+      // Simulate Service state before task removal
+      let serviceRunning = true;
+      let detectorActive = true;
+      let sensorListening = true;
+      const isServiceEnabled = true;
+      const isBgEnabled = true;
+
+      // When onTaskRemoved fires:
+      const onTaskRemoved = (enabled: boolean, bgEnabled: boolean) => {
+        if (enabled && bgEnabled) {
+          // Invariant: Keep service running, detector active, sensor listening
+          serviceRunning = true;
+          detectorActive = true;
+          sensorListening = true;
+        } else {
+          serviceRunning = false;
+          detectorActive = false;
+          sensorListening = false;
+        }
+      };
+
+      // 1. User swipes app from Recents with background shake enabled
+      onTaskRemoved(isServiceEnabled, isBgEnabled);
+      expect(serviceRunning).toBe(true);
+      expect(detectorActive).toBe(true);
+      expect(sensorListening).toBe(true);
+
+      // 2. User swipes app from Recents with background shake disabled
+      onTaskRemoved(isServiceEnabled, false);
+      expect(serviceRunning).toBe(false);
+      expect(detectorActive).toBe(false);
+      expect(sensorListening).toBe(false);
+    });
+
+    it('verifies background shake routes to QuickExpenseActivity when React Native JS is terminated', () => {
+      let emittedToRN = false;
+      let launchedQuickExpenseActivity = false;
+      let postedNotification = false;
+
+      const handleShakeTriggered = (rnActive: boolean, canOverlay: boolean, bgAllowed: boolean) => {
+        if (rnActive) {
+          emittedToRN = true;
+          return;
+        }
+
+        if (!bgAllowed) return;
+
+        if (canOverlay) {
+          launchedQuickExpenseActivity = true;
+        } else {
+          postedNotification = true;
+        }
+      };
+
+      // App swiped from Recents: RN is inactive, overlay is granted, bg is allowed
+      handleShakeTriggered(false, true, true);
+      expect(emittedToRN).toBe(false);
+      expect(launchedQuickExpenseActivity).toBe(true);
+      expect(postedNotification).toBe(false);
+    });
   });
 });

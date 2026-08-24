@@ -31,6 +31,7 @@ function withAndroidShakeDetector(config) {
         $: {
           'android:name': serviceName,
           'android:exported': 'false',
+          'android:stopWithTask': 'false',
           'android:foregroundServiceType': 'specialUse',
         },
         property: [
@@ -43,6 +44,8 @@ function withAndroidShakeDetector(config) {
         ],
       };
       mainApplication.service.push(serviceObj);
+    } else {
+      serviceObj.$['android:stopWithTask'] = 'false';
     }
 
     // QuickExpenseActivity registration
@@ -284,7 +287,7 @@ class ShakeDetectionService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
-        Log.d(TAG, "ShakeDetectionService onStartCommand action=$action")
+        Log.d(TAG, "ShakeDetectionService onStartCommand action=$action, startId=$startId")
 
         when (action) {
             ACTION_STOP -> {
@@ -296,7 +299,7 @@ class ShakeDetectionService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_UPDATE_SENSITIVITY -> {
-                val sensStr = intent.getStringExtra("sensitivity") ?: "NORMAL"
+                val sensStr = intent?.getStringExtra("sensitivity") ?: "NORMAL"
                 val sens = try {
                     ShakeDetector.Sensitivity.valueOf(sensStr)
                 } catch (e: Exception) {
@@ -306,17 +309,66 @@ class ShakeDetectionService : Service() {
                 Log.d(TAG, "Updated shake detector sensitivity to: $sens")
             }
             ACTION_SET_BACKGROUND_ENABLED -> {
-                val bgEnabled = intent.getBooleanExtra("backgroundEnabled", true)
+                val bgEnabled = intent?.getBooleanExtra("backgroundEnabled", true) ?: true
                 val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 prefs.edit().putBoolean(KEY_BACKGROUND_ENABLED, bgEnabled).apply()
                 Log.d(TAG, "Updated background shake detection preference to: $bgEnabled")
             }
             else -> {
-                startListening()
+                // When started via ACTION_START or restarted by OS (intent == null)
+                val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                val isServiceEnabled = prefs.getBoolean(KEY_SERVICE_ENABLED, true)
+                if (isServiceEnabled) {
+                    startListening()
+                } else {
+                    stopListening()
+                    stopSelf()
+                }
             }
         }
 
         return START_STICKY
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        Log.d(TAG, "ShakeDetectionService onTaskRemoved - App swiped away from Recents")
+
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val isServiceEnabled = prefs.getBoolean(KEY_SERVICE_ENABLED, true)
+        val isBgEnabled = prefs.getBoolean(KEY_BACKGROUND_ENABLED, true)
+
+        if (isServiceEnabled && isBgEnabled) {
+            Log.d(TAG, "Background Shake Detection is enabled; keeping service and accelerometer listener active")
+            // Ensure sensor listening is active
+            startListening()
+
+            // Schedule an immediate alarm restart fallback if the OS decides to kill the process after task removal
+            try {
+                val restartIntent = Intent(applicationContext, ShakeDetectionService::class.java).apply {
+                    action = ACTION_START
+                }
+                val pendingIntent = PendingIntent.getForegroundService(
+                    applicationContext,
+                    RESTART_ALARM_REQUEST_CODE,
+                    restartIntent,
+                    PendingIntent.FLAG_ONE_SHOT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+                )
+                val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+                alarmManager?.set(
+                    AlarmManager.RTC_WAKEUP,
+                    System.currentTimeMillis() + 1000,
+                    pendingIntent
+                )
+                Log.d(TAG, "Scheduled alarm fallback to ensure service continuity across task removal")
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not schedule alarm restart fallback", e)
+            }
+        } else {
+            Log.d(TAG, "Shake detection disabled by preferences; stopping service on task removal")
+            stopListening()
+            stopSelf()
+        }
     }
 
     private fun initShakeDetector() {
@@ -336,9 +388,19 @@ class ShakeDetectionService : Service() {
         }.apply {
             sensitivity = initialSensitivity
         }
+        isDetectorActive = true
     }
 
     private fun startListening() {
+        if (accelerometer == null) {
+            sensorManager = getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+            accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        }
+
+        if (shakeDetector == null) {
+            initShakeDetector()
+        }
+
         if (isListening || accelerometer == null) return
 
         sensorManager?.registerListener(
@@ -348,6 +410,8 @@ class ShakeDetectionService : Service() {
         )
         isListening = true
         isServiceRunning = true
+        isSensorListening = true
+        isDetectorActive = true
         Log.d(TAG, "ShakeDetectionService started listening on accelerometer (SENSOR_DELAY_GAME)")
     }
 
@@ -356,6 +420,7 @@ class ShakeDetectionService : Service() {
 
         sensorManager?.unregisterListener(shakeDetector)
         isListening = false
+        isSensorListening = false
         Log.d(TAG, "ShakeDetectionService stopped listening on accelerometer")
     }
 
@@ -375,7 +440,7 @@ class ShakeDetectionService : Service() {
                 return
             }
 
-            // App is backgrounded / sleeping -> check overlay permission and launch floating activity
+            // App is backgrounded / sleeping / task removed -> check overlay permission and launch floating activity
             val canOverlay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 Settings.canDrawOverlays(this)
             } else {
@@ -466,6 +531,8 @@ class ShakeDetectionService : Service() {
         stopListening()
         ShakeDetector.isPopupActive = false
         isServiceRunning = false
+        isSensorListening = false
+        isDetectorActive = false
         Log.d(TAG, "ShakeDetectionService destroyed")
     }
 
@@ -482,13 +549,21 @@ class ShakeDetectionService : Service() {
         private const val NOTIFICATION_SERVICE_ID = 2001
         private const val NOTIFICATION_ALERT_ID = 2002
         private const val NOTIFICATION_POPUP_REQUEST_CODE = 3001
+        private const val RESTART_ALARM_REQUEST_CODE = 4001
 
         private const val PREFS_NAME = "pocketwise_shake_prefs"
+        private const val KEY_SERVICE_ENABLED = "is_shake_enabled"
         private const val KEY_SENSITIVITY = "shake_sensitivity"
         private const val KEY_BACKGROUND_ENABLED = "is_background_enabled"
 
         @Volatile
         var isServiceRunning: Boolean = false
+
+        @Volatile
+        var isSensorListening: Boolean = false
+
+        @Volatile
+        var isDetectorActive: Boolean = false
     }
 }
 `;
@@ -570,6 +645,28 @@ class PocketWiseShakeModule(private val reactContext: ReactApplicationContext) :
             promise.resolve(isRunning)
         } catch (e: Exception) {
             promise.reject("CHECK_SERVICE_ERROR", e.message, e)
+        }
+    }
+
+    @ReactMethod
+    fun getServiceDiagnostics(promise: Promise) {
+        try {
+            val prefs = reactContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val isEnabled = prefs.getBoolean(KEY_SERVICE_ENABLED, true)
+            val isBgEnabled = prefs.getBoolean(KEY_BACKGROUND_ENABLED, true)
+            val sensitivity = prefs.getString(KEY_SENSITIVITY, "NORMAL") ?: "NORMAL"
+
+            val map = Arguments.createMap().apply {
+                putBoolean("serviceRunning", ShakeDetectionService.isServiceRunning)
+                putBoolean("sensorListening", ShakeDetectionService.isSensorListening)
+                putBoolean("detectorActive", ShakeDetectionService.isDetectorActive)
+                putBoolean("serviceEnabled", isEnabled)
+                putBoolean("backgroundEnabled", isBgEnabled)
+                putString("sensitivity", sensitivity)
+            }
+            promise.resolve(map)
+        } catch (e: Exception) {
+            promise.reject("DIAGNOSTICS_ERROR", e.message, e)
         }
     }
 
