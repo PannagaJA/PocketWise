@@ -389,23 +389,62 @@ export default function ShakeSettingsScreen() {
             </View>
 
             <View className="py-2 flex-row items-center justify-between">
-              <Text className="text-xs text-zinc-400">Shake detector active:</Text>
+              <Text className="text-xs text-zinc-400">Background enabled:</Text>
+              <Text className={`text-xs font-bold ${backgroundEnabled && enabled ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                {backgroundEnabled && enabled ? 'YES' : 'NO'}
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Detector active:</Text>
               <Text className={`text-xs font-bold ${serviceDiagnostics?.detectorActive ?? serviceRunning ? 'text-emerald-400' : 'text-zinc-500'}`}>
                 {serviceDiagnostics?.detectorActive ?? serviceRunning ? 'YES' : 'NO'}
               </Text>
             </View>
 
             <View className="py-2 flex-row items-center justify-between">
-              <Text className="text-xs text-zinc-400">Accelerometer listener registered:</Text>
+              <Text className="text-xs text-zinc-400">Sensor available:</Text>
+              <Text className={`text-xs font-bold ${serviceDiagnostics?.sensorAvailable ?? true ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {serviceDiagnostics?.sensorAvailable ?? true ? 'YES' : 'NO'}
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Sensor listening:</Text>
               <Text className={`text-xs font-bold ${serviceDiagnostics?.sensorListening ?? serviceRunning ? 'text-emerald-400' : 'text-zinc-500'}`}>
                 {serviceDiagnostics?.sensorListening ?? serviceRunning ? 'YES' : 'NO'}
               </Text>
             </View>
 
             <View className="py-2 flex-row items-center justify-between">
-              <Text className="text-xs text-zinc-400">Background detection enabled:</Text>
-              <Text className={`text-xs font-bold ${backgroundEnabled && enabled ? 'text-emerald-400' : 'text-zinc-500'}`}>
-                {backgroundEnabled && enabled ? 'YES' : 'NO'}
+              <Text className="text-xs text-zinc-400">Sensor events received:</Text>
+              <Text className="text-xs font-bold text-amber-300 font-mono">
+                {serviceDiagnostics?.sensorEventsReceived !== undefined ? serviceDiagnostics.sensorEventsReceived.toLocaleString() : '0'}
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Last sensor event:</Text>
+              <Text className="text-xs font-semibold text-zinc-300">
+                {serviceDiagnostics?.lastSensorEventTimestamp && serviceDiagnostics.lastSensorEventTimestamp > 0
+                  ? `${Math.max(0, Math.round((Date.now() - serviceDiagnostics.lastSensorEventTimestamp) / 1000))}s ago`
+                  : 'Never'}
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Last shake detected:</Text>
+              <Text className="text-xs font-semibold text-zinc-300">
+                {serviceDiagnostics?.lastShakeTimestamp && serviceDiagnostics.lastShakeTimestamp > 0
+                  ? `${Math.max(0, Math.round((Date.now() - serviceDiagnostics.lastShakeTimestamp) / 1000))}s ago`
+                  : 'Never'}
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Popup active lock:</Text>
+              <Text className={`text-xs font-bold ${serviceDiagnostics?.popupActive ? 'text-amber-400' : 'text-zinc-400'}`}>
+                {serviceDiagnostics?.popupActive ? 'YES (locked)' : 'NO (ready)'}
               </Text>
             </View>
           </View>

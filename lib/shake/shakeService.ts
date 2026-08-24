@@ -25,11 +25,19 @@ export interface ShakeDiagnostics {
 
 export interface NativeServiceDiagnostics {
   serviceRunning: boolean;
+  sensorAvailable: boolean;
   sensorListening: boolean;
   detectorActive: boolean;
   serviceEnabled: boolean;
   backgroundEnabled: boolean;
   sensitivity: string;
+  sensorEventsReceived: number;
+  lastSensorEventTimestamp: number;
+  lastShakeTimestamp: number;
+  shakeCount: number;
+  popupActive: boolean;
+  lastLinearMagnitude: number;
+  lastGForce: number;
 }
 
 class ShakeService {
@@ -60,7 +68,7 @@ class ShakeService {
     const allModules = Object.keys(NativeModules || {});
     return {
       isAndroid: Platform.OS === 'android',
-      moduleAvailable: Boolean(mod),
+      moduleAvailable: !!mod,
       moduleName: 'PocketWiseShakeModule',
       registeredModules: allModules,
       hasPocketWiseShakeModule: allModules.includes('PocketWiseShakeModule'),
@@ -76,7 +84,7 @@ class ShakeService {
   }
 
   /**
-   * Query deep native service state (service running, sensor listening, detector active).
+   * Query deep native service state (service running, sensor listening, detector active, telemetry).
    */
   async getNativeServiceDiagnostics(): Promise<NativeServiceDiagnostics | null> {
     if (!this.isNativeAvailable()) return null;
@@ -86,11 +94,19 @@ class ShakeService {
       const res = await mod.getServiceDiagnostics();
       return {
         serviceRunning: Boolean(res?.serviceRunning),
+        sensorAvailable: Boolean(res?.sensorAvailable),
         sensorListening: Boolean(res?.sensorListening),
         detectorActive: Boolean(res?.detectorActive),
         serviceEnabled: Boolean(res?.serviceEnabled),
         backgroundEnabled: Boolean(res?.backgroundEnabled),
         sensitivity: String(res?.sensitivity || 'NORMAL'),
+        sensorEventsReceived: Number(res?.sensorEventsReceived || 0),
+        lastSensorEventTimestamp: Number(res?.lastSensorEventTimestamp || 0),
+        lastShakeTimestamp: Number(res?.lastShakeTimestamp || 0),
+        shakeCount: Number(res?.shakeCount || 0),
+        popupActive: Boolean(res?.popupActive),
+        lastLinearMagnitude: Number(res?.lastLinearMagnitude || 0),
+        lastGForce: Number(res?.lastGForce || 0),
       };
     } catch {
       return null;

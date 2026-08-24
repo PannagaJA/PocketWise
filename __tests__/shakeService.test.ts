@@ -501,5 +501,49 @@ describe('Shake to Add Expense - Core Logic & Data Pipeline Tests', () => {
       expect(triggerShake(7000)).toBe(true);
       expect(shakeCount).toBe(3);
     });
+
+    it('verifies sensor event telemetry tracking and force re-registration across task removal', () => {
+      let totalSensorEvents = 0;
+      let lastSensorEventTimeMs = 0;
+      let isListening = false;
+      let isSensorListening = false;
+      let isSensorAvailable = true;
+
+      const onSensorChanged = (now: number) => {
+        totalSensorEvents++;
+        lastSensorEventTimeMs = now;
+      };
+
+      const startListening = (force: boolean) => {
+        if (force && isListening) {
+          isListening = false;
+        }
+        if (isListening) return;
+        isListening = true;
+        isSensorListening = true;
+      };
+
+      // 1. Initial start
+      startListening(false);
+      expect(isListening).toBe(true);
+      expect(isSensorListening).toBe(true);
+
+      // 2. Sensor delivers 10 events
+      for (let i = 1; i <= 10; i++) {
+        onSensorChanged(1000 + i * 10);
+      }
+      expect(totalSensorEvents).toBe(10);
+      expect(lastSensorEventTimeMs).toBe(1100);
+
+      // 3. Task removed -> calls startListening(force = true)
+      startListening(true);
+      expect(isListening).toBe(true);
+      expect(isSensorListening).toBe(true);
+
+      // 4. Continued sensor event delivery
+      onSensorChanged(2000);
+      expect(totalSensorEvents).toBe(11);
+      expect(lastSensorEventTimeMs).toBe(2000);
+    });
   });
 });

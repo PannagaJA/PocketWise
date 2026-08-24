@@ -151,6 +151,7 @@ import kotlin.math.sqrt
  * - Configurable sensitivity (LOW, NORMAL, HIGH).
  * - Cooldown/debounce to prevent duplicate triggers from a single physical shake.
  * - Thread-safe active state suppression with auto-timeout safeguard when a popup is displayed.
+ * - Full telemetry tracking for diagnostic verification (events received, timestamps, magnitudes).
  */
 class ShakeDetector(private val onShakeListener: () -> Unit) : SensorEventListener {
 
@@ -180,10 +181,9 @@ class ShakeDetector(private val onShakeListener: () -> Unit) : SensorEventListen
             return
         }
 
-        // If a popup or expense flow is already active on screen, ignore motion
-        if (isPopupCurrentlyActive()) {
-            return
-        }
+        val now = System.currentTimeMillis()
+        totalSensorEvents++
+        lastSensorEventTimeMs = now
 
         val x = event.values[0]
         val y = event.values[1]
@@ -211,7 +211,14 @@ class ShakeDetector(private val onShakeListener: () -> Unit) : SensorEventListen
         val totalMagnitude = sqrt((x * x + y * y + z * z).toDouble()).toFloat()
         val gForce = totalMagnitude / SensorManager.GRAVITY_EARTH
 
-        val now = System.currentTimeMillis()
+        lastLinearMagnitude = linearMagnitude
+        lastGForce = gForce
+
+        // If a popup or expense flow is already active on screen, ignore motion
+        if (isPopupCurrentlyActive()) {
+            return
+        }
+
         val currentSensitivity = sensitivity
 
         // A valid motion peak occurs if either linear acceleration or total g-force crosses the sensitivity threshold
@@ -232,6 +239,8 @@ class ShakeDetector(private val onShakeListener: () -> Unit) : SensorEventListen
             if (peakTimestamps.size >= REQUIRED_PEAKS) {
                 if (lastShakeTimestamp == 0L || now - lastShakeTimestamp >= COOLDOWN_MS) {
                     lastShakeTimestamp = now
+                    lastDetectedShakeTimeMs = now
+                    totalShakeCount++
                     peakTimestamps.clear()
                     lastPeakTimestamp = 0L
                     Log.d(TAG, "Intentional shake detected! Linear: $linearMagnitude m/s^2, G-Force: \${gForce}g, Sensitivity: $currentSensitivity")
@@ -253,6 +262,25 @@ class ShakeDetector(private val onShakeListener: () -> Unit) : SensorEventListen
         private const val REQUIRED_PEAKS = 2 // Number of distinct strokes required to confirm shake
         private const val COOLDOWN_MS = 2500L // Debounce cooldown after shake trigger
         private const val POPUP_LOCK_TIMEOUT_MS = 15000L // Safeguard timeout against stale locks
+
+        // Telemetry counters
+        @Volatile
+        var totalSensorEvents: Long = 0L
+
+        @Volatile
+        var lastSensorEventTimeMs: Long = 0L
+
+        @Volatile
+        var lastDetectedShakeTimeMs: Long = 0L
+
+        @Volatile
+        var totalShakeCount: Long = 0L
+
+        @Volatile
+        var lastLinearMagnitude: Float = 0f
+
+        @Volatile
+        var lastGForce: Float = 0f
 
         @Volatile
         var isPopupActive: Boolean = false
@@ -349,7 +377,7 @@ class ShakeDetectionService : Service() {
                 val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 val isServiceEnabled = prefs.getBoolean(KEY_SERVICE_ENABLED, true)
                 if (isServiceEnabled) {
-                    startListening()
+                    startListening(force = true)
                 } else {
                     stopListening()
                     stopSelf()
@@ -369,9 +397,9 @@ class ShakeDetectionService : Service() {
         val isBgEnabled = prefs.getBoolean(KEY_BACKGROUND_ENABLED, true)
 
         if (isServiceEnabled && isBgEnabled) {
-            Log.d(TAG, "Background Shake Detection is enabled; keeping service and accelerometer listener active")
-            // Ensure sensor listening is active
-            startListening()
+            Log.d(TAG, "Background Shake Detection is enabled; re-verifying and force-registering accelerometer listener")
+            // Unconditionally re-bind sensor listener to application context across task removal
+            startListening(force = true)
 
             // Schedule an immediate alarm restart fallback if the OS decides to kill the process after task removal
             try {
@@ -402,8 +430,9 @@ class ShakeDetectionService : Service() {
     }
 
     private fun initShakeDetector() {
-        sensorManager = getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+        sensorManager = applicationContext.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
         accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        isSensorAvailable = accelerometer != null
 
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val sensStr = prefs.getString(KEY_SENSITIVITY, "NORMAL") ?: "NORMAL"
@@ -421,34 +450,56 @@ class ShakeDetectionService : Service() {
         isDetectorActive = true
     }
 
-    private fun startListening() {
-        if (accelerometer == null) {
-            sensorManager = getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+    private fun startListening(force: Boolean = false) {
+        if (accelerometer == null || sensorManager == null) {
+            sensorManager = applicationContext.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
             accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+            isSensorAvailable = accelerometer != null
         }
 
         if (shakeDetector == null) {
             initShakeDetector()
         }
 
-        if (isListening || accelerometer == null) return
+        if (accelerometer == null) {
+            Log.w(TAG, "Accelerometer hardware sensor not available on this device")
+            isSensorAvailable = false
+            isSensorListening = false
+            return
+        }
 
-        sensorManager?.registerListener(
+        if (force && isListening) {
+            try {
+                sensorManager?.unregisterListener(shakeDetector)
+            } catch (e: Exception) {
+                Log.w(TAG, "Error unregistering before force re-registration", e)
+            }
+            isListening = false
+        }
+
+        if (isListening) return
+
+        val registered = sensorManager?.registerListener(
             shakeDetector,
             accelerometer,
             SensorManager.SENSOR_DELAY_GAME
-        )
-        isListening = true
+        ) ?: false
+
+        isListening = registered
         isServiceRunning = true
-        isSensorListening = true
+        isSensorListening = registered
         isDetectorActive = true
-        Log.d(TAG, "ShakeDetectionService started listening on accelerometer (SENSOR_DELAY_GAME)")
+        Log.d(TAG, "ShakeDetectionService registerListener result: $registered (SENSOR_DELAY_GAME, force=$force)")
     }
 
     private fun stopListening() {
         if (!isListening) return
 
-        sensorManager?.unregisterListener(shakeDetector)
+        try {
+            sensorManager?.unregisterListener(shakeDetector)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error unregistering sensor listener", e)
+        }
         isListening = false
         isSensorListening = false
         Log.d(TAG, "ShakeDetectionService stopped listening on accelerometer")
@@ -471,7 +522,7 @@ class ShakeDetectionService : Service() {
             }
 
             // Always ensure isListening is active and sensor is registered
-            startListening()
+            startListening(force = false)
 
             // App is backgrounded / sleeping / task removed -> check overlay permission and launch floating activity
             val canOverlay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -593,6 +644,9 @@ class ShakeDetectionService : Service() {
         var isServiceRunning: Boolean = false
 
         @Volatile
+        var isSensorAvailable: Boolean = false
+
+        @Volatile
         var isSensorListening: Boolean = false
 
         @Volatile
@@ -691,11 +745,19 @@ class PocketWiseShakeModule(private val reactContext: ReactApplicationContext) :
 
             val map = Arguments.createMap().apply {
                 putBoolean("serviceRunning", ShakeDetectionService.isServiceRunning)
+                putBoolean("sensorAvailable", ShakeDetectionService.isSensorAvailable)
                 putBoolean("sensorListening", ShakeDetectionService.isSensorListening)
                 putBoolean("detectorActive", ShakeDetectionService.isDetectorActive)
                 putBoolean("serviceEnabled", isEnabled)
                 putBoolean("backgroundEnabled", isBgEnabled)
                 putString("sensitivity", sensitivity)
+                putDouble("sensorEventsReceived", ShakeDetector.totalSensorEvents.toDouble())
+                putDouble("lastSensorEventTimestamp", ShakeDetector.lastSensorEventTimeMs.toDouble())
+                putDouble("lastShakeTimestamp", ShakeDetector.lastDetectedShakeTimeMs.toDouble())
+                putDouble("shakeCount", ShakeDetector.totalShakeCount.toDouble())
+                putBoolean("popupActive", ShakeDetector.isPopupActive)
+                putDouble("lastLinearMagnitude", ShakeDetector.lastLinearMagnitude.toDouble())
+                putDouble("lastGForce", ShakeDetector.lastGForce.toDouble())
             }
             promise.resolve(map)
         } catch (e: Exception) {
