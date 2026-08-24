@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Switch, Pressable, AppState, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Switch, Pressable, AppState, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
-import { shakeService } from '../lib/shake/shakeService';
+import { shakeService, ShakeDiagnostics } from '../lib/shake/shakeService';
 import { shakeStorage, ShakeSensitivity } from '../lib/shake/storage/shakeStore';
-import { ArrowLeft, Zap, Shield, Smartphone, Layers, Play, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react-native';
+import { ArrowLeft, Zap, Shield, Smartphone, Layers, Play, CheckCircle2, AlertCircle, Cpu, RefreshCw } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 export default function ShakeSettingsScreen() {
@@ -19,17 +19,19 @@ export default function ShakeSettingsScreen() {
   const [sensitivity, setSensitivity] = useState<ShakeSensitivity>('normal');
   const [overlayGranted, setOverlayGranted] = useState(false);
   const [serviceRunning, setServiceRunning] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<ShakeDiagnostics | null>(null);
 
   useEffect(() => {
     loadSettings();
 
-    // Re-check overlay permission and service state when returning from Android OS Settings
+    // Re-check overlay permission, service state, and diagnostics when returning from Android OS Settings
     const subscription = AppState.addEventListener('change', async (nextAppState) => {
       if (nextAppState === 'active') {
-        const isOverlayOk = await shakeService.checkOverlayPermission();
-        const isRunning = await shakeService.isServiceRunning();
+        const isOverlayOk = await shakeService.checkOverlayPermission().catch(() => false);
+        const isRunning = await shakeService.isServiceRunning().catch(() => false);
         setOverlayGranted(isOverlayOk);
         setServiceRunning(isRunning);
+        setDiagnostics(shakeService.getDiagnostics());
       }
     });
 
@@ -39,14 +41,16 @@ export default function ShakeSettingsScreen() {
   const loadSettings = async () => {
     setLoading(true);
     const settings = await shakeStorage.getSettings();
-    const isOverlayOk = await shakeService.checkOverlayPermission();
-    const isRunning = await shakeService.isServiceRunning();
+    const isOverlayOk = await shakeService.checkOverlayPermission().catch(() => false);
+    const isRunning = await shakeService.isServiceRunning().catch(() => false);
+    const diag = shakeService.getDiagnostics();
 
     setEnabled(settings.enabled);
     setBackgroundEnabled(settings.backgroundEnabled);
     setSensitivity(settings.sensitivity);
     setOverlayGranted(isOverlayOk);
     setServiceRunning(isRunning);
+    setDiagnostics(diag);
     setLoading(false);
   };
 
@@ -54,36 +58,83 @@ export default function ShakeSettingsScreen() {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     setEnabled(value);
     await shakeStorage.saveSettings({ enabled: value });
-    if (value) {
-      const ok = await shakeService.startService();
-      setServiceRunning(ok);
-    } else {
-      await shakeService.stopService();
-      setServiceRunning(false);
+    try {
+      if (value) {
+        const ok = await shakeService.startService();
+        setServiceRunning(ok);
+      } else {
+        await shakeService.stopService();
+        setServiceRunning(false);
+      }
+    } catch (err: any) {
+      Alert.alert(
+        'Native Service Error',
+        `Failed to ${value ? 'start' : 'stop'} shake service:\n\n${err?.message || err}`
+      );
+      // Revert UI state on failure
+      setEnabled(!value);
+      await shakeStorage.saveSettings({ enabled: !value });
     }
+    setDiagnostics(shakeService.getDiagnostics());
   };
 
   const toggleBackgroundEnabled = async (value: boolean) => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     setBackgroundEnabled(value);
     await shakeStorage.saveSettings({ backgroundEnabled: value });
-    await shakeService.setBackgroundEnabled(value);
+    try {
+      await shakeService.setBackgroundEnabled(value);
+    } catch (err: any) {
+      Alert.alert(
+        'Native Background Preference Error',
+        `Failed to set background preference:\n\n${err?.message || err}`
+      );
+    }
   };
 
   const changeSensitivity = async (newSens: ShakeSensitivity) => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     setSensitivity(newSens);
-    await shakeService.setSensitivity(newSens);
+    try {
+      await shakeService.setSensitivity(newSens);
+    } catch (err: any) {
+      console.warn('[ShakeSettings] Failed to set sensitivity natively:', err);
+    }
   };
 
   const handleRequestOverlay = async () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
-    await shakeService.requestOverlayPermission();
+    try {
+      await shakeService.requestOverlayPermission();
+    } catch (err: any) {
+      Alert.alert(
+        'Permission Request Error',
+        `Unable to open Android overlay settings:\n\n${err?.message || err}`
+      );
+    }
+    setDiagnostics(shakeService.getDiagnostics());
   };
 
   const handleSimulateShake = async () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); } catch {}
-    await shakeService.simulateShake();
+    try {
+      await shakeService.simulateShake();
+    } catch (err: any) {
+      Alert.alert(
+        'Simulate Shake Error',
+        `Native shake simulation failed:\n\n${err?.message || err}`
+      );
+    }
+    setDiagnostics(shakeService.getDiagnostics());
+  };
+
+  const refreshDiagnostics = async () => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    const isOverlayOk = await shakeService.checkOverlayPermission().catch(() => false);
+    const isRunning = await shakeService.isServiceRunning().catch(() => false);
+    setOverlayGranted(isOverlayOk);
+    setServiceRunning(isRunning);
+    setDiagnostics(shakeService.getDiagnostics());
   };
 
   if (loading) {
@@ -251,7 +302,7 @@ export default function ShakeSettingsScreen() {
 
         {/* Test Section */}
         <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5 ml-1">Test & Verification</Text>
-        <Card className="mb-6 p-4 bg-white border border-zinc-200 rounded-2xl">
+        <Card className="mb-5 p-4 bg-white border border-zinc-200 rounded-2xl">
           <Text className="text-xs text-zinc-500 mb-3">
             Simulate a physical shake event right now to verify the Quick Expense popup and submission flow.
           </Text>
@@ -267,6 +318,65 @@ export default function ShakeSettingsScreen() {
           </Button>
         </Card>
 
+        {/* Native Bridge Diagnostics Card */}
+        <View className="flex-row items-center justify-between mb-2.5 ml-1">
+          <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Native Bridge Diagnostics</Text>
+          <Pressable onPress={refreshDiagnostics} className="flex-row items-center gap-1 active:opacity-60">
+            <RefreshCw size={12} color="#71717A" />
+            <Text className="text-[11px] font-semibold text-zinc-500">Refresh</Text>
+          </Pressable>
+        </View>
+        <Card className="mb-5 p-4 bg-zinc-900 border-zinc-800 rounded-2xl">
+          <View className="flex-row items-center gap-2 mb-3">
+            <Cpu size={16} color="#A1A1AA" />
+            <Text className="text-xs font-bold text-white">Installed APK Native Bridge Status</Text>
+          </View>
+
+          <View className="divide-y divide-zinc-800">
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Native module available:</Text>
+              <Text className={`text-xs font-bold ${diagnostics?.moduleAvailable ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {diagnostics?.moduleAvailable ? 'YES' : 'NO'}
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Overlay check callable:</Text>
+              <Text className={`text-xs font-bold ${diagnostics?.overlayCheckCallable ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {diagnostics?.overlayCheckCallable ? 'YES' : 'NO'}
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Start service callable:</Text>
+              <Text className={`text-xs font-bold ${diagnostics?.startServiceCallable ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {diagnostics?.startServiceCallable ? 'YES' : 'NO'}
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Stop service callable:</Text>
+              <Text className={`text-xs font-bold ${diagnostics?.stopServiceCallable ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {diagnostics?.stopServiceCallable ? 'YES' : 'NO'}
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Simulate shake callable:</Text>
+              <Text className={`text-xs font-bold ${diagnostics?.simulateShakeCallable ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {diagnostics?.simulateShakeCallable ? 'YES' : 'NO'}
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Background service live state:</Text>
+              <Text className={`text-xs font-bold ${serviceRunning ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                {serviceRunning ? 'RUNNING' : 'STOPPED'}
+              </Text>
+            </View>
+          </View>
+        </Card>
+
         {/* Battery & System Notice */}
         <View className="p-4 bg-zinc-100 rounded-2xl mb-8 flex-row items-start gap-2.5">
           <AlertCircle size={16} color="#71717A" className="mt-0.5" />
@@ -279,4 +389,3 @@ export default function ShakeSettingsScreen() {
     </SafeAreaView>
   );
 }
-

@@ -3,12 +3,26 @@ import { supabase } from '../supabase';
 import { transactionService } from '../services/transaction.service';
 import { accountService } from '../services/account.service';
 import { categoryService } from '../services/category.service';
-import { shakeStorage, ShakeSensitivity, ShakeSettings } from './storage/shakeStore';
+import { shakeStorage, ShakeSensitivity } from './storage/shakeStore';
 import { useAppStore } from '../../store/useAppStore';
 
-const { PocketWiseShakeModule } = NativeModules;
-
 type ShakeCallback = () => void;
+
+export interface ShakeDiagnostics {
+  isAndroid: boolean;
+  moduleAvailable: boolean;
+  moduleName: string;
+  registeredModules: string[];
+  hasPocketWiseShakeModule: boolean;
+  overlayCheckCallable: boolean;
+  requestOverlayCallable: boolean;
+  startServiceCallable: boolean;
+  stopServiceCallable: boolean;
+  isServiceRunningCallable: boolean;
+  simulateShakeCallable: boolean;
+  setSensitivityCallable: boolean;
+  setBackgroundCallable: boolean;
+}
 
 class ShakeService {
   private isInitialized = false;
@@ -16,10 +30,41 @@ class ShakeService {
   private isModalOpen = false;
 
   /**
+   * Dynamically fetch PocketWiseShakeModule from NativeModules.
+   * This ensures runtime availability is always fresh and avoids stale undefined bindings.
+   */
+  get nativeModule(): any {
+    return NativeModules?.PocketWiseShakeModule ?? null;
+  }
+
+  /**
    * Check if native Android shake module is available in the current runtime.
    */
   isNativeAvailable(): boolean {
-    return Platform.OS === 'android' && !!PocketWiseShakeModule;
+    return Platform.OS === 'android' && !!this.nativeModule;
+  }
+
+  /**
+   * Diagnostic snapshot for UI and runtime bridge debugging.
+   */
+  getDiagnostics(): ShakeDiagnostics {
+    const mod = this.nativeModule;
+    const allModules = Object.keys(NativeModules || {});
+    return {
+      isAndroid: Platform.OS === 'android',
+      moduleAvailable: Boolean(mod),
+      moduleName: 'PocketWiseShakeModule',
+      registeredModules: allModules,
+      hasPocketWiseShakeModule: allModules.includes('PocketWiseShakeModule'),
+      overlayCheckCallable: typeof mod?.checkOverlayPermission === 'function',
+      requestOverlayCallable: typeof mod?.requestOverlayPermission === 'function',
+      startServiceCallable: typeof mod?.startShakeService === 'function',
+      stopServiceCallable: typeof mod?.stopShakeService === 'function',
+      isServiceRunningCallable: typeof mod?.isShakeServiceRunning === 'function',
+      simulateShakeCallable: typeof mod?.simulateShake === 'function',
+      setSensitivityCallable: typeof mod?.setShakeSensitivity === 'function',
+      setBackgroundCallable: typeof mod?.setBackgroundShakeEnabled === 'function',
+    };
   }
 
   /**
@@ -30,8 +75,9 @@ class ShakeService {
       return;
     }
 
-    if (!PocketWiseShakeModule) {
-      console.warn('[ShakeService] PocketWiseShakeModule is not available in NativeModules.');
+    const mod = this.nativeModule;
+    if (!mod) {
+      console.warn('[ShakeService] PocketWiseShakeModule is not available in NativeModules at init.');
       return;
     }
 
@@ -44,20 +90,22 @@ class ShakeService {
     const settings = await shakeStorage.getSettings();
 
     // Sync background preference to native SharedPreferences
-    await this.setBackgroundEnabled(settings.backgroundEnabled);
+    await this.setBackgroundEnabled(settings.backgroundEnabled).catch(() => {});
 
     if (settings.enabled) {
-      await this.startService();
+      await this.startService().catch((err) => {
+        console.warn('[ShakeService] Failed to auto-start service during init:', err);
+      });
     } else {
-      await this.stopService();
+      await this.stopService().catch(() => {});
     }
 
     if (settings.sensitivity) {
-      await this.setSensitivity(settings.sensitivity);
+      await this.setSensitivity(settings.sensitivity).catch(() => {});
     }
 
     if (userId) {
-      await this.syncUserAndAccounts(userId);
+      await this.syncUserAndAccounts(userId).catch(() => {});
     }
   }
 
@@ -77,7 +125,7 @@ class ShakeService {
       });
     });
 
-    // 2. Native QuickExpenseActivity submitted an expense -> execute via single source of truth
+    // 2. Native QuickExpenseActivity submitted an expense -> execute via central transaction service
     DeviceEventEmitter.addListener('onQuickExpenseSubmitted', async (event: any) => {
       if (!event || !event.amount_minor || !event.description) return;
 
@@ -149,9 +197,9 @@ class ShakeService {
    * Sync active user session, accounts, and categories to native SharedPreferences.
    */
   async syncUserAndAccounts(userId: string): Promise<void> {
-    if (Platform.OS !== 'android' || !PocketWiseShakeModule?.syncUserData) {
-      return;
-    }
+    if (Platform.OS !== 'android') return;
+    const mod = this.nativeModule;
+    if (!mod || typeof mod.syncUserData !== 'function') return;
 
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -164,7 +212,7 @@ class ShakeService {
         categoryService.getCategories(userId).catch(() => []),
       ]);
 
-      await PocketWiseShakeModule.syncUserData(
+      await mod.syncUserData(
         userId,
         supabaseUrl,
         supabaseAnonKey,
@@ -183,12 +231,13 @@ class ShakeService {
    * Clear user session from native SharedPreferences on logout.
    */
   async clearUserSession(): Promise<void> {
-    if (Platform.OS !== 'android' || !PocketWiseShakeModule?.clearUserData) {
-      return;
-    }
+    if (Platform.OS !== 'android') return;
+    const mod = this.nativeModule;
+    if (!mod || typeof mod.clearUserData !== 'function') return;
+
     try {
-      await this.stopService();
-      await PocketWiseShakeModule.clearUserData();
+      await this.stopService().catch(() => {});
+      await mod.clearUserData();
       console.log('[ShakeService] Cleared native cached user session.');
     } catch (error) {
       console.warn('[ShakeService] Error clearing native session:', error);
@@ -200,17 +249,19 @@ class ShakeService {
    */
   async startService(): Promise<boolean> {
     if (Platform.OS !== 'android') return false;
-    if (!PocketWiseShakeModule?.startShakeService) {
-      console.warn('[ShakeService] startService unavailable: PocketWiseShakeModule is not registered');
-      return false;
+    const mod = this.nativeModule;
+    if (!mod || typeof mod.startShakeService !== 'function') {
+      const errorMsg = 'startShakeService failed: PocketWiseShakeModule is not registered in NativeModules.';
+      console.error('[ShakeService]', errorMsg);
+      throw new Error(errorMsg);
     }
     try {
-      const result = await PocketWiseShakeModule.startShakeService();
+      const result = await mod.startShakeService();
       console.log('[ShakeService] Native shake service started:', result);
       return Boolean(result);
-    } catch (e) {
-      console.warn('[ShakeService] Error starting service:', e);
-      return false;
+    } catch (e: any) {
+      console.error('[ShakeService] Error starting native shake service:', e);
+      throw e;
     }
   }
 
@@ -219,17 +270,19 @@ class ShakeService {
    */
   async stopService(): Promise<boolean> {
     if (Platform.OS !== 'android') return false;
-    if (!PocketWiseShakeModule?.stopShakeService) {
-      console.warn('[ShakeService] stopService unavailable: PocketWiseShakeModule is not registered');
-      return false;
+    const mod = this.nativeModule;
+    if (!mod || typeof mod.stopShakeService !== 'function') {
+      const errorMsg = 'stopShakeService failed: PocketWiseShakeModule is not registered in NativeModules.';
+      console.error('[ShakeService]', errorMsg);
+      throw new Error(errorMsg);
     }
     try {
-      const result = await PocketWiseShakeModule.stopShakeService();
+      const result = await mod.stopShakeService();
       console.log('[ShakeService] Native shake service stopped:', result);
       return Boolean(result);
-    } catch (e) {
-      console.warn('[ShakeService] Error stopping service:', e);
-      return false;
+    } catch (e: any) {
+      console.error('[ShakeService] Error stopping native shake service:', e);
+      throw e;
     }
   }
 
@@ -237,11 +290,13 @@ class ShakeService {
    * Check if shake detection service is currently running.
    */
   async isServiceRunning(): Promise<boolean> {
-    if (Platform.OS !== 'android' || !PocketWiseShakeModule?.isShakeServiceRunning) {
+    if (Platform.OS !== 'android') return false;
+    const mod = this.nativeModule;
+    if (!mod || typeof mod.isShakeServiceRunning !== 'function') {
       return false;
     }
     try {
-      return await PocketWiseShakeModule.isShakeServiceRunning();
+      return await mod.isShakeServiceRunning();
     } catch {
       return false;
     }
@@ -251,11 +306,13 @@ class ShakeService {
    * Set background shake detection enabled in native layer.
    */
   async setBackgroundEnabled(enabled: boolean): Promise<boolean> {
-    if (Platform.OS !== 'android' || !PocketWiseShakeModule?.setBackgroundShakeEnabled) {
+    if (Platform.OS !== 'android') return false;
+    const mod = this.nativeModule;
+    if (!mod || typeof mod.setBackgroundShakeEnabled !== 'function') {
       return false;
     }
     try {
-      await PocketWiseShakeModule.setBackgroundShakeEnabled(enabled);
+      await mod.setBackgroundShakeEnabled(enabled);
       return true;
     } catch (e) {
       console.warn('[ShakeService] Error setting background enabled:', e);
@@ -267,12 +324,14 @@ class ShakeService {
    * Update shake sensitivity (LOW, NORMAL, HIGH).
    */
   async setSensitivity(sensitivity: ShakeSensitivity): Promise<boolean> {
-    if (Platform.OS !== 'android' || !PocketWiseShakeModule?.setShakeSensitivity) {
+    await shakeStorage.saveSettings({ sensitivity });
+    if (Platform.OS !== 'android') return true;
+    const mod = this.nativeModule;
+    if (!mod || typeof mod.setShakeSensitivity !== 'function') {
       return false;
     }
     try {
-      await shakeStorage.saveSettings({ sensitivity });
-      return await PocketWiseShakeModule.setShakeSensitivity(sensitivity.toUpperCase());
+      return await mod.setShakeSensitivity(sensitivity.toUpperCase());
     } catch (e) {
       console.warn('[ShakeService] Error setting sensitivity:', e);
       return false;
@@ -287,14 +346,16 @@ class ShakeService {
     if (Platform.OS !== 'android') {
       return false;
     }
-    if (!PocketWiseShakeModule?.checkOverlayPermission) {
-      console.warn('[ShakeService] checkOverlayPermission unavailable: PocketWiseShakeModule is not registered');
+    const mod = this.nativeModule;
+    if (!mod || typeof mod.checkOverlayPermission !== 'function') {
+      console.warn('[ShakeService] checkOverlayPermission unavailable: PocketWiseShakeModule is not registered in NativeModules');
       return false;
     }
     try {
-      const granted = await PocketWiseShakeModule.checkOverlayPermission();
+      const granted = await mod.checkOverlayPermission();
       return Boolean(granted);
-    } catch {
+    } catch (e) {
+      console.error('[ShakeService] checkOverlayPermission error:', e);
       return false;
     }
   }
@@ -303,14 +364,21 @@ class ShakeService {
    * Open Android Display Over Other Apps settings screen.
    */
   async requestOverlayPermission(): Promise<boolean> {
-    if (Platform.OS !== 'android' || !PocketWiseShakeModule?.requestOverlayPermission) {
+    if (Platform.OS !== 'android') {
       return false;
     }
+    const mod = this.nativeModule;
+    if (!mod || typeof mod.requestOverlayPermission !== 'function') {
+      const errorMsg = 'PocketWiseShakeModule is not registered in NativeModules. Registered modules: ' + Object.keys(NativeModules || {}).join(', ');
+      console.error('[ShakeService] requestOverlayPermission failed:', errorMsg);
+      throw new Error(errorMsg);
+    }
     try {
-      return await PocketWiseShakeModule.requestOverlayPermission();
-    } catch (e) {
-      console.warn('[ShakeService] Error requesting overlay permission:', e);
-      return false;
+      const result = await mod.requestOverlayPermission();
+      return Boolean(result);
+    } catch (e: any) {
+      console.error('[ShakeService] Error requesting overlay permission:', e);
+      throw e;
     }
   }
 
@@ -318,19 +386,27 @@ class ShakeService {
    * Simulate a shake event for testing.
    */
   async simulateShake(): Promise<boolean> {
-    if (Platform.OS !== 'android' || !PocketWiseShakeModule?.simulateShake) {
-      // In web/dev mode, trigger callbacks directly
-      this.shakeCallbacks.forEach((cb) => cb());
-      return true;
+    const mod = this.nativeModule;
+    if (Platform.OS === 'android') {
+      if (mod && typeof mod.simulateShake === 'function') {
+        try {
+          const result = await mod.simulateShake();
+          return Boolean(result);
+        } catch (e: any) {
+          console.error('[ShakeService] Error in native simulateShake:', e);
+          throw e;
+        }
+      } else {
+        const errorMsg = 'simulateShake failed: PocketWiseShakeModule is not registered in NativeModules. Registered modules: ' + Object.keys(NativeModules || {}).join(', ');
+        console.error('[ShakeService]', errorMsg);
+        throw new Error(errorMsg);
+      }
     }
-    try {
-      return await PocketWiseShakeModule.simulateShake();
-    } catch (e) {
-      console.warn('[ShakeService] Error simulating shake:', e);
-      return false;
-    }
+
+    // Web / dev mode fallback
+    this.shakeCallbacks.forEach((cb) => cb());
+    return true;
   }
 }
 
 export const shakeService = new ShakeService();
-

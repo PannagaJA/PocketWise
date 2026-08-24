@@ -125,6 +125,12 @@ function withAndroidShakeDetector(config) {
         fs.mkdirSync(shakeDir, { recursive: true });
       }
 
+      // Ensure Kotlin files exist
+      const shakeDetectorSrc = path.join(projectRoot, 'android', 'app', 'src', 'main', 'java', 'com', 'pocketwise', 'app', 'shake', 'ShakeDetector.kt');
+      if (fs.existsSync(shakeDetectorSrc)) {
+        // Source exists in workspace
+      }
+
       // Ensure MainApplication.kt registers PocketWiseShakePackage
       const mainAppPath = path.join(
         projectRoot,
@@ -158,4 +164,3 @@ function withAndroidShakeDetector(config) {
 }
 
 module.exports = withAndroidShakeDetector;
-

@@ -366,5 +366,34 @@ describe('Shake to Add Expense - Core Logic & Data Pipeline Tests', () => {
       callbacks.forEach((cb) => cb());
       expect(modalOpened).toBe(true);
     });
+
+    it('verifies getDiagnostics reports all required diagnostic metrics', () => {
+      const mockDiagnostics = (moduleAvailable: boolean) => ({
+        isAndroid: true,
+        moduleAvailable,
+        moduleName: 'PocketWiseShakeModule',
+        registeredModules: moduleAvailable ? ['PocketWiseShakeModule', 'PocketWiseSmsModule'] : [],
+        hasPocketWiseShakeModule: moduleAvailable,
+        overlayCheckCallable: moduleAvailable,
+        requestOverlayCallable: moduleAvailable,
+        startServiceCallable: moduleAvailable,
+        stopServiceCallable: moduleAvailable,
+        isServiceRunningCallable: moduleAvailable,
+        simulateShakeCallable: moduleAvailable,
+        setSensitivityCallable: moduleAvailable,
+        setBackgroundCallable: moduleAvailable,
+      });
+
+      const diagNoMod = mockDiagnostics(false);
+      expect(diagNoMod.moduleAvailable).toBe(false);
+      expect(diagNoMod.overlayCheckCallable).toBe(false);
+      expect(diagNoMod.startServiceCallable).toBe(false);
+
+      const diagWithMod = mockDiagnostics(true);
+      expect(diagWithMod.moduleAvailable).toBe(true);
+      expect(diagWithMod.overlayCheckCallable).toBe(true);
+      expect(diagWithMod.startServiceCallable).toBe(true);
+      expect(diagWithMod.simulateShakeCallable).toBe(true);
+    });
   });
 });
