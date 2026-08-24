@@ -457,5 +457,49 @@ describe('Shake to Add Expense - Core Logic & Data Pipeline Tests', () => {
       expect(launchedQuickExpenseActivity).toBe(true);
       expect(postedNotification).toBe(false);
     });
+
+    it('verifies infinite repeatability across multiple sequential shake -> popup -> dismiss cycles', () => {
+      let isPopupActive = false;
+      let lastShakeTimestamp = 0;
+      let shakeCount = 0;
+      const COOLDOWN_MS = 2500;
+
+      const triggerShake = (now: number) => {
+        if (isPopupActive) return false;
+        if (lastShakeTimestamp === 0 || now - lastShakeTimestamp >= COOLDOWN_MS) {
+          lastShakeTimestamp = now;
+          isPopupActive = true; // Popup opens
+          shakeCount++;
+          return true;
+        }
+        return false;
+      };
+
+      const dismissPopup = () => {
+        isPopupActive = false; // Popup dismissed
+      };
+
+      // Cycle 1: First background shake at t=1000
+      expect(triggerShake(1000)).toBe(true);
+      expect(shakeCount).toBe(1);
+      expect(isPopupActive).toBe(true);
+
+      // Dismiss popup 1 at t=3000
+      dismissPopup();
+      expect(isPopupActive).toBe(false);
+
+      // Cycle 2: Second background shake after cooldown at t=4000 (now - lastShake = 3000 >= 2500)
+      expect(triggerShake(4000)).toBe(true);
+      expect(shakeCount).toBe(2);
+      expect(isPopupActive).toBe(true);
+
+      // Dismiss popup 2 at t=6000
+      dismissPopup();
+      expect(isPopupActive).toBe(false);
+
+      // Cycle 3: Third background shake at t=7000
+      expect(triggerShake(7000)).toBe(true);
+      expect(shakeCount).toBe(3);
+    });
   });
 });

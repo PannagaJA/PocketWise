@@ -64,12 +64,17 @@ function withAndroidShakeDetector(config) {
           'android:name': activityName,
           'android:exported': 'false',
           'android:excludeFromRecents': 'true',
+          'android:taskAffinity': 'com.pocketwise.app.quickexpense',
+          'android:noHistory': 'true',
           'android:launchMode': 'singleInstance',
           'android:theme': '@style/Theme.PocketWise.QuickExpenseDialog',
           'android:windowSoftInputMode': 'stateVisible|adjustResize',
         },
       };
       mainApplication.activity.push(activityObj);
+    } else {
+      activityObj.$['android:taskAffinity'] = 'com.pocketwise.app.quickexpense';
+      activityObj.$['android:noHistory'] = 'true';
     }
 
     // ShakeBootReceiver registration
@@ -145,7 +150,7 @@ import kotlin.math.sqrt
  * - Robust state machine requiring distinct directional peaks separated in time (filters walking, table bumps).
  * - Configurable sensitivity (LOW, NORMAL, HIGH).
  * - Cooldown/debounce to prevent duplicate triggers from a single physical shake.
- * - Thread-safe active state suppression when a popup is already displayed.
+ * - Thread-safe active state suppression with auto-timeout safeguard when a popup is displayed.
  */
 class ShakeDetector(private val onShakeListener: () -> Unit) : SensorEventListener {
 
@@ -175,8 +180,8 @@ class ShakeDetector(private val onShakeListener: () -> Unit) : SensorEventListen
             return
         }
 
-        // If a popup or expense flow is already active, ignore movement
-        if (isPopupActive) {
+        // If a popup or expense flow is already active on screen, ignore motion
+        if (isPopupCurrentlyActive()) {
             return
         }
 
@@ -228,6 +233,7 @@ class ShakeDetector(private val onShakeListener: () -> Unit) : SensorEventListen
                 if (lastShakeTimestamp == 0L || now - lastShakeTimestamp >= COOLDOWN_MS) {
                     lastShakeTimestamp = now
                     peakTimestamps.clear()
+                    lastPeakTimestamp = 0L
                     Log.d(TAG, "Intentional shake detected! Linear: $linearMagnitude m/s^2, G-Force: \${gForce}g, Sensitivity: $currentSensitivity")
                     onShakeListener()
                 }
@@ -246,9 +252,33 @@ class ShakeDetector(private val onShakeListener: () -> Unit) : SensorEventListen
         private const val PEAK_WINDOW_MS = 650L // Sliding window to accumulate shake peaks
         private const val REQUIRED_PEAKS = 2 // Number of distinct strokes required to confirm shake
         private const val COOLDOWN_MS = 2500L // Debounce cooldown after shake trigger
+        private const val POPUP_LOCK_TIMEOUT_MS = 15000L // Safeguard timeout against stale locks
 
         @Volatile
         var isPopupActive: Boolean = false
+            set(value) {
+                field = value
+                if (value) {
+                    popupActiveTimestamp = System.currentTimeMillis()
+                }
+            }
+
+        @Volatile
+        private var popupActiveTimestamp: Long = 0
+
+        /**
+         * Safely check if a popup is actively blocking shake triggers,
+         * with an automatic timeout fallback to ensure repeatable detection.
+         */
+        fun isPopupCurrentlyActive(): Boolean {
+            if (!isPopupActive) return false
+            if (System.currentTimeMillis() - popupActiveTimestamp > POPUP_LOCK_TIMEOUT_MS) {
+                Log.w(TAG, "isPopupActive lock timed out after \${POPUP_LOCK_TIMEOUT_MS}ms. Auto-resetting lock.")
+                isPopupActive = false
+                return false
+            }
+            return true
+        }
     }
 }
 `;
@@ -439,6 +469,9 @@ class ShakeDetectionService : Service() {
                 Log.d(TAG, "Background shake detection is disabled by user preference; ignoring background shake")
                 return
             }
+
+            // Always ensure isListening is active and sensor is registered
+            startListening()
 
             // App is backgrounded / sleeping / task removed -> check overlay permission and launch floating activity
             val canOverlay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -990,6 +1023,26 @@ class QuickExpenseActivity : AppCompatActivity() {
         }, 150)
     }
 
+    override fun onResume() {
+        super.onResume()
+        ShakeDetector.isPopupActive = true
+    }
+
+    override fun onPause() {
+        super.onPause()
+        ShakeDetector.isPopupActive = false
+    }
+
+    override fun onStop() {
+        super.onStop()
+        ShakeDetector.isPopupActive = false
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        ShakeDetector.isPopupActive = false
+    }
+
     private fun initViews() {
         rootContainer = findViewById(R.id.rootContainer)
         etAmount = findViewById(R.id.etAmount)
@@ -1347,7 +1400,11 @@ class QuickExpenseActivity : AppCompatActivity() {
 
     private fun dismissPopup() {
         ShakeDetector.isPopupActive = false
-        finish()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            finishAndRemoveTask()
+        } else {
+            finish()
+        }
     }
 
     @Deprecated("Deprecated in Java")
@@ -1355,18 +1412,6 @@ class QuickExpenseActivity : AppCompatActivity() {
         dismissPopup()
         @Suppress("DEPRECATION")
         super.onBackPressed()
-    }
-
-    override fun onPause() {
-        super.onPause()
-        if (isFinishing) {
-            ShakeDetector.isPopupActive = false
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        ShakeDetector.isPopupActive = false
     }
 
     companion object {
