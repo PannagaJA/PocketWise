@@ -913,13 +913,16 @@ class PocketWiseShakePackage : ReactPackage {
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.util.Log
+import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
@@ -957,6 +960,22 @@ class QuickExpenseActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         ShakeDetector.isPopupActive = true
+
+        // Configure Dialog Window layout params for a comfortable, responsive card width (88% of screen)
+        window?.let { win ->
+            val displayMetrics = resources.displayMetrics
+            val screenWidth = displayMetrics.widthPixels
+            val density = displayMetrics.density
+            val minWidthPx = (320 * density).toInt()
+            val maxWidthPx = (420 * density).toInt()
+            val marginPx = (32 * density).toInt()
+            val targetWidth = (screenWidth * 0.88f).toInt().coerceIn(minWidthPx.coerceAtMost(screenWidth - marginPx), maxWidthPx)
+
+            win.setLayout(targetWidth, ViewGroup.LayoutParams.WRAP_CONTENT)
+            win.setGravity(Gravity.CENTER)
+            win.setBackgroundDrawableResource(android.R.color.transparent)
+        }
+
         setContentView(R.layout.activity_quick_expense)
 
         initViews()
@@ -1007,11 +1026,33 @@ class QuickExpenseActivity : AppCompatActivity() {
             accountList.add(AccountItem("acc_primary", "Primary Account", 0L))
         }
 
-        val accountAdapter = ArrayAdapter(
+        val accountAdapter = object : ArrayAdapter<String>(
             this,
             android.R.layout.simple_spinner_dropdown_item,
             accountList.map { it.name }
-        )
+        ) {
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val v = super.getView(position, convertView, parent)
+                (v as? TextView)?.apply {
+                    setTextColor(Color.WHITE)
+                    textSize = 14f
+                    setPadding(12, 0, 12, 0)
+                }
+                return v
+            }
+
+            override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val v = super.getDropDownView(position, convertView, parent)
+                (v as? TextView)?.apply {
+                    setTextColor(Color.WHITE)
+                    setBackgroundColor(Color.parseColor("#27272A"))
+                    textSize = 14f
+                    val pad = (12 * resources.displayMetrics.density).toInt()
+                    setPadding(pad, pad, pad, pad)
+                }
+                return v
+            }
+        }
         spAccount.adapter = accountAdapter
 
         // Load Categories
@@ -1039,11 +1080,33 @@ class QuickExpenseActivity : AppCompatActivity() {
             categoryList.add(CategoryItem("cat_shopping", "Shopping"))
         }
 
-        val categoryAdapter = ArrayAdapter(
+        val categoryAdapter = object : ArrayAdapter<String>(
             this,
             android.R.layout.simple_spinner_dropdown_item,
             categoryList.map { it.name }
-        )
+        ) {
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val v = super.getView(position, convertView, parent)
+                (v as? TextView)?.apply {
+                    setTextColor(Color.WHITE)
+                    textSize = 14f
+                    setPadding(12, 0, 12, 0)
+                }
+                return v
+            }
+
+            override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val v = super.getDropDownView(position, convertView, parent)
+                (v as? TextView)?.apply {
+                    setTextColor(Color.WHITE)
+                    setBackgroundColor(Color.parseColor("#27272A"))
+                    textSize = 14f
+                    val pad = (12 * resources.displayMetrics.density).toInt()
+                    setPadding(pad, pad, pad, pad)
+                }
+                return v
+            }
+        }
         spCategory.adapter = categoryAdapter
     }
 
@@ -1379,9 +1442,9 @@ class ShakeBootReceiver : BroadcastReceiver() {
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/rootContainer"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#80000000"
-    android:padding="20dp">
+    android:layout_height="wrap_content"
+    android:layout_gravity="center"
+    android:padding="8dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -1389,6 +1452,7 @@ class ShakeBootReceiver : BroadcastReceiver() {
         android:layout_gravity="center"
         android:background="@drawable/bg_quick_expense_dialog"
         android:elevation="12dp"
+        android:minWidth="320dp"
         android:orientation="vertical"
         android:padding="22dp">
 
@@ -1403,6 +1467,7 @@ class ShakeBootReceiver : BroadcastReceiver() {
                 android:layout_height="wrap_content"
                 android:layout_alignParentStart="true"
                 android:layout_centerVertical="true"
+                android:layout_toStartOf="@+id/btnClose"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
@@ -1416,6 +1481,9 @@ class ShakeBootReceiver : BroadcastReceiver() {
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:singleLine="true"
                     android:text="Quick Expense"
                     android:textColor="#FFFFFF"
                     android:textSize="18sp"
@@ -1438,7 +1506,7 @@ class ShakeBootReceiver : BroadcastReceiver() {
 
         <!-- Amount Section -->
         <TextView
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="6dp"
             android:text="AMOUNT (₹)"
@@ -1471,6 +1539,8 @@ class ShakeBootReceiver : BroadcastReceiver() {
                 android:background="@null"
                 android:hint="500"
                 android:inputType="numberDecimal"
+                android:maxLines="1"
+                android:singleLine="true"
                 android:textColor="#FFFFFF"
                 android:textColorHint="#71717A"
                 android:textSize="20sp"
@@ -1479,7 +1549,7 @@ class ShakeBootReceiver : BroadcastReceiver() {
 
         <!-- Description Section -->
         <TextView
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="6dp"
             android:text="DESCRIPTION"
@@ -1495,14 +1565,16 @@ class ShakeBootReceiver : BroadcastReceiver() {
             android:background="@drawable/bg_input_field"
             android:hint="e.g. Petrol, Coffee, Groceries"
             android:inputType="textCapSentences"
+            android:maxLines="1"
             android:paddingHorizontal="14dp"
+            android:singleLine="true"
             android:textColor="#FFFFFF"
             android:textColorHint="#71717A"
             android:textSize="14sp" />
 
         <!-- Account Spinner -->
         <TextView
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="6dp"
             android:text="ACCOUNT"
@@ -1513,7 +1585,7 @@ class ShakeBootReceiver : BroadcastReceiver() {
         <Spinner
             android:id="@+id/spAccount"
             android:layout_width="match_parent"
-            android:layout_height="46dp"
+            android:layout_height="48dp"
             android:layout_marginBottom="14dp"
             android:background="@drawable/bg_input_field"
             android:paddingHorizontal="10dp"
@@ -1521,7 +1593,7 @@ class ShakeBootReceiver : BroadcastReceiver() {
 
         <!-- Category Spinner -->
         <TextView
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="6dp"
             android:text="CATEGORY"
@@ -1532,7 +1604,7 @@ class ShakeBootReceiver : BroadcastReceiver() {
         <Spinner
             android:id="@+id/spCategory"
             android:layout_width="match_parent"
-            android:layout_height="46dp"
+            android:layout_height="48dp"
             android:layout_marginBottom="16dp"
             android:background="@drawable/bg_input_field"
             android:paddingHorizontal="10dp"
@@ -1633,6 +1705,8 @@ class ShakeBootReceiver : BroadcastReceiver() {
     <item name="android:backgroundDimEnabled">true</item>
     <item name="android:backgroundDimAmount">0.6</item>
     <item name="android:windowAnimationStyle">@android:style/Animation.Dialog</item>
+    <item name="android:windowMinWidthMajor">88%</item>
+    <item name="android:windowMinWidthMinor">88%</item>
   </style>`;
 
       if (fs.existsSync(stylesPath)) {
@@ -1644,6 +1718,15 @@ class ShakeBootReceiver : BroadcastReceiver() {
             stylesContent = `<resources xmlns:tools="http://schemas.android.com/tools">\n${dialogStyleEntry}\n</resources>`;
           }
           fs.writeFileSync(stylesPath, stylesContent);
+        } else {
+          // Update existing dialog style to ensure minWidth attributes are present
+          if (!stylesContent.includes('android:windowMinWidthMinor')) {
+            stylesContent = stylesContent.replace(
+              'Theme.PocketWise.QuickExpenseDialog" parent="Theme.AppCompat.DayNight.Dialog">',
+              `Theme.PocketWise.QuickExpenseDialog" parent="Theme.AppCompat.DayNight.Dialog">\n    <item name="android:windowMinWidthMajor">88%</item>\n    <item name="android:windowMinWidthMinor">88%</item>`
+            );
+            fs.writeFileSync(stylesPath, stylesContent);
+          }
         }
       } else {
         const fullStylesContent = `<resources xmlns:tools="http://schemas.android.com/tools">
