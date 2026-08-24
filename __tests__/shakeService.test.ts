@@ -19,11 +19,22 @@ jest.mock('react-native', () => ({
         serviceEnabled: true,
         backgroundEnabled: true,
         sensitivity: 'NORMAL',
+        linearThreshold: 8.0,
+        gForceThreshold: 1.50,
         sensorEventsReceived: 1250,
+        thresholdCrossings: 45,
+        peaksDetected: 12,
+        confirmedShakes: 2,
         lastSensorEventTimestamp: 1724523000000,
         lastShakeTimestamp: 1724522900000,
         shakeCount: 2,
         popupActive: false,
+        lastLinearMagnitude: 4.2,
+        maxLinearMagnitude: 16.8,
+        lastGForce: 1.12,
+        maxGForce: 2.15,
+        lastEventDeltaMs: 19,
+        maxEventDeltaMs: 45,
         serviceInstanceId: 'inst_abc_123',
         serviceStartCount: 3,
         serviceStartTimestamp: 1724520000000,
@@ -391,6 +402,13 @@ describe('Shake to Add Expense - Core Logic & Data Pipeline Tests', () => {
       expect(diag?.serviceInstanceId).toBe('inst_abc_123');
       expect(diag?.serviceStartCount).toBe(3);
       expect(diag?.sensorEventsReceived).toBe(1250);
+      expect(diag?.thresholdCrossings).toBe(45);
+      expect(diag?.peaksDetected).toBe(12);
+      expect(diag?.confirmedShakes).toBe(2);
+      expect(diag?.maxLinearMagnitude).toBe(16.8);
+      expect(diag?.maxGForce).toBe(2.15);
+      expect(diag?.lastEventDeltaMs).toBe(19);
+      expect(diag?.maxEventDeltaMs).toBe(45);
       expect(diag?.sensorName).toBe('BMI160 Accelerometer');
 
       const selfTest = await shakeService.runSensorSelfTest(2000);

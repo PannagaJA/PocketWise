@@ -41,13 +41,22 @@ export interface NativeServiceDiagnostics {
   serviceEnabled: boolean;
   backgroundEnabled: boolean;
   sensitivity: string;
+  linearThreshold?: number;
+  gForceThreshold?: number;
   sensorEventsReceived: number;
+  thresholdCrossings?: number;
+  peaksDetected?: number;
+  confirmedShakes?: number;
   lastSensorEventTimestamp: number;
   lastShakeTimestamp: number;
   shakeCount: number;
   popupActive: boolean;
   lastLinearMagnitude: number;
+  maxLinearMagnitude?: number;
   lastGForce: number;
+  maxGForce?: number;
+  lastEventDeltaMs?: number;
+  maxEventDeltaMs?: number;
   serviceInstanceId?: string;
   serviceStartCount?: number;
   serviceStartTimestamp?: number;
@@ -117,13 +126,22 @@ class ShakeService {
         serviceEnabled: Boolean(res?.serviceEnabled),
         backgroundEnabled: Boolean(res?.backgroundEnabled),
         sensitivity: String(res?.sensitivity || 'NORMAL'),
+        linearThreshold: Number(res?.linearThreshold || 8.0),
+        gForceThreshold: Number(res?.gForceThreshold || 1.50),
         sensorEventsReceived: Number(res?.sensorEventsReceived || 0),
+        thresholdCrossings: Number(res?.thresholdCrossings || 0),
+        peaksDetected: Number(res?.peaksDetected || 0),
+        confirmedShakes: Number(res?.confirmedShakes || 0),
         lastSensorEventTimestamp: Number(res?.lastSensorEventTimestamp || 0),
         lastShakeTimestamp: Number(res?.lastShakeTimestamp || 0),
-        shakeCount: Number(res?.shakeCount || 0),
+        shakeCount: Number(res?.shakeCount || res?.confirmedShakes || 0),
         popupActive: Boolean(res?.popupActive),
         lastLinearMagnitude: Number(res?.lastLinearMagnitude || 0),
+        maxLinearMagnitude: Number(res?.maxLinearMagnitude || 0),
         lastGForce: Number(res?.lastGForce || 0),
+        maxGForce: Number(res?.maxGForce || 0),
+        lastEventDeltaMs: Number(res?.lastEventDeltaMs || 0),
+        maxEventDeltaMs: Number(res?.maxEventDeltaMs || 0),
         serviceInstanceId: String(res?.serviceInstanceId || ''),
         serviceStartCount: Number(res?.serviceStartCount || 0),
         serviceStartTimestamp: Number(res?.serviceStartTimestamp || 0),

@@ -154,7 +154,7 @@ import kotlin.math.sqrt
  * - Configurable sensitivity (LOW, NORMAL, HIGH).
  * - Cooldown/debounce to prevent duplicate triggers from a single physical shake.
  * - Thread-safe active state suppression with auto-timeout safeguard when a popup is displayed.
- * - Persistent telemetry tracking in SharedPreferences that survives Activity/process recreation.
+ * - Complete telemetry instrumentation tracking sensor events, threshold crossings, peaks, and confirmed shakes.
  */
 class ShakeDetector(
     private val appContext: Context? = null,
@@ -173,6 +173,7 @@ class ShakeDetector(
     private var lastPeakTimestamp: Long = 0
     private val peakTimestamps = mutableListOf<Long>()
     private var unpersistedEventCount = 0
+    private var prevEventTimestamp: Long = 0L
 
     enum class Sensitivity(
         val linearThreshold: Float,  // m/s^2 linear acceleration (gravity removed)
@@ -196,8 +197,18 @@ class ShakeDetector(
 
         val now = System.currentTimeMillis()
         totalSensorEvents++
-        lastSensorEventTimeMs = now
         unpersistedEventCount++
+
+        // Timing & Frequency telemetry
+        if (prevEventTimestamp > 0L) {
+            val delta = now - prevEventTimestamp
+            lastEventDeltaMs = delta
+            if (delta > maxEventDeltaMs && totalSensorEvents > 10) {
+                maxEventDeltaMs = delta
+            }
+        }
+        prevEventTimestamp = now
+        lastSensorEventTimeMs = now
 
         val x = event.values[0]
         val y = event.values[1]
@@ -226,30 +237,29 @@ class ShakeDetector(
         val gForce = totalMagnitude / SensorManager.GRAVITY_EARTH
 
         lastLinearMagnitude = linearMagnitude
-        lastGForce = gForce
-
-        // Flush telemetry to SharedPreferences every 50 events so disk is updated without overhead
-        if (unpersistedEventCount >= 50 && appContext != null) {
-            flushTelemetry(appContext)
-            unpersistedEventCount = 0
+        if (linearMagnitude > maxLinearMagnitude) {
+            maxLinearMagnitude = linearMagnitude
         }
 
-        // If a popup or expense flow is already active on screen, ignore motion
-        if (isPopupCurrentlyActive()) {
-            return
+        lastGForce = gForce
+        if (gForce > maxGForce) {
+            maxGForce = gForce
         }
 
         val currentSensitivity = sensitivity
 
-        // A valid motion peak occurs if either linear acceleration or total g-force crosses the sensitivity threshold
+        // Check if motion threshold is exceeded
         val isThresholdExceeded = linearMagnitude >= currentSensitivity.linearThreshold ||
                 gForce >= currentSensitivity.gForceThreshold
 
         if (isThresholdExceeded) {
+            totalThresholdCrossings++
+
             // Require at least MIN_PEAK_INTERVAL_MS between recorded peaks to count distinct motion strokes
             if (now - lastPeakTimestamp >= MIN_PEAK_INTERVAL_MS) {
                 lastPeakTimestamp = now
                 peakTimestamps.add(now)
+                totalPeaksDetected++
             }
 
             // Prune peaks outside the sliding temporal window
@@ -257,19 +267,30 @@ class ShakeDetector(
 
             // Require at least REQUIRED_PEAKS distinct motion strokes within the sliding window
             if (peakTimestamps.size >= REQUIRED_PEAKS) {
-                if (lastShakeTimestamp == 0L || now - lastShakeTimestamp >= COOLDOWN_MS) {
-                    lastShakeTimestamp = now
-                    lastDetectedShakeTimeMs = now
-                    totalShakeCount++
-                    peakTimestamps.clear()
-                    lastPeakTimestamp = 0L
-                    if (appContext != null) {
-                        flushTelemetry(appContext)
+                // If a popup or expense flow is already active on screen, ignore motion trigger
+                if (!isPopupCurrentlyActive()) {
+                    if (lastShakeTimestamp == 0L || now - lastShakeTimestamp >= COOLDOWN_MS) {
+                        lastShakeTimestamp = now
+                        lastDetectedShakeTimeMs = now
+                        totalConfirmedShakes++
+                        peakTimestamps.clear()
+                        lastPeakTimestamp = 0L
+
+                        if (appContext != null) {
+                            flushTelemetry(appContext)
+                        }
+
+                        Log.d(TAG, "Intentional shake confirmed! Linear: $linearMagnitude m/s^2, G-Force: \${gForce}g, Shakes: $totalConfirmedShakes")
+                        onShakeListener()
                     }
-                    Log.d(TAG, "Intentional shake detected! Linear: $linearMagnitude m/s^2, G-Force: \${gForce}g, Sensitivity: $currentSensitivity")
-                    onShakeListener()
                 }
             }
+        }
+
+        // Flush telemetry periodically every 50 events
+        if (unpersistedEventCount >= 50 && appContext != null) {
+            flushTelemetry(appContext)
+            unpersistedEventCount = 0
         }
     }
 
@@ -280,10 +301,16 @@ class ShakeDetector(
     companion object {
         private const val TAG = "ShakeDetector"
         private const val PREFS_NAME = "pocketwise_shake_prefs"
+
         private const val KEY_TOTAL_EVENTS = "diag_total_sensor_events"
         private const val KEY_LAST_EVENT_MS = "diag_last_sensor_event_ms"
         private const val KEY_LAST_SHAKE_MS = "diag_last_shake_detected_ms"
         private const val KEY_TOTAL_SHAKES = "diag_total_shakes_count"
+        private const val KEY_THRESHOLD_CROSSINGS = "diag_threshold_crossings"
+        private const val KEY_PEAKS_DETECTED = "diag_peaks_detected"
+        private const val KEY_MAX_LINEAR = "diag_max_linear_magnitude"
+        private const val KEY_MAX_GFORCE = "diag_max_gforce"
+        private const val KEY_MAX_DELTA_MS = "diag_max_event_delta_ms"
 
         private const val ALPHA = 0.85f // Low-pass filter factor for gravity estimation
         private const val MIN_PEAK_INTERVAL_MS = 80L // Minimum separation between distinct shake strokes
@@ -293,23 +320,18 @@ class ShakeDetector(
         private const val POPUP_LOCK_TIMEOUT_MS = 15000L // Safeguard timeout against stale locks
 
         // Telemetry counters
-        @Volatile
-        var totalSensorEvents: Long = 0L
-
-        @Volatile
-        var lastSensorEventTimeMs: Long = 0L
-
-        @Volatile
-        var lastDetectedShakeTimeMs: Long = 0L
-
-        @Volatile
-        var totalShakeCount: Long = 0L
-
-        @Volatile
-        var lastLinearMagnitude: Float = 0f
-
-        @Volatile
-        var lastGForce: Float = 0f
+        @Volatile var totalSensorEvents: Long = 0L
+        @Volatile var totalThresholdCrossings: Long = 0L
+        @Volatile var totalPeaksDetected: Long = 0L
+        @Volatile var totalConfirmedShakes: Long = 0L
+        @Volatile var lastSensorEventTimeMs: Long = 0L
+        @Volatile var lastDetectedShakeTimeMs: Long = 0L
+        @Volatile var lastLinearMagnitude: Float = 0f
+        @Volatile var maxLinearMagnitude: Float = 0f
+        @Volatile var lastGForce: Float = 0f
+        @Volatile var maxGForce: Float = 0f
+        @Volatile var lastEventDeltaMs: Long = 0L
+        @Volatile var maxEventDeltaMs: Long = 0L
 
         @Volatile
         var isPopupActive: Boolean = false
@@ -329,15 +351,25 @@ class ShakeDetector(
         fun loadPersistedTelemetry(context: Context) {
             try {
                 val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                val persistedEvents = prefs.getLong(KEY_TOTAL_EVENTS, 0L)
-                val persistedLastEvent = prefs.getLong(KEY_LAST_EVENT_MS, 0L)
-                val persistedLastShake = prefs.getLong(KEY_LAST_SHAKE_MS, 0L)
-                val persistedShakes = prefs.getLong(KEY_TOTAL_SHAKES, 0L)
+                val pEvents = prefs.getLong(KEY_TOTAL_EVENTS, 0L)
+                val pCrossings = prefs.getLong(KEY_THRESHOLD_CROSSINGS, 0L)
+                val pPeaks = prefs.getLong(KEY_PEAKS_DETECTED, 0L)
+                val pShakes = prefs.getLong(KEY_TOTAL_SHAKES, 0L)
+                val pLastEvent = prefs.getLong(KEY_LAST_EVENT_MS, 0L)
+                val pLastShake = prefs.getLong(KEY_LAST_SHAKE_MS, 0L)
+                val pMaxLinear = prefs.getFloat(KEY_MAX_LINEAR, 0f)
+                val pMaxGForce = prefs.getFloat(KEY_MAX_GFORCE, 0f)
+                val pMaxDelta = prefs.getLong(KEY_MAX_DELTA_MS, 0L)
 
-                if (persistedEvents > totalSensorEvents) totalSensorEvents = persistedEvents
-                if (persistedLastEvent > lastSensorEventTimeMs) lastSensorEventTimeMs = persistedLastEvent
-                if (persistedLastShake > lastDetectedShakeTimeMs) lastDetectedShakeTimeMs = persistedLastShake
-                if (persistedShakes > totalShakeCount) totalShakeCount = persistedShakes
+                if (pEvents > totalSensorEvents) totalSensorEvents = pEvents
+                if (pCrossings > totalThresholdCrossings) totalThresholdCrossings = pCrossings
+                if (pPeaks > totalPeaksDetected) totalPeaksDetected = pPeaks
+                if (pShakes > totalConfirmedShakes) totalConfirmedShakes = pShakes
+                if (pLastEvent > lastSensorEventTimeMs) lastSensorEventTimeMs = pLastEvent
+                if (pLastShake > lastDetectedShakeTimeMs) lastDetectedShakeTimeMs = pLastShake
+                if (pMaxLinear > maxLinearMagnitude) maxLinearMagnitude = pMaxLinear
+                if (pMaxGForce > maxGForce) maxGForce = pMaxGForce
+                if (pMaxDelta > maxEventDeltaMs) maxEventDeltaMs = pMaxDelta
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to load persisted telemetry", e)
             }
@@ -351,9 +383,14 @@ class ShakeDetector(
                 val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 prefs.edit().apply {
                     putLong(KEY_TOTAL_EVENTS, totalSensorEvents)
+                    putLong(KEY_THRESHOLD_CROSSINGS, totalThresholdCrossings)
+                    putLong(KEY_PEAKS_DETECTED, totalPeaksDetected)
+                    putLong(KEY_TOTAL_SHAKES, totalConfirmedShakes)
                     putLong(KEY_LAST_EVENT_MS, lastSensorEventTimeMs)
                     putLong(KEY_LAST_SHAKE_MS, lastDetectedShakeTimeMs)
-                    putLong(KEY_TOTAL_SHAKES, totalShakeCount)
+                    putFloat(KEY_MAX_LINEAR, maxLinearMagnitude)
+                    putFloat(KEY_MAX_GFORCE, maxGForce)
+                    putLong(KEY_MAX_DELTA_MS, maxEventDeltaMs)
                 }.apply()
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to flush telemetry to SharedPreferences", e)
@@ -947,13 +984,24 @@ class PocketWiseShakeModule(private val reactContext: ReactApplicationContext) :
             val prefs = reactContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val isEnabled = prefs.getBoolean(KEY_SERVICE_ENABLED, true)
             val isBgEnabled = prefs.getBoolean(KEY_BACKGROUND_ENABLED, true)
-            val sensitivity = prefs.getString(KEY_SENSITIVITY, "NORMAL") ?: "NORMAL"
+            val sensitivityStr = prefs.getString(KEY_SENSITIVITY, "NORMAL") ?: "NORMAL"
+            val sensEnum = try {
+                ShakeDetector.Sensitivity.valueOf(sensitivityStr)
+            } catch (e: Exception) {
+                ShakeDetector.Sensitivity.NORMAL
+            }
 
             // Persisted counters
-            val persistedEvents = prefs.getLong("diag_total_sensor_events", 0L)
-            val persistedLastEvent = prefs.getLong("diag_last_sensor_event_ms", 0L)
-            val persistedLastShake = prefs.getLong("diag_last_shake_detected_ms", 0L)
-            val persistedShakes = prefs.getLong("diag_total_shakes_count", 0L)
+            val pEvents = prefs.getLong("diag_total_sensor_events", 0L)
+            val pCrossings = prefs.getLong("diag_threshold_crossings", 0L)
+            val pPeaks = prefs.getLong("diag_peaks_detected", 0L)
+            val pShakes = prefs.getLong("diag_total_shakes_count", 0L)
+            val pLastEvent = prefs.getLong("diag_last_sensor_event_ms", 0L)
+            val pLastShake = prefs.getLong("diag_last_shake_detected_ms", 0L)
+            val pMaxLinear = prefs.getFloat("diag_max_linear_magnitude", 0f)
+            val pMaxGForce = prefs.getFloat("diag_max_gforce", 0f)
+            val pMaxDelta = prefs.getLong("diag_max_event_delta_ms", 0L)
+
             val startCount = prefs.getLong("diag_service_start_count", ShakeDetectionService.serviceStartCount)
             val instanceId = prefs.getString("diag_service_instance_id", ShakeDetectionService.serviceInstanceId) ?: ""
             val startTime = prefs.getLong("diag_service_start_time", ShakeDetectionService.serviceStartTimestamp)
@@ -963,10 +1011,15 @@ class PocketWiseShakeModule(private val reactContext: ReactApplicationContext) :
             val sVendor = prefs.getString("diag_sensor_vendor", ShakeDetectionService.sensorVendor) ?: ShakeDetectionService.sensorVendor
 
             // Combine live and persisted counts
-            val totalEvents = Math.max(persistedEvents, ShakeDetector.totalSensorEvents)
-            val lastEvent = Math.max(persistedLastEvent, ShakeDetector.lastSensorEventTimeMs)
-            val lastShake = Math.max(persistedLastShake, ShakeDetector.lastDetectedShakeTimeMs)
-            val totalShakes = Math.max(persistedShakes, ShakeDetector.totalShakeCount)
+            val totalEvents = Math.max(pEvents, ShakeDetector.totalSensorEvents)
+            val totalCrossings = Math.max(pCrossings, ShakeDetector.totalThresholdCrossings)
+            val totalPeaks = Math.max(pPeaks, ShakeDetector.totalPeaksDetected)
+            val totalShakes = Math.max(pShakes, ShakeDetector.totalConfirmedShakes)
+            val lastEvent = Math.max(pLastEvent, ShakeDetector.lastSensorEventTimeMs)
+            val lastShake = Math.max(pLastShake, ShakeDetector.lastDetectedShakeTimeMs)
+            val maxLinear = Math.max(pMaxLinear, ShakeDetector.maxLinearMagnitude)
+            val maxG = Math.max(pMaxGForce, ShakeDetector.maxGForce)
+            val maxDelta = Math.max(pMaxDelta, ShakeDetector.maxEventDeltaMs)
 
             val map = Arguments.createMap().apply {
                 putBoolean("serviceRunning", ShakeDetectionService.isServiceRunning)
@@ -975,14 +1028,22 @@ class PocketWiseShakeModule(private val reactContext: ReactApplicationContext) :
                 putBoolean("detectorActive", ShakeDetectionService.isDetectorActive)
                 putBoolean("serviceEnabled", isEnabled)
                 putBoolean("backgroundEnabled", isBgEnabled)
-                putString("sensitivity", sensitivity)
+                putString("sensitivity", sensitivityStr)
+                putDouble("linearThreshold", sensEnum.linearThreshold.toDouble())
+                putDouble("gForceThreshold", sensEnum.gForceThreshold.toDouble())
                 putDouble("sensorEventsReceived", totalEvents.toDouble())
+                putDouble("thresholdCrossings", totalCrossings.toDouble())
+                putDouble("peaksDetected", totalPeaks.toDouble())
+                putDouble("confirmedShakes", totalShakes.toDouble())
+                putDouble("lastLinearMagnitude", ShakeDetector.lastLinearMagnitude.toDouble())
+                putDouble("maxLinearMagnitude", maxLinear.toDouble())
+                putDouble("lastGForce", ShakeDetector.lastGForce.toDouble())
+                putDouble("maxGForce", maxG.toDouble())
                 putDouble("lastSensorEventTimestamp", lastEvent.toDouble())
                 putDouble("lastShakeTimestamp", lastShake.toDouble())
-                putDouble("shakeCount", totalShakes.toDouble())
+                putDouble("lastEventDeltaMs", ShakeDetector.lastEventDeltaMs.toDouble())
+                putDouble("maxEventDeltaMs", maxDelta.toDouble())
                 putBoolean("popupActive", ShakeDetector.isPopupActive)
-                putDouble("lastLinearMagnitude", ShakeDetector.lastLinearMagnitude.toDouble())
-                putDouble("lastGForce", ShakeDetector.lastGForce.toDouble())
                 putString("serviceInstanceId", instanceId)
                 putDouble("serviceStartCount", startCount.toDouble())
                 putDouble("serviceStartTimestamp", startTime.toDouble())

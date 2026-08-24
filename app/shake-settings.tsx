@@ -453,6 +453,55 @@ export default function ShakeSettingsScreen() {
             </View>
 
             <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Threshold crossings:</Text>
+              <Text className="text-xs font-bold text-sky-400 font-mono">
+                {serviceDiagnostics?.thresholdCrossings !== undefined ? serviceDiagnostics.thresholdCrossings.toLocaleString() : '0'}
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Motion peaks detected:</Text>
+              <Text className="text-xs font-bold text-indigo-400 font-mono">
+                {serviceDiagnostics?.peaksDetected !== undefined ? serviceDiagnostics.peaksDetected.toLocaleString() : '0'}
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Confirmed shakes triggered:</Text>
+              <Text className="text-xs font-bold text-emerald-400 font-mono">
+                {serviceDiagnostics?.confirmedShakes !== undefined ? serviceDiagnostics.confirmedShakes.toLocaleString() : '0'}
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Configured thresholds:</Text>
+              <Text className="text-xs font-mono text-zinc-300">
+                {serviceDiagnostics?.linearThreshold?.toFixed(1) || '8.0'} m/s² | {serviceDiagnostics?.gForceThreshold?.toFixed(2) || '1.50'}g
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Linear acceleration (live / max):</Text>
+              <Text className="text-xs font-mono text-zinc-300">
+                {serviceDiagnostics?.lastLinearMagnitude?.toFixed(1) || '0.0'} / {serviceDiagnostics?.maxLinearMagnitude?.toFixed(1) || '0.0'} m/s²
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">G-Force (live / max):</Text>
+              <Text className="text-xs font-mono text-zinc-300">
+                {serviceDiagnostics?.lastGForce?.toFixed(2) || '1.00'}g / {serviceDiagnostics?.maxGForce?.toFixed(2) || '1.00'}g
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Event delta (last / max gap):</Text>
+              <Text className="text-xs font-mono text-zinc-300">
+                {serviceDiagnostics?.lastEventDeltaMs ?? 0}ms / {serviceDiagnostics?.maxEventDeltaMs ?? 0}ms
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
               <Text className="text-xs text-zinc-400">Last sensor event:</Text>
               <Text className="text-xs font-semibold text-zinc-300">
                 {serviceDiagnostics?.lastSensorEventTimestamp && serviceDiagnostics.lastSensorEventTimestamp > 0
