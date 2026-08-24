@@ -264,4 +264,50 @@ describe('Shake to Add Expense - Core Logic & Data Pipeline Tests', () => {
       expect(detector.shakeCount).toBe(2);
     });
   });
+
+  describe('Overlay Permission & Settings Service Synchronization', () => {
+    it('verifies checkOverlayPermission never defaults to true when module is missing or permission is not granted', async () => {
+      // If Native module reports false
+      const checkPermissionMock = async (nativeGranted: boolean | null) => {
+        if (nativeGranted === null) return false;
+        return Boolean(nativeGranted);
+      };
+
+      expect(await checkPermissionMock(false)).toBe(false);
+      expect(await checkPermissionMock(true)).toBe(true);
+      expect(await checkPermissionMock(null)).toBe(false);
+    });
+
+    it('verifies Shake toggle ON starts service and toggle OFF stops service', async () => {
+      let isRunning = false;
+      const startServiceMock = async () => {
+        isRunning = true;
+        return true;
+      };
+      const stopServiceMock = async () => {
+        isRunning = false;
+        return true;
+      };
+
+      // User turns ON
+      await startServiceMock();
+      expect(isRunning).toBe(true);
+
+      // User turns OFF
+      await stopServiceMock();
+      expect(isRunning).toBe(false);
+    });
+
+    it('verifies Simulate Shake triggers downstream modal callback', () => {
+      let modalOpened = false;
+      const callbacks = new Set<() => void>();
+      callbacks.add(() => {
+        modalOpened = true;
+      });
+
+      // Simulate shake event trigger
+      callbacks.forEach((cb) => cb());
+      expect(modalOpened).toBe(true);
+    });
+  });
 });

@@ -16,10 +16,22 @@ class ShakeService {
   private isModalOpen = false;
 
   /**
+   * Check if native Android shake module is available in the current runtime.
+   */
+  isNativeAvailable(): boolean {
+    return Platform.OS === 'android' && !!PocketWiseShakeModule;
+  }
+
+  /**
    * Initialize Shake Service, event listeners, and user session sync.
    */
   async init(userId?: string): Promise<void> {
-    if (Platform.OS !== 'android' || !PocketWiseShakeModule) {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    if (!PocketWiseShakeModule) {
+      console.warn('[ShakeService] PocketWiseShakeModule is not available in NativeModules.');
       return;
     }
 
@@ -31,7 +43,10 @@ class ShakeService {
     // Load persisted settings
     const settings = await shakeStorage.getSettings();
 
-    if (settings.enabled && settings.backgroundEnabled) {
+    // Sync background preference to native SharedPreferences
+    await this.setBackgroundEnabled(settings.backgroundEnabled);
+
+    if (settings.enabled) {
       await this.startService();
     } else {
       await this.stopService();
@@ -184,11 +199,15 @@ class ShakeService {
    * Start background shake detection service.
    */
   async startService(): Promise<boolean> {
-    if (Platform.OS !== 'android' || !PocketWiseShakeModule?.startShakeService) {
+    if (Platform.OS !== 'android') return false;
+    if (!PocketWiseShakeModule?.startShakeService) {
+      console.warn('[ShakeService] startService unavailable: PocketWiseShakeModule is not registered');
       return false;
     }
     try {
-      return await PocketWiseShakeModule.startShakeService();
+      const result = await PocketWiseShakeModule.startShakeService();
+      console.log('[ShakeService] Native shake service started:', result);
+      return Boolean(result);
     } catch (e) {
       console.warn('[ShakeService] Error starting service:', e);
       return false;
@@ -199,11 +218,15 @@ class ShakeService {
    * Stop background shake detection service.
    */
   async stopService(): Promise<boolean> {
-    if (Platform.OS !== 'android' || !PocketWiseShakeModule?.stopShakeService) {
+    if (Platform.OS !== 'android') return false;
+    if (!PocketWiseShakeModule?.stopShakeService) {
+      console.warn('[ShakeService] stopService unavailable: PocketWiseShakeModule is not registered');
       return false;
     }
     try {
-      return await PocketWiseShakeModule.stopShakeService();
+      const result = await PocketWiseShakeModule.stopShakeService();
+      console.log('[ShakeService] Native shake service stopped:', result);
+      return Boolean(result);
     } catch (e) {
       console.warn('[ShakeService] Error stopping service:', e);
       return false;
@@ -220,6 +243,22 @@ class ShakeService {
     try {
       return await PocketWiseShakeModule.isShakeServiceRunning();
     } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Set background shake detection enabled in native layer.
+   */
+  async setBackgroundEnabled(enabled: boolean): Promise<boolean> {
+    if (Platform.OS !== 'android' || !PocketWiseShakeModule?.setBackgroundShakeEnabled) {
+      return false;
+    }
+    try {
+      await PocketWiseShakeModule.setBackgroundShakeEnabled(enabled);
+      return true;
+    } catch (e) {
+      console.warn('[ShakeService] Error setting background enabled:', e);
       return false;
     }
   }
@@ -242,13 +281,19 @@ class ShakeService {
 
   /**
    * Check if SYSTEM_ALERT_WINDOW (display over other apps) permission is granted.
+   * Returns false if not on Android or if permission is not granted.
    */
   async checkOverlayPermission(): Promise<boolean> {
-    if (Platform.OS !== 'android' || !PocketWiseShakeModule?.checkOverlayPermission) {
-      return true;
+    if (Platform.OS !== 'android') {
+      return false;
+    }
+    if (!PocketWiseShakeModule?.checkOverlayPermission) {
+      console.warn('[ShakeService] checkOverlayPermission unavailable: PocketWiseShakeModule is not registered');
+      return false;
     }
     try {
-      return await PocketWiseShakeModule.checkOverlayPermission();
+      const granted = await PocketWiseShakeModule.checkOverlayPermission();
+      return Boolean(granted);
     } catch {
       return false;
     }
@@ -288,3 +333,4 @@ class ShakeService {
 }
 
 export const shakeService = new ShakeService();
+

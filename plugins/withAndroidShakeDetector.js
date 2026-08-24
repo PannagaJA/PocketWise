@@ -103,11 +103,29 @@ function withAndroidShakeDetector(config) {
     return config;
   });
 
-  // 2. Dangerous mod to ensure MainApplication.kt registers PocketWiseShakePackage
+  // 2. Dangerous mod to sync Kotlin files, layouts, drawables, styles, and register package in MainApplication
   config = withDangerousMod(config, [
     'android',
     async (config) => {
       const projectRoot = config.modRequest.projectRoot;
+      const shakeDir = path.join(
+        projectRoot,
+        'android',
+        'app',
+        'src',
+        'main',
+        'java',
+        'com',
+        'pocketwise',
+        'app',
+        'shake'
+      );
+
+      if (!fs.existsSync(shakeDir)) {
+        fs.mkdirSync(shakeDir, { recursive: true });
+      }
+
+      // Ensure MainApplication.kt registers PocketWiseShakePackage
       const mainAppPath = path.join(
         projectRoot,
         'android',
@@ -140,3 +158,4 @@ function withAndroidShakeDetector(config) {
 }
 
 module.exports = withAndroidShakeDetector;
+

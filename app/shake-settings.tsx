@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Switch, Pressable, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Switch, Pressable, AppState, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Card } from '../components/ui/Card';
@@ -7,7 +7,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { shakeService } from '../lib/shake/shakeService';
 import { shakeStorage, ShakeSensitivity } from '../lib/shake/storage/shakeStore';
-import { ArrowLeft, Zap, Shield, Smartphone, Layers, Play, CheckCircle2, AlertCircle } from 'lucide-react-native';
+import { ArrowLeft, Zap, Shield, Smartphone, Layers, Play, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 export default function ShakeSettingsScreen() {
@@ -17,21 +17,36 @@ export default function ShakeSettingsScreen() {
   const [enabled, setEnabled] = useState(true);
   const [backgroundEnabled, setBackgroundEnabled] = useState(true);
   const [sensitivity, setSensitivity] = useState<ShakeSensitivity>('normal');
-  const [overlayGranted, setOverlayGranted] = useState(true);
+  const [overlayGranted, setOverlayGranted] = useState(false);
+  const [serviceRunning, setServiceRunning] = useState(false);
 
   useEffect(() => {
     loadSettings();
+
+    // Re-check overlay permission and service state when returning from Android OS Settings
+    const subscription = AppState.addEventListener('change', async (nextAppState) => {
+      if (nextAppState === 'active') {
+        const isOverlayOk = await shakeService.checkOverlayPermission();
+        const isRunning = await shakeService.isServiceRunning();
+        setOverlayGranted(isOverlayOk);
+        setServiceRunning(isRunning);
+      }
+    });
+
+    return () => subscription.remove();
   }, []);
 
   const loadSettings = async () => {
     setLoading(true);
     const settings = await shakeStorage.getSettings();
     const isOverlayOk = await shakeService.checkOverlayPermission();
+    const isRunning = await shakeService.isServiceRunning();
 
     setEnabled(settings.enabled);
     setBackgroundEnabled(settings.backgroundEnabled);
     setSensitivity(settings.sensitivity);
     setOverlayGranted(isOverlayOk);
+    setServiceRunning(isRunning);
     setLoading(false);
   };
 
@@ -39,10 +54,12 @@ export default function ShakeSettingsScreen() {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     setEnabled(value);
     await shakeStorage.saveSettings({ enabled: value });
-    if (value && backgroundEnabled) {
-      await shakeService.startService();
+    if (value) {
+      const ok = await shakeService.startService();
+      setServiceRunning(ok);
     } else {
       await shakeService.stopService();
+      setServiceRunning(false);
     }
   };
 
@@ -50,11 +67,7 @@ export default function ShakeSettingsScreen() {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     setBackgroundEnabled(value);
     await shakeStorage.saveSettings({ backgroundEnabled: value });
-    if (enabled && value) {
-      await shakeService.startService();
-    } else {
-      await shakeService.stopService();
-    }
+    await shakeService.setBackgroundEnabled(value);
   };
 
   const changeSensitivity = async (newSens: ShakeSensitivity) => {
@@ -66,10 +79,6 @@ export default function ShakeSettingsScreen() {
   const handleRequestOverlay = async () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     await shakeService.requestOverlayPermission();
-    setTimeout(async () => {
-      const isOk = await shakeService.checkOverlayPermission();
-      setOverlayGranted(isOk);
-    }, 1000);
   };
 
   const handleSimulateShake = async () => {
@@ -180,8 +189,8 @@ export default function ShakeSettingsScreen() {
           </View>
 
           <Text className="text-[11px] text-zinc-400 text-center font-medium">
-            {sensitivity === 'low' && 'Low: Requires a firm, deliberate shake to avoid accidental triggers.'}
-            {sensitivity === 'normal' && 'Normal (Default): Balanced detection for everyday use.'}
+            {sensitivity === 'low' && 'Low: Requires a firmer, deliberate shake to avoid accidental triggers.'}
+            {sensitivity === 'normal' && 'Normal (Default): Balanced detection for everyday physical hand shakes.'}
             {sensitivity === 'high' && 'High: Opens popup with a lighter shake.'}
           </Text>
         </Card>
@@ -248,3 +257,4 @@ export default function ShakeSettingsScreen() {
     </SafeAreaView>
   );
 }
+
