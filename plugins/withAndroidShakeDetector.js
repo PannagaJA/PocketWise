@@ -66,7 +66,6 @@ function withAndroidShakeDetector(config) {
           'android:exported': 'false',
           'android:excludeFromRecents': 'true',
           'android:taskAffinity': 'com.pocketwise.app.quickexpense',
-          'android:noHistory': 'true',
           'android:launchMode': 'singleInstance',
           'android:theme': '@style/Theme.PocketWise.QuickExpenseDialog',
           'android:windowSoftInputMode': 'stateVisible|adjustResize',
@@ -75,7 +74,7 @@ function withAndroidShakeDetector(config) {
       mainApplication.activity.push(activityObj);
     } else {
       activityObj.$['android:taskAffinity'] = 'com.pocketwise.app.quickexpense';
-      activityObj.$['android:noHistory'] = 'true';
+      delete activityObj.$['android:noHistory'];
     }
 
     // ShakeBootReceiver registration
@@ -701,47 +700,97 @@ class ShakeDetectionService : Service() {
     private fun handleShakeTriggered() {
         Log.d(TAG, "Shake event triggered from ShakeDetectionService (instance=$serviceInstanceId)")
 
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val bgCallbacks = prefs.getLong(KEY_BG_SHAKE_CALLBACKS, 0L) + 1L
+        prefs.edit().putLong(KEY_BG_SHAKE_CALLBACKS, bgCallbacks).apply()
+
         // Flush telemetry immediately on shake
         ShakeDetector.flushTelemetry(applicationContext)
 
-        // First attempt to emit to foreground React Native instance
-        val emittedToRN = PocketWiseShakeModule.emitShakeDetected()
-
-        if (!emittedToRN) {
-            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val isBackgroundAllowed = prefs.getBoolean(KEY_BACKGROUND_ENABLED, true)
-
-            if (!isBackgroundAllowed) {
-                Log.d(TAG, "Background shake detection is disabled by user preference; ignoring background shake")
+        // 1. Check if PocketWise is actively RESUMED in foreground
+        val isForeground = PocketWiseShakeModule.isAppInForeground()
+        if (isForeground) {
+            val emittedToRN = PocketWiseShakeModule.emitShakeDetected()
+            if (emittedToRN) {
+                Log.d(TAG, "Foreground shake successfully handled by React Native modal")
                 return
             }
+        }
 
-            // Verify listening state
-            startListening(force = false)
+        // 2. Direct Background Path: Native QuickExpenseActivity
+        val isBackgroundAllowed = prefs.getBoolean(KEY_BACKGROUND_ENABLED, true)
+        if (!isBackgroundAllowed) {
+            Log.d(TAG, "Background shake detection is disabled by user preference; ignoring background shake")
+            return
+        }
 
-            val canOverlay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                Settings.canDrawOverlays(this)
-            } else {
-                true
-            }
+        // Verify sensor listening state
+        startListening(force = false)
 
-            Log.d(TAG, "Background shake triggered. Overlay permission granted: $canOverlay")
+        val canOverlay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Settings.canDrawOverlays(this)
+        } else {
+            true
+        }
 
-            if (canOverlay) {
-                try {
-                    val popupIntent = Intent(this, QuickExpenseActivity::class.java).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                    }
-                    startActivity(popupIntent)
-                    Log.d(TAG, "Launched QuickExpenseActivity from background shake")
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to launch QuickExpenseActivity directly", e)
-                    showQuickExpenseNotification()
+        Log.d(TAG, "Background shake triggered. Overlay permission granted: $canOverlay")
+
+        val launchAttempts = prefs.getLong(KEY_POPUP_LAUNCH_ATTEMPTS, 0L) + 1L
+        val now = System.currentTimeMillis()
+        prefs.edit().apply {
+            putLong(KEY_POPUP_LAUNCH_ATTEMPTS, launchAttempts)
+            putLong(KEY_LAST_POPUP_LAUNCH_ATTEMPT, now)
+        }.apply()
+
+        if (canOverlay) {
+            try {
+                val popupIntent = Intent(this, QuickExpenseActivity::class.java).apply {
+                    addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    )
                 }
-            } else {
-                Log.w(TAG, "Overlay permission not granted; falling back to high-priority notification")
+
+                val options = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    ActivityOptions.makeBasic().apply {
+                        setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
+                    }.toBundle()
+                } else {
+                    null
+                }
+
+                if (options != null) {
+                    startActivity(popupIntent, options)
+                } else {
+                    startActivity(popupIntent)
+                }
+
+                val successes = prefs.getLong(KEY_POPUP_LAUNCH_SUCCESSES, 0L) + 1L
+                prefs.edit().apply {
+                    putLong(KEY_POPUP_LAUNCH_SUCCESSES, successes)
+                    putLong(KEY_LAST_POPUP_LAUNCH_SUCCESS, now)
+                    putString(KEY_LAST_POPUP_LAUNCH_ERROR, "None")
+                }.apply()
+                Log.d(TAG, "Successfully launched QuickExpenseActivity from background shake")
+            } catch (e: Throwable) {
+                Log.e(TAG, "Failed to launch QuickExpenseActivity directly", e)
+                val failures = prefs.getLong(KEY_POPUP_LAUNCH_FAILURES, 0L) + 1L
+                val errorMsg = "\${e.javaClass.simpleName}: \${e.message ?: "Unknown error"}"
+                prefs.edit().apply {
+                    putLong(KEY_POPUP_LAUNCH_FAILURES, failures)
+                    putString(KEY_LAST_POPUP_LAUNCH_ERROR, errorMsg)
+                }.apply()
                 showQuickExpenseNotification()
             }
+        } else {
+            Log.w(TAG, "Overlay permission not granted; falling back to high-priority notification")
+            val failures = prefs.getLong(KEY_POPUP_LAUNCH_FAILURES, 0L) + 1L
+            prefs.edit().apply {
+                putLong(KEY_POPUP_LAUNCH_FAILURES, failures)
+                putString(KEY_LAST_POPUP_LAUNCH_ERROR, "Overlay permission (SYSTEM_ALERT_WINDOW) not granted")
+            }.apply()
+            showQuickExpenseNotification()
         }
     }
 
@@ -851,6 +900,13 @@ class ShakeDetectionService : Service() {
         private const val KEY_REGISTRATION_RESULT = "diag_sensor_reg_result"
         private const val KEY_SENSOR_NAME = "diag_sensor_name"
         private const val KEY_SENSOR_VENDOR = "diag_sensor_vendor"
+        private const val KEY_BG_SHAKE_CALLBACKS = "diag_bg_shake_callbacks"
+        private const val KEY_POPUP_LAUNCH_ATTEMPTS = "diag_popup_launch_attempts"
+        private const val KEY_POPUP_LAUNCH_SUCCESSES = "diag_popup_launch_successes"
+        private const val KEY_POPUP_LAUNCH_FAILURES = "diag_popup_launch_failures"
+        private const val KEY_LAST_POPUP_LAUNCH_ATTEMPT = "diag_last_popup_launch_attempt_ms"
+        private const val KEY_LAST_POPUP_LAUNCH_SUCCESS = "diag_last_popup_launch_success_ms"
+        private const val KEY_LAST_POPUP_LAUNCH_ERROR = "diag_last_popup_launch_error"
 
         @Volatile
         var serviceInstanceId: String = ""
@@ -1021,6 +1077,25 @@ class PocketWiseShakeModule(private val reactContext: ReactApplicationContext) :
             val maxG = Math.max(pMaxGForce, ShakeDetector.maxGForce)
             val maxDelta = Math.max(pMaxDelta, ShakeDetector.maxEventDeltaMs)
 
+            // Background popup & lifecycle telemetry counters
+            val bgCallbacks = prefs.getLong("diag_bg_shake_callbacks", 0L)
+            val launchAttempts = prefs.getLong("diag_popup_launch_attempts", 0L)
+            val launchSuccesses = prefs.getLong("diag_popup_launch_successes", 0L)
+            val launchFailures = prefs.getLong("diag_popup_launch_failures", 0L)
+            val lastLaunchAttempt = prefs.getLong("diag_last_popup_launch_attempt_ms", 0L)
+            val lastLaunchSuccess = prefs.getLong("diag_last_popup_launch_success_ms", 0L)
+            val lastLaunchError = prefs.getString("diag_last_popup_launch_error", "None") ?: "None"
+
+            val popupOnCreate = prefs.getLong("diag_popup_on_create_count", 0L)
+            val popupOnStart = prefs.getLong("diag_popup_on_start_count", 0L)
+            val popupOnResume = prefs.getLong("diag_popup_on_resume_count", 0L)
+            val popupOnPause = prefs.getLong("diag_popup_on_pause_count", 0L)
+            val popupOnStop = prefs.getLong("diag_popup_on_stop_count", 0L)
+            val popupOnDestroy = prefs.getLong("diag_popup_on_destroy_count", 0L)
+            val lastPopupCreateMs = prefs.getLong("diag_last_popup_on_create_ms", 0L)
+            val lastPopupResumeMs = prefs.getLong("diag_last_popup_on_resume_ms", 0L)
+            val lastPopupDestroyMs = prefs.getLong("diag_last_popup_on_destroy_ms", 0L)
+
             val map = Arguments.createMap().apply {
                 putBoolean("serviceRunning", ShakeDetectionService.isServiceRunning)
                 putBoolean("sensorAvailable", ShakeDetectionService.isSensorAvailable)
@@ -1051,6 +1126,23 @@ class PocketWiseShakeModule(private val reactContext: ReactApplicationContext) :
                 putBoolean("sensorRegistrationResult", regResult)
                 putString("sensorName", sName)
                 putString("sensorVendor", sVendor)
+                // Persistent Background Popup & Lifecycle Telemetry
+                putDouble("backgroundShakeCallbacks", bgCallbacks.toDouble())
+                putDouble("popupLaunchAttempts", launchAttempts.toDouble())
+                putDouble("popupLaunchSuccesses", launchSuccesses.toDouble())
+                putDouble("popupLaunchFailures", launchFailures.toDouble())
+                putDouble("lastPopupLaunchAttempt", lastLaunchAttempt.toDouble())
+                putDouble("lastPopupLaunchSuccess", lastLaunchSuccess.toDouble())
+                putString("lastPopupLaunchError", lastLaunchError)
+                putDouble("popupOnCreate", popupOnCreate.toDouble())
+                putDouble("popupOnStart", popupOnStart.toDouble())
+                putDouble("popupOnResume", popupOnResume.toDouble())
+                putDouble("popupOnPause", popupOnPause.toDouble())
+                putDouble("popupOnStop", popupOnStop.toDouble())
+                putDouble("popupOnDestroy", popupOnDestroy.toDouble())
+                putDouble("lastPopupOnCreateTimestamp", lastPopupCreateMs.toDouble())
+                putDouble("lastPopupOnResumeTimestamp", lastPopupResumeMs.toDouble())
+                putDouble("lastPopupOnDestroyTimestamp", lastPopupDestroyMs.toDouble())
             }
             promise.resolve(map)
         } catch (e: Exception) {
@@ -1276,22 +1368,46 @@ class PocketWiseShakeModule(private val reactContext: ReactApplicationContext) :
 
         private var companionReactContext: ReactApplicationContext? = null
 
+        @Volatile
+        var isMainActivityResumed: Boolean = false
+
+        @Volatile
+        var isAppForeground: Boolean = false
+
         fun getReactContext(): ReactApplicationContext? = companionReactContext
 
+        fun isAppInForeground(): Boolean {
+            val context = companionReactContext
+            if (!isMainActivityResumed || !isAppForeground) {
+                return false
+            }
+            if (context == null || !context.hasActiveReactInstance()) {
+                return false
+            }
+            val act = context.currentActivity
+            if (act == null || act !is com.pocketwise.app.MainActivity || act.isFinishing) {
+                return false
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1 && act.isDestroyed) {
+                return false
+            }
+            return true
+        }
+
         fun emitShakeDetected(): Boolean {
+            if (!isAppInForeground()) {
+                return false
+            }
             val context = companionReactContext
             if (context != null && context.hasActiveReactInstance()) {
-                val isForeground = try {
-                    context.lifecycleState == com.facebook.react.common.LifecycleState.RESUMED
-                } catch (e: Exception) {
-                    false
-                }
-
-                if (isForeground) {
+                try {
                     context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                         ?.emit("onShakeDetected", null)
                     Log.d(TAG, "Emitted onShakeDetected event to foreground React Native instance")
                     return true
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to emit onShakeDetected", e)
+                    return false
                 }
             }
             return false
@@ -1377,6 +1493,7 @@ import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
@@ -1413,7 +1530,20 @@ class QuickExpenseActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        incrementLifecycleCount(KEY_POPUP_ON_CREATE, KEY_LAST_POPUP_ON_CREATE_MS)
         ShakeDetector.isPopupActive = true
+
+        // Ensure window displays even if device is locked or screen was dimmed
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        } else {
+            @Suppress("DEPRECATION")
+            window?.addFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+            )
+        }
 
         // Configure Dialog Window layout params for a comfortable, responsive card width (88% of screen)
         window?.let { win ->
@@ -1444,23 +1574,33 @@ class QuickExpenseActivity : AppCompatActivity() {
         }, 150)
     }
 
+    override fun onStart() {
+        super.onStart()
+        incrementLifecycleCount(KEY_POPUP_ON_START, null)
+    }
+
     override fun onResume() {
         super.onResume()
+        incrementLifecycleCount(KEY_POPUP_ON_RESUME, KEY_LAST_POPUP_ON_RESUME_MS)
+        incrementPopupLaunchSuccess()
         ShakeDetector.isPopupActive = true
     }
 
     override fun onPause() {
         super.onPause()
+        incrementLifecycleCount(KEY_POPUP_ON_PAUSE, null)
         ShakeDetector.isPopupActive = false
     }
 
     override fun onStop() {
         super.onStop()
+        incrementLifecycleCount(KEY_POPUP_ON_STOP, null)
         ShakeDetector.isPopupActive = false
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        incrementLifecycleCount(KEY_POPUP_ON_DESTROY, KEY_LAST_POPUP_ON_DESTROY_MS)
         ShakeDetector.isPopupActive = false
     }
 
@@ -1819,6 +1959,35 @@ class QuickExpenseActivity : AppCompatActivity() {
         }
     }
 
+    private fun incrementLifecycleCount(countKey: String, timeKey: String?) {
+        try {
+            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val current = prefs.getLong(countKey, 0L) + 1L
+            prefs.edit().apply {
+                putLong(countKey, current)
+                if (timeKey != null) {
+                    putLong(timeKey, System.currentTimeMillis())
+                }
+            }.apply()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to persist lifecycle count for $countKey", e)
+        }
+    }
+
+    private fun incrementPopupLaunchSuccess() {
+        try {
+            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val successes = prefs.getLong(KEY_POPUP_LAUNCH_SUCCESSES, 0L) + 1L
+            prefs.edit().apply {
+                putLong(KEY_POPUP_LAUNCH_SUCCESSES, successes)
+                putLong(KEY_LAST_POPUP_LAUNCH_SUCCESS, System.currentTimeMillis())
+                putString(KEY_LAST_POPUP_LAUNCH_ERROR, "None")
+            }.apply()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to persist popup launch success", e)
+        }
+    }
+
     private fun dismissPopup() {
         ShakeDetector.isPopupActive = false
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -1844,6 +2013,20 @@ class QuickExpenseActivity : AppCompatActivity() {
         private const val KEY_SUPABASE_ANON_KEY = "supabase_anon_key"
         private const val KEY_USER_ID = "user_id"
         private const val KEY_ACCESS_TOKEN = "access_token"
+
+        private const val KEY_POPUP_ON_CREATE = "diag_popup_on_create_count"
+        private const val KEY_POPUP_ON_START = "diag_popup_on_start_count"
+        private const val KEY_POPUP_ON_RESUME = "diag_popup_on_resume_count"
+        private const val KEY_POPUP_ON_PAUSE = "diag_popup_on_pause_count"
+        private const val KEY_POPUP_ON_STOP = "diag_popup_on_stop_count"
+        private const val KEY_POPUP_ON_DESTROY = "diag_popup_on_destroy_count"
+        private const val KEY_LAST_POPUP_ON_CREATE_MS = "diag_last_popup_on_create_ms"
+        private const val KEY_LAST_POPUP_ON_RESUME_MS = "diag_last_popup_on_resume_ms"
+        private const val KEY_LAST_POPUP_ON_DESTROY_MS = "diag_last_popup_on_destroy_ms"
+
+        private const val KEY_POPUP_LAUNCH_SUCCESSES = "diag_popup_launch_successes"
+        private const val KEY_LAST_POPUP_LAUNCH_SUCCESS = "diag_last_popup_launch_success_ms"
+        private const val KEY_LAST_POPUP_LAUNCH_ERROR = "diag_last_popup_launch_error"
     }
 }
 `;
@@ -2211,7 +2394,7 @@ ${dialogStyleEntry}
         fs.writeFileSync(stylesPath, fullStylesContent);
       }
 
-      // 2j. Ensure MainApplication.kt registers PocketWiseShakePackage
+      // 2j. Ensure MainApplication.kt registers PocketWiseShakePackage & ActivityLifecycleCallbacks
       const mainAppPath = path.join(
         projectRoot,
         'android',
@@ -2239,8 +2422,48 @@ ${dialogStyleEntry}
               'PackageList(this).packages.apply {\n              add(com.pocketwise.app.shake.PocketWiseShakePackage())\n            }'
             );
           }
-          fs.writeFileSync(mainAppPath, appContent);
         }
+
+        if (!appContent.includes('PocketWiseShakeModule.isMainActivityResumed')) {
+          if (!appContent.includes('import android.app.Activity')) {
+            appContent = appContent.replace(
+              'import android.app.Application',
+              'import android.app.Activity\nimport android.app.Application\nimport android.os.Bundle'
+            );
+          }
+          const lifecycleCallbacksSnippet = `    registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+      private var resumedCount = 0
+
+      override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+      override fun onActivityStarted(activity: Activity) {}
+      override fun onActivityResumed(activity: Activity) {
+        if (activity is MainActivity) {
+          com.pocketwise.app.shake.PocketWiseShakeModule.isMainActivityResumed = true
+        }
+        resumedCount++
+        com.pocketwise.app.shake.PocketWiseShakeModule.isAppForeground = resumedCount > 0
+      }
+      override fun onActivityPaused(activity: Activity) {
+        if (activity is MainActivity) {
+          com.pocketwise.app.shake.PocketWiseShakeModule.isMainActivityResumed = false
+        }
+        resumedCount = Math.max(0, resumedCount - 1)
+        com.pocketwise.app.shake.PocketWiseShakeModule.isAppForeground = resumedCount > 0
+      }
+      override fun onActivityStopped(activity: Activity) {}
+      override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+      override fun onActivityDestroyed(activity: Activity) {
+        if (activity is MainActivity) {
+          com.pocketwise.app.shake.PocketWiseShakeModule.isMainActivityResumed = false
+        }
+      }
+    })\n`;
+          if (appContent.includes('super.onCreate()')) {
+            appContent = appContent.replace('super.onCreate()', `super.onCreate()\n${lifecycleCallbacksSnippet}`);
+          }
+        }
+
+        fs.writeFileSync(mainAppPath, appContent);
       }
 
       return config;

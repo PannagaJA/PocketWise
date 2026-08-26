@@ -64,6 +64,23 @@ export interface NativeServiceDiagnostics {
   sensorRegistrationResult?: boolean;
   sensorName?: string;
   sensorVendor?: string;
+  // Background popup & lifecycle telemetry
+  backgroundShakeCallbacks?: number;
+  popupLaunchAttempts?: number;
+  popupLaunchSuccesses?: number;
+  popupLaunchFailures?: number;
+  lastPopupLaunchAttempt?: number;
+  lastPopupLaunchSuccess?: number;
+  lastPopupLaunchError?: string;
+  popupOnCreate?: number;
+  popupOnStart?: number;
+  popupOnResume?: number;
+  popupOnPause?: number;
+  popupOnStop?: number;
+  popupOnDestroy?: number;
+  lastPopupOnCreateTimestamp?: number;
+  lastPopupOnResumeTimestamp?: number;
+  lastPopupOnDestroyTimestamp?: number;
 }
 
 class ShakeService {

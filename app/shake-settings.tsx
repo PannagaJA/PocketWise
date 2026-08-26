@@ -539,6 +539,48 @@ export default function ShakeSettingsScreen() {
                 {serviceDiagnostics?.popupActive ? 'YES (locked)' : 'NO (ready)'}
               </Text>
             </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Background shake callbacks:</Text>
+              <Text className="text-xs font-mono font-bold text-teal-400">
+                {serviceDiagnostics?.backgroundShakeCallbacks !== undefined ? serviceDiagnostics.backgroundShakeCallbacks.toLocaleString() : '0'}
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Popup launch attempts:</Text>
+              <Text className="text-xs font-mono font-bold text-sky-400">
+                {serviceDiagnostics?.popupLaunchAttempts !== undefined ? serviceDiagnostics.popupLaunchAttempts.toLocaleString() : '0'}
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Popup launch successes:</Text>
+              <Text className="text-xs font-mono font-bold text-emerald-400">
+                {serviceDiagnostics?.popupLaunchSuccesses !== undefined ? serviceDiagnostics.popupLaunchSuccesses.toLocaleString() : '0'}
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Popup launch failures:</Text>
+              <Text className={`text-xs font-mono font-bold ${(serviceDiagnostics?.popupLaunchFailures ?? 0) > 0 ? 'text-rose-400' : 'text-zinc-400'}`}>
+                {serviceDiagnostics?.popupLaunchFailures !== undefined ? serviceDiagnostics.popupLaunchFailures.toLocaleString() : '0'}
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Last popup launch error:</Text>
+              <Text className="text-[11px] font-mono text-zinc-300 max-w-[200px]" numberOfLines={1}>
+                {serviceDiagnostics?.lastPopupLaunchError || 'None'}
+              </Text>
+            </View>
+
+            <View className="py-2 flex-row items-center justify-between">
+              <Text className="text-xs text-zinc-400">Popup onCreate / onResume / onDestroy:</Text>
+              <Text className="text-xs font-mono text-zinc-300">
+                {serviceDiagnostics?.popupOnCreate ?? 0} / {serviceDiagnostics?.popupOnResume ?? 0} / {serviceDiagnostics?.popupOnDestroy ?? 0}
+              </Text>
+            </View>
           </View>
         </Card>
 
