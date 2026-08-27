@@ -166,6 +166,23 @@ class ShakeService {
         sensorRegistrationResult: Boolean(res?.sensorRegistrationResult),
         sensorName: String(res?.sensorName || 'Unknown'),
         sensorVendor: String(res?.sensorVendor || 'Unknown'),
+        // Background popup & lifecycle telemetry
+        backgroundShakeCallbacks: Number(res?.backgroundShakeCallbacks || 0),
+        popupLaunchAttempts: Number(res?.popupLaunchAttempts || 0),
+        popupLaunchSuccesses: Number(res?.popupLaunchSuccesses || 0),
+        popupLaunchFailures: Number(res?.popupLaunchFailures || 0),
+        lastPopupLaunchAttempt: Number(res?.lastPopupLaunchAttempt || 0),
+        lastPopupLaunchSuccess: Number(res?.lastPopupLaunchSuccess || 0),
+        lastPopupLaunchError: String(res?.lastPopupLaunchError || 'None'),
+        popupOnCreate: Number(res?.popupOnCreate || 0),
+        popupOnStart: Number(res?.popupOnStart || 0),
+        popupOnResume: Number(res?.popupOnResume || 0),
+        popupOnPause: Number(res?.popupOnPause || 0),
+        popupOnStop: Number(res?.popupOnStop || 0),
+        popupOnDestroy: Number(res?.popupOnDestroy || 0),
+        lastPopupOnCreateTimestamp: Number(res?.lastPopupOnCreateTimestamp || 0),
+        lastPopupOnResumeTimestamp: Number(res?.lastPopupOnResumeTimestamp || 0),
+        lastPopupOnDestroyTimestamp: Number(res?.lastPopupOnDestroyTimestamp || 0),
       };
     } catch {
       return null;
