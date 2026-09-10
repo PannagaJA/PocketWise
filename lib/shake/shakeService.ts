@@ -438,8 +438,8 @@ class ShakeService {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token || '';
       const envObj: Record<string, string | undefined> = typeof process !== 'undefined' && process.env ? process.env : {};
-      const supabaseUrl = envObj['EXPO_PUBLIC_SUPABASE_URL'] || '';
-      const supabaseAnonKey = envObj['EXPO_PUBLIC_SUPABASE_ANON_KEY'] || '';
+      const supabaseUrl = envObj['EXPO_PUBLIC_SUPABASE_URL'] || 'https://tqmxwsctrendyxlyabjf.supabase.co';
+      const supabaseAnonKey = envObj['EXPO_PUBLIC_SUPABASE_ANON_KEY'] || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxbXh3c2N0cmVuZHl4bHlhYmpmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzNTIzOTEsImV4cCI6MjEwMTkyODM5MX0.jFsmdRTY3KTbjj8haT8zueLN9diQ4DDl7Qt9NTBBEmE';
 
       const accounts = await accountService.getAccounts(userId).catch(() => []);
       const categories = await categoryService.getCategories(userId).catch(() => []);
