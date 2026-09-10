@@ -719,7 +719,7 @@ class ShakeDetectionService : Service() {
                 val options = ActivityOptions.makeBasic()
                 // API 36 (Android 16 Baklava) MODE_BACKGROUND_ACTIVITY_START_ALLOW_ALWAYS = 2
                 // API 34/35 (Android 14/15) MODE_BACKGROUND_ACTIVITY_START_ALLOWED = 1
-                val balMode = if (Build.VERSION.SDK_INT >= 36) 2 else ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                val balMode = if (Build.VERSION.SDK_INT >= 36) 2 else 1
 
                 // 1. PendingIntent Creator BAL permission (API 34+)
                 try {
