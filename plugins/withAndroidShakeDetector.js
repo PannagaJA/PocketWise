@@ -1579,6 +1579,7 @@ class PocketWiseShakePackage : ReactPackage {
       const quickExpenseActivityContent = `package com.pocketwise.app.shake
 
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Color
 import android.os.Build
