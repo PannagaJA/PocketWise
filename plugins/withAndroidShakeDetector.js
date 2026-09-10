@@ -725,18 +725,22 @@ class ShakeDetectionService : Service() {
                 try {
                     val setCreatorMethod = ActivityOptions::class.java.getMethod(
                         "setPendingIntentCreatorBackgroundActivityStartMode",
-                        Int::class.javaPrimitiveType
+                        java.lang.Integer.TYPE
                     )
                     setCreatorMethod.invoke(options, balMode)
                 } catch (e: Throwable) {
-                    Log.w(TAG, "setPendingIntentCreatorBackgroundActivityStartMode invocation note: \${e.message}")
+                    Log.w(TAG, "setPendingIntentCreatorBackgroundActivityStartMode note: \${e.message}")
                 }
 
                 // 2. PendingIntent Sender BAL permission (API 34+)
                 try {
-                    options.setPendingIntentBackgroundActivityStartMode(balMode)
+                    val setSenderMethod = ActivityOptions::class.java.getMethod(
+                        "setPendingIntentBackgroundActivityStartMode",
+                        java.lang.Integer.TYPE
+                    )
+                    setSenderMethod.invoke(options, balMode)
                 } catch (e: Throwable) {
-                    Log.w(TAG, "setPendingIntentBackgroundActivityStartMode invocation note: \${e.message}")
+                    Log.w(TAG, "setPendingIntentBackgroundActivityStartMode note: \${e.message}")
                 }
 
                 return options.toBundle()
@@ -827,8 +831,12 @@ class ShakeDetectionService : Service() {
                     }
 
                     // Send PendingIntent with explicit sender BAL ActivityOptions
-                    if (optionsBundle != null) {
-                        pendingIntent.send(applicationContext, 0, null, null, null, null, optionsBundle)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && optionsBundle != null) {
+                        val nullIntent: Intent? = null
+                        val nullOnFinished: PendingIntent.OnFinished? = null
+                        val nullHandler: Handler? = null
+                        val nullPermission: String? = null
+                        pendingIntent.send(applicationContext, 0, nullIntent, nullOnFinished, nullHandler, nullPermission, optionsBundle)
                     } else {
                         pendingIntent.send()
                     }
