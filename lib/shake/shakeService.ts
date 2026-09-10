@@ -67,11 +67,16 @@ export interface NativeServiceDiagnostics {
   // Background popup & lifecycle telemetry
   backgroundShakeCallbacks?: number;
   popupLaunchAttempts?: number;
+  popupLaunchCallsAccepted?: number;
   popupLaunchSuccesses?: number;
   popupLaunchFailures?: number;
   lastPopupLaunchAttempt?: number;
+  lastPopupLaunchAccepted?: number;
   lastPopupLaunchSuccess?: number;
   lastPopupLaunchError?: string;
+  lastShakeEventId?: string;
+  lastPopupEventId?: string;
+  popupActivitiesCreated?: number;
   popupOnCreate?: number;
   popupOnStart?: number;
   popupOnResume?: number;
@@ -169,11 +174,16 @@ class ShakeService {
         // Background popup & lifecycle telemetry
         backgroundShakeCallbacks: Number(res?.backgroundShakeCallbacks || 0),
         popupLaunchAttempts: Number(res?.popupLaunchAttempts || 0),
+        popupLaunchCallsAccepted: Number(res?.popupLaunchCallsAccepted || res?.popupLaunchSuccesses || 0),
         popupLaunchSuccesses: Number(res?.popupLaunchSuccesses || 0),
         popupLaunchFailures: Number(res?.popupLaunchFailures || 0),
         lastPopupLaunchAttempt: Number(res?.lastPopupLaunchAttempt || 0),
+        lastPopupLaunchAccepted: Number(res?.lastPopupLaunchAccepted || res?.lastPopupLaunchSuccess || 0),
         lastPopupLaunchSuccess: Number(res?.lastPopupLaunchSuccess || 0),
         lastPopupLaunchError: String(res?.lastPopupLaunchError || 'None'),
+        lastShakeEventId: String(res?.lastShakeEventId || ''),
+        lastPopupEventId: String(res?.lastPopupEventId || ''),
+        popupActivitiesCreated: Number(res?.popupActivitiesCreated || res?.popupOnCreate || 0),
         popupOnCreate: Number(res?.popupOnCreate || 0),
         popupOnStart: Number(res?.popupOnStart || 0),
         popupOnResume: Number(res?.popupOnResume || 0),

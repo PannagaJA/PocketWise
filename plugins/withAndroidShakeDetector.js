@@ -280,11 +280,11 @@ class ShakeDetector(
                         peakTimestamps.clear()
                         lastPeakTimestamp = 0L
 
+                        val eventId = java.util.UUID.randomUUID().toString()
+                        lastShakeEventId = eventId
                         if (appContext != null) {
                             flushTelemetry(appContext)
                         }
-
-                        val eventId = java.util.UUID.randomUUID().toString()
                         Log.d(TAG, "[SHAKE-2] Intentional shake confirmed! Linear: \$linearMagnitude m/s^2, G-Force: \${gForce}g, Shakes: \$totalConfirmedShakes, EventId: \$eventId")
                         
                         try {
@@ -327,8 +327,8 @@ class ShakeDetector(
         private const val MIN_PEAK_INTERVAL_MS = 80L // Minimum separation between distinct shake strokes
         private const val PEAK_WINDOW_MS = 650L // Sliding window to accumulate shake peaks
         private const val REQUIRED_PEAKS = 2 // Number of distinct strokes required to confirm shake
-        private const val COOLDOWN_MS = 2500L // Debounce cooldown after shake trigger
-        private const val POPUP_LOCK_TIMEOUT_MS = 15000L // Safeguard timeout against stale locks
+        private const val COOLDOWN_MS = 1800L // Debounce cooldown after shake trigger
+        private const val POPUP_LOCK_TIMEOUT_MS = 4000L // Safeguard timeout against stale locks
 
         // Telemetry counters
         @Volatile var totalSensorEvents: Long = 0L
@@ -343,6 +343,7 @@ class ShakeDetector(
         @Volatile var maxGForce: Float = 0f
         @Volatile var lastEventDeltaMs: Long = 0L
         @Volatile var maxEventDeltaMs: Long = 0L
+        @Volatile var lastShakeEventId: String = ""
 
         @Volatile
         var isPopupActive: Boolean = false
@@ -371,6 +372,7 @@ class ShakeDetector(
                 val pMaxLinear = prefs.getFloat(KEY_MAX_LINEAR, 0f)
                 val pMaxGForce = prefs.getFloat(KEY_MAX_GFORCE, 0f)
                 val pMaxDelta = prefs.getLong(KEY_MAX_DELTA_MS, 0L)
+                val pEventId = prefs.getString("diag_last_shake_event_id", "") ?: ""
 
                 if (pEvents > totalSensorEvents) totalSensorEvents = pEvents
                 if (pCrossings > totalThresholdCrossings) totalThresholdCrossings = pCrossings
@@ -381,6 +383,7 @@ class ShakeDetector(
                 if (pMaxLinear > maxLinearMagnitude) maxLinearMagnitude = pMaxLinear
                 if (pMaxGForce > maxGForce) maxGForce = pMaxGForce
                 if (pMaxDelta > maxEventDeltaMs) maxEventDeltaMs = pMaxDelta
+                if (pEventId.isNotEmpty()) lastShakeEventId = pEventId
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to load persisted telemetry", e)
             }
@@ -402,6 +405,7 @@ class ShakeDetector(
                     putFloat(KEY_MAX_LINEAR, maxLinearMagnitude)
                     putFloat(KEY_MAX_GFORCE, maxGForce)
                     putLong(KEY_MAX_DELTA_MS, maxEventDeltaMs)
+                    putString("diag_last_shake_event_id", lastShakeEventId)
                 }.apply()
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to flush telemetry to SharedPreferences", e)
@@ -709,13 +713,50 @@ class ShakeDetectionService : Service() {
         Log.d(TAG, "ShakeDetectionService stopped listening on accelerometer")
     }
 
+    private fun createBackgroundActivityOptions(): Bundle? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) { // API 34+
+            try {
+                val options = ActivityOptions.makeBasic()
+                // API 36 (Android 16 Baklava) MODE_BACKGROUND_ACTIVITY_START_ALLOW_ALWAYS = 2
+                // API 34/35 (Android 14/15) MODE_BACKGROUND_ACTIVITY_START_ALLOWED = 1
+                val balMode = if (Build.VERSION.SDK_INT >= 36) 2 else ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+
+                // 1. PendingIntent Creator BAL permission (API 34+)
+                try {
+                    val setCreatorMethod = ActivityOptions::class.java.getMethod(
+                        "setPendingIntentCreatorBackgroundActivityStartMode",
+                        Int::class.javaPrimitiveType
+                    )
+                    setCreatorMethod.invoke(options, balMode)
+                } catch (e: Throwable) {
+                    Log.w(TAG, "setPendingIntentCreatorBackgroundActivityStartMode invocation note: \${e.message}")
+                }
+
+                // 2. PendingIntent Sender BAL permission (API 34+)
+                try {
+                    options.setPendingIntentBackgroundActivityStartMode(balMode)
+                } catch (e: Throwable) {
+                    Log.w(TAG, "setPendingIntentBackgroundActivityStartMode invocation note: \${e.message}")
+                }
+
+                return options.toBundle()
+            } catch (e: Throwable) {
+                Log.w(TAG, "Failed to create ActivityOptions with BAL start modes", e)
+            }
+        }
+        return null
+    }
+
     private fun handleShakeTriggered(eventId: String) {
         try {
             Log.d(TAG, "[SHAKE-4] handleShakeTriggered entered from ShakeDetectionService (instance=\$serviceInstanceId), EventId: \$eventId")
 
             val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val bgCallbacks = prefs.getLong(KEY_BG_SHAKE_CALLBACKS, 0L) + 1L
-            prefs.edit().putLong(KEY_BG_SHAKE_CALLBACKS, bgCallbacks).apply()
+            prefs.edit().apply {
+                putLong(KEY_BG_SHAKE_CALLBACKS, bgCallbacks)
+                putString("diag_last_shake_event_id", eventId)
+            }.apply()
 
             // Flush telemetry immediately on shake
             ShakeDetector.flushTelemetry(applicationContext)
@@ -754,12 +795,16 @@ class ShakeDetectionService : Service() {
             prefs.edit().apply {
                 putLong(KEY_POPUP_LAUNCH_ATTEMPTS, launchAttempts)
                 putLong(KEY_LAST_POPUP_LAUNCH_ATTEMPT, now)
+                putString("diag_last_shake_event_id", eventId)
             }.apply()
 
-            Log.d(TAG, "[SHAKE-7] Attempting Activity Launch. EventId: \$eventId")
+            Log.d(TAG, "[SHAKE-7] Attempting Background Activity Launch via PendingIntent. EventId: \$eventId")
             if (canOverlay) {
                 try {
-                    val popupIntent = Intent(this, QuickExpenseActivity::class.java).apply {
+                    val popupIntent = Intent(applicationContext, QuickExpenseActivity::class.java).apply {
+                        action = "com.pocketwise.app.shake.QUICK_EXPENSE"
+                        putExtra("shakeEventId", eventId)
+                        putExtra("launchTimestamp", now)
                         addFlags(
                             Intent.FLAG_ACTIVITY_NEW_TASK or
                             Intent.FLAG_ACTIVITY_CLEAR_TOP or
@@ -767,36 +812,45 @@ class ShakeDetectionService : Service() {
                         )
                     }
 
-                    val options = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                        ActivityOptions.makeBasic().apply {
-                            setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
-                        }.toBundle()
+                    val optionsBundle = createBackgroundActivityOptions()
+                    val requestCode = ((now xor eventId.hashCode().toLong()) and 0xFFFF).toInt()
+
+                    // Create fresh explicit PendingIntent per shake event
+                    val flags = PendingIntent.FLAG_ONE_SHOT or
+                            PendingIntent.FLAG_CANCEL_CURRENT or
+                            (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+
+                    val pendingIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && optionsBundle != null) {
+                        PendingIntent.getActivity(applicationContext, requestCode, popupIntent, flags, optionsBundle)
                     } else {
-                        null
+                        PendingIntent.getActivity(applicationContext, requestCode, popupIntent, flags)
                     }
 
-                    if (options != null) {
-                        startActivity(popupIntent, options)
+                    // Send PendingIntent with explicit sender BAL ActivityOptions
+                    if (optionsBundle != null) {
+                        pendingIntent.send(applicationContext, 0, null, null, null, null, optionsBundle)
                     } else {
-                        startActivity(popupIntent)
+                        pendingIntent.send()
                     }
 
-                    val successes = prefs.getLong(KEY_POPUP_LAUNCH_SUCCESSES, 0L) + 1L
+                    val accepted = prefs.getLong(KEY_POPUP_LAUNCH_ACCEPTED, 0L) + 1L
                     prefs.edit().apply {
-                        putLong(KEY_POPUP_LAUNCH_SUCCESSES, successes)
-                        putLong(KEY_LAST_POPUP_LAUNCH_SUCCESS, now)
+                        putLong(KEY_POPUP_LAUNCH_ACCEPTED, accepted)
+                        putLong(KEY_LAST_POPUP_LAUNCH_ACCEPTED, now)
                         putString(KEY_LAST_POPUP_LAUNCH_ERROR, "None")
                     }.apply()
-                    Log.d(TAG, "Successfully launched QuickExpenseActivity from background shake")
+                    Log.d(TAG, "Successfully dispatched PendingIntent for QuickExpenseActivity. EventId: \$eventId")
                 } catch (e: Throwable) {
-                    Log.e(TAG, "[SHAKE-FATAL] Failed to launch QuickExpenseActivity directly. EventId: \$eventId", e)
+                    Log.e(TAG, "[SHAKE-FATAL] Failed to send PendingIntent for QuickExpenseActivity. EventId: \$eventId", e)
                     val failures = prefs.getLong(KEY_POPUP_LAUNCH_FAILURES, 0L) + 1L
                     val errorMsg = "\${e.javaClass.simpleName}: \${e.message ?: "Unknown error"}"
                     prefs.edit().apply {
                         putLong(KEY_POPUP_LAUNCH_FAILURES, failures)
                         putString(KEY_LAST_POPUP_LAUNCH_ERROR, errorMsg)
                     }.apply()
-                    showQuickExpenseNotification()
+
+                    // Immediate Notification Fallback
+                    showQuickExpenseNotification(eventId)
                 }
             } else {
                 Log.w(TAG, "Overlay permission not granted; falling back to high-priority notification. EventId: \$eventId")
@@ -805,35 +859,45 @@ class ShakeDetectionService : Service() {
                     putLong(KEY_POPUP_LAUNCH_FAILURES, failures)
                     putString(KEY_LAST_POPUP_LAUNCH_ERROR, "Overlay permission (SYSTEM_ALERT_WINDOW) not granted")
                 }.apply()
-                showQuickExpenseNotification()
+                showQuickExpenseNotification(eventId)
             }
         } catch (e: Throwable) {
             Log.e(TAG, "[SHAKE-FATAL] Uncaught exception in handleShakeTriggered for EventId: \$eventId", e)
         }
     }
 
-    private fun showQuickExpenseNotification() {
-        val popupIntent = Intent(this, QuickExpenseActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+    private fun showQuickExpenseNotification(eventId: String? = null) {
+        try {
+            val popupIntent = Intent(applicationContext, QuickExpenseActivity::class.java).apply {
+                action = "com.pocketwise.app.shake.QUICK_EXPENSE_NOTIFICATION"
+                if (eventId != null) {
+                    putExtra("shakeEventId", eventId)
+                }
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+            val pendingIntent = PendingIntent.getActivity(
+                applicationContext,
+                NOTIFICATION_POPUP_REQUEST_CODE,
+                popupIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+            )
+
+            val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle("⚡ Quick Expense")
+                .setContentText("Tap to record an expense from shake")
+                .setContentIntent(pendingIntent)
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setFullScreenIntent(pendingIntent, true)
+                .build()
+
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            notificationManager?.notify(NOTIFICATION_ALERT_ID, notification)
+            Log.d(TAG, "Displayed fallback Quick Expense notification")
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to display fallback Quick Expense notification", e)
         }
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            NOTIFICATION_POPUP_REQUEST_CODE,
-            popupIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
-        )
-
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("⚡ Quick Expense")
-            .setContentText("Tap to record an expense from shake")
-            .setContentIntent(pendingIntent)
-            .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .build()
-
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
-        notificationManager?.notify(NOTIFICATION_ALERT_ID, notification)
     }
 
     private fun createNotificationChannel() {
@@ -920,10 +984,10 @@ class ShakeDetectionService : Service() {
         private const val KEY_SENSOR_VENDOR = "diag_sensor_vendor"
         private const val KEY_BG_SHAKE_CALLBACKS = "diag_bg_shake_callbacks"
         private const val KEY_POPUP_LAUNCH_ATTEMPTS = "diag_popup_launch_attempts"
-        private const val KEY_POPUP_LAUNCH_SUCCESSES = "diag_popup_launch_successes"
+        private const val KEY_POPUP_LAUNCH_ACCEPTED = "diag_popup_launch_accepted"
         private const val KEY_POPUP_LAUNCH_FAILURES = "diag_popup_launch_failures"
         private const val KEY_LAST_POPUP_LAUNCH_ATTEMPT = "diag_last_popup_launch_attempt_ms"
-        private const val KEY_LAST_POPUP_LAUNCH_SUCCESS = "diag_last_popup_launch_success_ms"
+        private const val KEY_LAST_POPUP_LAUNCH_ACCEPTED = "diag_last_popup_launch_accepted_ms"
         private const val KEY_LAST_POPUP_LAUNCH_ERROR = "diag_last_popup_launch_error"
 
         @Volatile
@@ -1098,11 +1162,13 @@ class PocketWiseShakeModule(private val reactContext: ReactApplicationContext) :
             // Background popup & lifecycle telemetry counters
             val bgCallbacks = prefs.getLong("diag_bg_shake_callbacks", 0L)
             val launchAttempts = prefs.getLong("diag_popup_launch_attempts", 0L)
-            val launchSuccesses = prefs.getLong("diag_popup_launch_successes", 0L)
+            val launchAccepted = prefs.getLong("diag_popup_launch_accepted", prefs.getLong("diag_popup_launch_successes", 0L))
             val launchFailures = prefs.getLong("diag_popup_launch_failures", 0L)
             val lastLaunchAttempt = prefs.getLong("diag_last_popup_launch_attempt_ms", 0L)
-            val lastLaunchSuccess = prefs.getLong("diag_last_popup_launch_success_ms", 0L)
+            val lastLaunchAccepted = prefs.getLong("diag_last_popup_launch_accepted_ms", prefs.getLong("diag_last_popup_launch_success_ms", 0L))
             val lastLaunchError = prefs.getString("diag_last_popup_launch_error", "None") ?: "None"
+            val lastShakeEventId = prefs.getString("diag_last_shake_event_id", ShakeDetector.lastShakeEventId) ?: ShakeDetector.lastShakeEventId
+            val lastPopupEventId = prefs.getString("diag_last_popup_event_id", "") ?: ""
 
             val popupOnCreate = prefs.getLong("diag_popup_on_create_count", 0L)
             val popupOnStart = prefs.getLong("diag_popup_on_start_count", 0L)
@@ -1147,11 +1213,16 @@ class PocketWiseShakeModule(private val reactContext: ReactApplicationContext) :
                 // Persistent Background Popup & Lifecycle Telemetry
                 putDouble("backgroundShakeCallbacks", bgCallbacks.toDouble())
                 putDouble("popupLaunchAttempts", launchAttempts.toDouble())
-                putDouble("popupLaunchSuccesses", launchSuccesses.toDouble())
+                putDouble("popupLaunchCallsAccepted", launchAccepted.toDouble())
+                putDouble("popupLaunchSuccesses", launchAccepted.toDouble())
                 putDouble("popupLaunchFailures", launchFailures.toDouble())
                 putDouble("lastPopupLaunchAttempt", lastLaunchAttempt.toDouble())
-                putDouble("lastPopupLaunchSuccess", lastLaunchSuccess.toDouble())
+                putDouble("lastPopupLaunchAccepted", lastLaunchAccepted.toDouble())
+                putDouble("lastPopupLaunchSuccess", lastLaunchAccepted.toDouble())
                 putString("lastPopupLaunchError", lastLaunchError)
+                putString("lastShakeEventId", lastShakeEventId)
+                putString("lastPopupEventId", lastPopupEventId)
+                putDouble("popupActivitiesCreated", popupOnCreate.toDouble())
                 putDouble("popupOnCreate", popupOnCreate.toDouble())
                 putDouble("popupOnStart", popupOnStart.toDouble())
                 putDouble("popupOnResume", popupOnResume.toDouble())
@@ -1278,7 +1349,7 @@ class PocketWiseShakeModule(private val reactContext: ReactApplicationContext) :
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 val granted = Settings.canDrawOverlays(reactContext)
-                Log.d(TAG, "checkOverlayPermission evaluated: $granted")
+                Log.d(TAG, "checkOverlayPermission evaluated: \$granted")
                 promise.resolve(granted)
             } else {
                 promise.resolve(true)
@@ -1548,9 +1619,15 @@ class QuickExpenseActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.d(TAG, "[SHAKE-8] QuickExpenseActivity onCreate called")
+        val eventId = intent?.getStringExtra("shakeEventId") ?: ""
+        Log.d(TAG, "[SHAKE-8] QuickExpenseActivity onCreate called. EventId: \$eventId")
         incrementLifecycleCount(KEY_POPUP_ON_CREATE, KEY_LAST_POPUP_ON_CREATE_MS)
         ShakeDetector.isPopupActive = true
+
+        if (eventId.isNotEmpty()) {
+            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            prefs.edit().putString("diag_last_popup_event_id", eventId).apply()
+        }
 
         // Ensure window displays even if device is locked or screen was dimmed
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
@@ -1593,6 +1670,31 @@ class QuickExpenseActivity : AppCompatActivity() {
         }, 150)
     }
 
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val eventId = intent?.getStringExtra("shakeEventId") ?: ""
+        Log.d(TAG, "[SHAKE-8-NEW] QuickExpenseActivity onNewIntent called. EventId: \$eventId")
+        ShakeDetector.isPopupActive = true
+
+        if (eventId.isNotEmpty()) {
+            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            prefs.edit().putString("diag_last_popup_event_id", eventId).apply()
+        }
+
+        if (::etAmount.isInitialized) {
+            etAmount.setText("")
+        }
+        if (::etDescription.isInitialized) {
+            etDescription.setText("")
+        }
+        if (::tvError.isInitialized) {
+            tvError.visibility = View.GONE
+        }
+        setLoading(false)
+        loadCachedAccountsAndCategories()
+    }
+
     override fun onStart() {
         super.onStart()
         Log.d(TAG, "[SHAKE-9] QuickExpenseActivity onStart called")
@@ -1603,7 +1705,6 @@ class QuickExpenseActivity : AppCompatActivity() {
         super.onResume()
         Log.d(TAG, "[SHAKE-10] QuickExpenseActivity onResume called")
         incrementLifecycleCount(KEY_POPUP_ON_RESUME, KEY_LAST_POPUP_ON_RESUME_MS)
-        incrementPopupLaunchSuccess()
         ShakeDetector.isPopupActive = true
     }
 
@@ -1995,20 +2096,6 @@ class QuickExpenseActivity : AppCompatActivity() {
         }
     }
 
-    private fun incrementPopupLaunchSuccess() {
-        try {
-            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val successes = prefs.getLong(KEY_POPUP_LAUNCH_SUCCESSES, 0L) + 1L
-            prefs.edit().apply {
-                putLong(KEY_POPUP_LAUNCH_SUCCESSES, successes)
-                putLong(KEY_LAST_POPUP_LAUNCH_SUCCESS, System.currentTimeMillis())
-                putString(KEY_LAST_POPUP_LAUNCH_ERROR, "None")
-            }.apply()
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to persist popup launch success", e)
-        }
-    }
-
     private fun dismissPopup() {
         ShakeDetector.isPopupActive = false
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -2044,10 +2131,6 @@ class QuickExpenseActivity : AppCompatActivity() {
         private const val KEY_LAST_POPUP_ON_CREATE_MS = "diag_last_popup_on_create_ms"
         private const val KEY_LAST_POPUP_ON_RESUME_MS = "diag_last_popup_on_resume_ms"
         private const val KEY_LAST_POPUP_ON_DESTROY_MS = "diag_last_popup_on_destroy_ms"
-
-        private const val KEY_POPUP_LAUNCH_SUCCESSES = "diag_popup_launch_successes"
-        private const val KEY_LAST_POPUP_LAUNCH_SUCCESS = "diag_last_popup_launch_success_ms"
-        private const val KEY_LAST_POPUP_LAUNCH_ERROR = "diag_last_popup_launch_error"
     }
 }
 `;
