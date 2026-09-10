@@ -157,7 +157,7 @@ import kotlin.math.sqrt
  */
 class ShakeDetector(
     private val appContext: Context? = null,
-    private val onShakeListener: () -> Unit
+    private val onShakeListener: (String) -> Unit
 ) : SensorEventListener {
 
     var sensitivity: Sensitivity = Sensitivity.NORMAL
@@ -197,6 +197,11 @@ class ShakeDetector(
         val now = System.currentTimeMillis()
         totalSensorEvents++
         unpersistedEventCount++
+        
+        // Log every 50,000 events to show liveness but avoid spam
+        if (totalSensorEvents % 50000L == 0L) {
+            Log.d(TAG, "[SHAKE-1] Sensor actively receiving events. Count: \$totalSensorEvents")
+        }
 
         // Timing & Frequency telemetry
         if (prevEventTimestamp > 0L) {
@@ -279,8 +284,15 @@ class ShakeDetector(
                             flushTelemetry(appContext)
                         }
 
-                        Log.d(TAG, "Intentional shake confirmed! Linear: $linearMagnitude m/s^2, G-Force: \${gForce}g, Shakes: $totalConfirmedShakes")
-                        onShakeListener()
+                        val eventId = java.util.UUID.randomUUID().toString()
+                        Log.d(TAG, "[SHAKE-2] Intentional shake confirmed! Linear: \$linearMagnitude m/s^2, G-Force: \${gForce}g, Shakes: \$totalConfirmedShakes, EventId: \$eventId")
+                        
+                        try {
+                            Log.d(TAG, "[SHAKE-3] onShakeListener entered for EventId: \$eventId")
+                            onShakeListener(eventId)
+                        } catch (e: Throwable) {
+                            Log.e(TAG, "[SHAKE-FATAL] Uncaught exception in onShakeListener for EventId: \$eventId", e)
+                        }
                     }
                 }
             }
@@ -513,7 +525,7 @@ class ShakeDetectionService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
-        Log.d(TAG, "ShakeDetectionService onStartCommand action=$action, startId=$startId, instance=$serviceInstanceId")
+        Log.d(TAG, "ShakeDetectionService onStartCommand action=\$action, startId=\$startId, instance=\$serviceInstanceId")
 
         when (action) {
             ACTION_STOP -> {
@@ -533,13 +545,13 @@ class ShakeDetectionService : Service() {
                     ShakeDetector.Sensitivity.NORMAL
                 }
                 shakeDetector?.sensitivity = sens
-                Log.d(TAG, "Updated shake detector sensitivity to: $sens")
+                Log.d(TAG, "Updated shake detector sensitivity to: \$sens")
             }
             ACTION_SET_BACKGROUND_ENABLED -> {
                 val bgEnabled = intent?.getBooleanExtra("backgroundEnabled", true) ?: true
                 val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 prefs.edit().putBoolean(KEY_BACKGROUND_ENABLED, bgEnabled).apply()
-                Log.d(TAG, "Updated background shake detection preference to: $bgEnabled")
+                Log.d(TAG, "Updated background shake detection preference to: \$bgEnabled")
             }
             else -> {
                 val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -558,7 +570,7 @@ class ShakeDetectionService : Service() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
-        Log.d(TAG, "ShakeDetectionService onTaskRemoved - App swiped away from Recents (instance=$serviceInstanceId)")
+        Log.d(TAG, "ShakeDetectionService onTaskRemoved - App swiped away from Recents (instance=\$serviceInstanceId)")
 
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val isServiceEnabled = prefs.getBoolean(KEY_SERVICE_ENABLED, true)
@@ -614,8 +626,8 @@ class ShakeDetectionService : Service() {
             ShakeDetector.Sensitivity.NORMAL
         }
 
-        shakeDetector = ShakeDetector(applicationContext) {
-            handleShakeTriggered()
+        shakeDetector = ShakeDetector(applicationContext) { eventId ->
+            handleShakeTriggered(eventId)
         }.apply {
             sensitivity = initialSensitivity
         }
@@ -681,7 +693,7 @@ class ShakeDetectionService : Service() {
             putString(KEY_SENSOR_VENDOR, sensorVendor)
         }.apply()
 
-        Log.d(TAG, "ShakeDetectionService registerListener result: $registered (SENSOR_DELAY_GAME, force=$force, handler=\${handler.looper.thread.name})")
+        Log.d(TAG, "ShakeDetectionService registerListener result: \$registered (SENSOR_DELAY_GAME, force=\$force, handler=\${handler.looper.thread.name})")
     }
 
     private fun stopListening() {
@@ -697,100 +709,106 @@ class ShakeDetectionService : Service() {
         Log.d(TAG, "ShakeDetectionService stopped listening on accelerometer")
     }
 
-    private fun handleShakeTriggered() {
-        Log.d(TAG, "Shake event triggered from ShakeDetectionService (instance=$serviceInstanceId)")
+    private fun handleShakeTriggered(eventId: String) {
+        try {
+            Log.d(TAG, "[SHAKE-4] handleShakeTriggered entered from ShakeDetectionService (instance=\$serviceInstanceId), EventId: \$eventId")
 
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val bgCallbacks = prefs.getLong(KEY_BG_SHAKE_CALLBACKS, 0L) + 1L
-        prefs.edit().putLong(KEY_BG_SHAKE_CALLBACKS, bgCallbacks).apply()
+            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val bgCallbacks = prefs.getLong(KEY_BG_SHAKE_CALLBACKS, 0L) + 1L
+            prefs.edit().putLong(KEY_BG_SHAKE_CALLBACKS, bgCallbacks).apply()
 
-        // Flush telemetry immediately on shake
-        ShakeDetector.flushTelemetry(applicationContext)
+            // Flush telemetry immediately on shake
+            ShakeDetector.flushTelemetry(applicationContext)
 
-        // 1. Check if PocketWise is actively RESUMED in foreground
-        val isForeground = PocketWiseShakeModule.isAppInForeground()
-        if (isForeground) {
-            val emittedToRN = PocketWiseShakeModule.emitShakeDetected()
-            if (emittedToRN) {
-                Log.d(TAG, "Foreground shake successfully handled by React Native modal")
+            // 1. Check if PocketWise is actively RESUMED in foreground
+            Log.d(TAG, "[SHAKE-5] Checking foreground state. EventId: \$eventId")
+            val isForeground = PocketWiseShakeModule.isAppInForeground()
+            if (isForeground) {
+                val emittedToRN = PocketWiseShakeModule.emitShakeDetected()
+                if (emittedToRN) {
+                    Log.d(TAG, "Foreground shake successfully handled by React Native modal. EventId: \$eventId")
+                    return
+                }
+            }
+
+            // 2. Direct Background Path: Native QuickExpenseActivity
+            val isBackgroundAllowed = prefs.getBoolean(KEY_BACKGROUND_ENABLED, true)
+            if (!isBackgroundAllowed) {
+                Log.d(TAG, "Background shake detection disabled by user preference. EventId: \$eventId")
                 return
             }
-        }
 
-        // 2. Direct Background Path: Native QuickExpenseActivity
-        val isBackgroundAllowed = prefs.getBoolean(KEY_BACKGROUND_ENABLED, true)
-        if (!isBackgroundAllowed) {
-            Log.d(TAG, "Background shake detection is disabled by user preference; ignoring background shake")
-            return
-        }
+            // Verify sensor listening state
+            startListening(force = false)
 
-        // Verify sensor listening state
-        startListening(force = false)
+            val canOverlay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                Settings.canDrawOverlays(this)
+            } else {
+                true
+            }
 
-        val canOverlay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Settings.canDrawOverlays(this)
-        } else {
-            true
-        }
+            Log.d(TAG, "[SHAKE-6] Background route selected. Overlay: \$canOverlay, EventId: \$eventId")
 
-        Log.d(TAG, "Background shake triggered. Overlay permission granted: $canOverlay")
+            val launchAttempts = prefs.getLong(KEY_POPUP_LAUNCH_ATTEMPTS, 0L) + 1L
+            val now = System.currentTimeMillis()
+            prefs.edit().apply {
+                putLong(KEY_POPUP_LAUNCH_ATTEMPTS, launchAttempts)
+                putLong(KEY_LAST_POPUP_LAUNCH_ATTEMPT, now)
+            }.apply()
 
-        val launchAttempts = prefs.getLong(KEY_POPUP_LAUNCH_ATTEMPTS, 0L) + 1L
-        val now = System.currentTimeMillis()
-        prefs.edit().apply {
-            putLong(KEY_POPUP_LAUNCH_ATTEMPTS, launchAttempts)
-            putLong(KEY_LAST_POPUP_LAUNCH_ATTEMPT, now)
-        }.apply()
+            Log.d(TAG, "[SHAKE-7] Attempting Activity Launch. EventId: \$eventId")
+            if (canOverlay) {
+                try {
+                    val popupIntent = Intent(this, QuickExpenseActivity::class.java).apply {
+                        addFlags(
+                            Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                            Intent.FLAG_ACTIVITY_SINGLE_TOP
+                        )
+                    }
 
-        if (canOverlay) {
-            try {
-                val popupIntent = Intent(this, QuickExpenseActivity::class.java).apply {
-                    addFlags(
-                        Intent.FLAG_ACTIVITY_NEW_TASK or
-                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                        Intent.FLAG_ACTIVITY_SINGLE_TOP
-                    )
+                    val options = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                        ActivityOptions.makeBasic().apply {
+                            setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
+                        }.toBundle()
+                    } else {
+                        null
+                    }
+
+                    if (options != null) {
+                        startActivity(popupIntent, options)
+                    } else {
+                        startActivity(popupIntent)
+                    }
+
+                    val successes = prefs.getLong(KEY_POPUP_LAUNCH_SUCCESSES, 0L) + 1L
+                    prefs.edit().apply {
+                        putLong(KEY_POPUP_LAUNCH_SUCCESSES, successes)
+                        putLong(KEY_LAST_POPUP_LAUNCH_SUCCESS, now)
+                        putString(KEY_LAST_POPUP_LAUNCH_ERROR, "None")
+                    }.apply()
+                    Log.d(TAG, "Successfully launched QuickExpenseActivity from background shake")
+                } catch (e: Throwable) {
+                    Log.e(TAG, "[SHAKE-FATAL] Failed to launch QuickExpenseActivity directly. EventId: \$eventId", e)
+                    val failures = prefs.getLong(KEY_POPUP_LAUNCH_FAILURES, 0L) + 1L
+                    val errorMsg = "\${e.javaClass.simpleName}: \${e.message ?: "Unknown error"}"
+                    prefs.edit().apply {
+                        putLong(KEY_POPUP_LAUNCH_FAILURES, failures)
+                        putString(KEY_LAST_POPUP_LAUNCH_ERROR, errorMsg)
+                    }.apply()
+                    showQuickExpenseNotification()
                 }
-
-                val options = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    ActivityOptions.makeBasic().apply {
-                        setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
-                    }.toBundle()
-                } else {
-                    null
-                }
-
-                if (options != null) {
-                    startActivity(popupIntent, options)
-                } else {
-                    startActivity(popupIntent)
-                }
-
-                val successes = prefs.getLong(KEY_POPUP_LAUNCH_SUCCESSES, 0L) + 1L
-                prefs.edit().apply {
-                    putLong(KEY_POPUP_LAUNCH_SUCCESSES, successes)
-                    putLong(KEY_LAST_POPUP_LAUNCH_SUCCESS, now)
-                    putString(KEY_LAST_POPUP_LAUNCH_ERROR, "None")
-                }.apply()
-                Log.d(TAG, "Successfully launched QuickExpenseActivity from background shake")
-            } catch (e: Throwable) {
-                Log.e(TAG, "Failed to launch QuickExpenseActivity directly", e)
+            } else {
+                Log.w(TAG, "Overlay permission not granted; falling back to high-priority notification. EventId: \$eventId")
                 val failures = prefs.getLong(KEY_POPUP_LAUNCH_FAILURES, 0L) + 1L
-                val errorMsg = "\${e.javaClass.simpleName}: \${e.message ?: "Unknown error"}"
                 prefs.edit().apply {
                     putLong(KEY_POPUP_LAUNCH_FAILURES, failures)
-                    putString(KEY_LAST_POPUP_LAUNCH_ERROR, errorMsg)
+                    putString(KEY_LAST_POPUP_LAUNCH_ERROR, "Overlay permission (SYSTEM_ALERT_WINDOW) not granted")
                 }.apply()
                 showQuickExpenseNotification()
             }
-        } else {
-            Log.w(TAG, "Overlay permission not granted; falling back to high-priority notification")
-            val failures = prefs.getLong(KEY_POPUP_LAUNCH_FAILURES, 0L) + 1L
-            prefs.edit().apply {
-                putLong(KEY_POPUP_LAUNCH_FAILURES, failures)
-                putString(KEY_LAST_POPUP_LAUNCH_ERROR, "Overlay permission (SYSTEM_ALERT_WINDOW) not granted")
-            }.apply()
-            showQuickExpenseNotification()
+        } catch (e: Throwable) {
+            Log.e(TAG, "[SHAKE-FATAL] Uncaught exception in handleShakeTriggered for EventId: \$eventId", e)
         }
     }
 
@@ -871,7 +889,7 @@ class ShakeDetectionService : Service() {
         isServiceRunning = false
         isSensorListening = false
         isDetectorActive = false
-        Log.d(TAG, "ShakeDetectionService destroyed (instance=$serviceInstanceId)")
+        Log.d(TAG, "ShakeDetectionService destroyed (instance=\$serviceInstanceId)")
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -1530,6 +1548,7 @@ class QuickExpenseActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.d(TAG, "[SHAKE-8] QuickExpenseActivity onCreate called")
         incrementLifecycleCount(KEY_POPUP_ON_CREATE, KEY_LAST_POPUP_ON_CREATE_MS)
         ShakeDetector.isPopupActive = true
 
@@ -1576,11 +1595,13 @@ class QuickExpenseActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        Log.d(TAG, "[SHAKE-9] QuickExpenseActivity onStart called")
         incrementLifecycleCount(KEY_POPUP_ON_START, null)
     }
 
     override fun onResume() {
         super.onResume()
+        Log.d(TAG, "[SHAKE-10] QuickExpenseActivity onResume called")
         incrementLifecycleCount(KEY_POPUP_ON_RESUME, KEY_LAST_POPUP_ON_RESUME_MS)
         incrementPopupLaunchSuccess()
         ShakeDetector.isPopupActive = true
@@ -1782,7 +1803,7 @@ class QuickExpenseActivity : AppCompatActivity() {
         )
 
         if (emitted) {
-            Log.d(TAG, "Expense submitted to active React Native bridge: ID=$txId, Amount=$minorAmount")
+            Log.d(TAG, "Expense submitted to active React Native bridge: ID=\$txId, Amount=\$minorAmount")
             playSuccessHaptic()
             dismissPopup()
             return
@@ -1853,11 +1874,11 @@ class QuickExpenseActivity : AppCompatActivity() {
                 put("date", dateStr)
             }
 
-            val txEndpoint = URL("$supabaseUrl/rest/v1/transactions")
+            val txEndpoint = URL("\$supabaseUrl/rest/v1/transactions")
             val conn = txEndpoint.openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
             conn.setRequestProperty("apikey", supabaseAnonKey)
-            conn.setRequestProperty("Authorization", "Bearer \${if (accessToken.isNotEmpty()) accessToken else supabaseAnonKey}")
+            conn.setRequestProperty("Authorization", "Bearer \\${if (accessToken.isNotEmpty()) accessToken else supabaseAnonKey}")
             conn.setRequestProperty("Content-Type", "application/json")
             conn.setRequestProperty("Prefer", "return=representation")
             conn.doOutput = true
@@ -1871,15 +1892,15 @@ class QuickExpenseActivity : AppCompatActivity() {
 
             val responseCode = conn.responseCode
             if (responseCode in 200..299) {
-                Log.d(TAG, "Successfully persisted transaction directly to Supabase. HTTP $responseCode")
+                Log.d(TAG, "Successfully persisted transaction directly to Supabase. HTTP \$responseCode")
 
                 // 2. Fetch current balance & update account balance
                 try {
-                    val accEndpoint = URL("$supabaseUrl/rest/v1/accounts?id=eq.$accountId&select=balance")
+                    val accEndpoint = URL("\$supabaseUrl/rest/v1/accounts?id=eq.\$accountId&select=balance")
                     val accConn = accEndpoint.openConnection() as HttpURLConnection
                     accConn.requestMethod = "GET"
                     accConn.setRequestProperty("apikey", supabaseAnonKey)
-                    accConn.setRequestProperty("Authorization", "Bearer \${if (accessToken.isNotEmpty()) accessToken else supabaseAnonKey}")
+                    accConn.setRequestProperty("Authorization", "Bearer \\${if (accessToken.isNotEmpty()) accessToken else supabaseAnonKey}")
                     accConn.connectTimeout = 5000
 
                     if (accConn.responseCode in 200..299) {
@@ -1889,10 +1910,10 @@ class QuickExpenseActivity : AppCompatActivity() {
                             val currBalance = accArr.getJSONObject(0).optLong("balance", 0L)
                             val newBalance = currBalance - amountMinor
 
-                            val patchConn = URL("$supabaseUrl/rest/v1/accounts?id=eq.$accountId").openConnection() as HttpURLConnection
+                            val patchConn = URL("\$supabaseUrl/rest/v1/accounts?id=eq.\$accountId").openConnection() as HttpURLConnection
                             patchConn.requestMethod = "PATCH"
                             patchConn.setRequestProperty("apikey", supabaseAnonKey)
-                            patchConn.setRequestProperty("Authorization", "Bearer \${if (accessToken.isNotEmpty()) accessToken else supabaseAnonKey}")
+                            patchConn.setRequestProperty("Authorization", "Bearer \\${if (accessToken.isNotEmpty()) accessToken else supabaseAnonKey}")
                             patchConn.setRequestProperty("Content-Type", "application/json")
                             patchConn.doOutput = true
 
@@ -1915,7 +1936,7 @@ class QuickExpenseActivity : AppCompatActivity() {
                 return true
             } else {
                 val errBody = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
-                Log.e(TAG, "Supabase HTTP error $responseCode: $errBody")
+                Log.e(TAG, "Supabase HTTP error \$responseCode: \$errBody")
                 return false
             }
         } catch (e: Exception) {
@@ -1970,7 +1991,7 @@ class QuickExpenseActivity : AppCompatActivity() {
                 }
             }.apply()
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to persist lifecycle count for $countKey", e)
+            Log.w(TAG, "Failed to persist lifecycle count for \$countKey", e)
         }
     }
 
