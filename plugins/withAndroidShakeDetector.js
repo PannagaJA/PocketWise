@@ -2687,7 +2687,6 @@ class ShakeBootReceiver : BroadcastReceiver() {
     <item name="android:backgroundDimEnabled">true</item>
     <item name="android:backgroundDimAmount">0.6</item>
     <item name="android:windowAnimationStyle">@android:style/Animation.Dialog</item>
-    <item name="android:windowGravity">bottom</item>
     <item name="android:windowMinWidthMajor">100%</item>
     <item name="android:windowMinWidthMinor">100%</item>
   </style>`;
