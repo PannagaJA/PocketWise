@@ -62,7 +62,7 @@ export default function ShakeSettingsScreen() {
   };
 
   const handleToggleEnabled = async (val: boolean) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     setEnabled(val);
     await shakeStorage.saveSettings({ enabled: val });
 
@@ -78,7 +78,7 @@ export default function ShakeSettingsScreen() {
   };
 
   const handleToggleBackground = async (val: boolean) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     setBackgroundEnabled(val);
     await shakeService.setBackgroundEnabled(val);
 
@@ -98,7 +98,7 @@ export default function ShakeSettingsScreen() {
   };
 
   const handleSelectSensitivity = async (s: ShakeSensitivity) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     setSensitivity(s);
     await shakeService.setSensitivity(s);
     const sDiag = await shakeService.getNativeServiceDiagnostics().catch(() => null);
@@ -106,7 +106,7 @@ export default function ShakeSettingsScreen() {
   };
 
   const handleRequestOverlay = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     try {
       await shakeService.requestOverlayPermission();
     } catch (e: any) {
@@ -115,7 +115,7 @@ export default function ShakeSettingsScreen() {
   };
 
   const handleSimulateShake = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); } catch {}
     try {
       await shakeService.simulateShake();
     } catch (e: any) {
@@ -124,7 +124,7 @@ export default function ShakeSettingsScreen() {
   };
 
   const handleRunSensorTest = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     setIsTestingSensor(true);
     setSensorTestResult(null);
     try {
@@ -141,7 +141,7 @@ export default function ShakeSettingsScreen() {
   };
 
   const refreshDiagnostics = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     setDiagnostics(shakeService.getDiagnostics());
     const isOverlayOk = await shakeService.checkOverlayPermission().catch(() => false);
     const isRunning = await shakeService.isServiceRunning().catch(() => false);
@@ -235,6 +235,7 @@ export default function ShakeSettingsScreen() {
           <View className="flex-row gap-2">
             {(['low', 'normal', 'high'] as ShakeSensitivity[]).map((level) => {
               const isSelected = sensitivity === level;
+              const label = level === 'low' ? 'Low' : level === 'normal' ? 'Normal' : 'High';
               return (
                 <TouchableOpacity
                   key={level}
@@ -242,16 +243,16 @@ export default function ShakeSettingsScreen() {
                   onPress={() => handleSelectSensitivity(level)}
                   className={`flex-1 py-3 px-2 rounded-xl items-center justify-center border ${
                     isSelected
-                      ? 'bg-zinc-900 border-zinc-900 shadow-sm'
+                      ? 'bg-zinc-900 border-zinc-900'
                       : 'bg-zinc-50 border-zinc-200'
                   }`}
                 >
                   <Text
-                    className={`text-xs font-bold capitalize ${
+                    className={`text-xs font-bold ${
                       isSelected ? 'text-white' : 'text-zinc-700'
                     }`}
                   >
-                    {level}
+                    {label}
                   </Text>
                 </TouchableOpacity>
               );

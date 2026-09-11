@@ -15,7 +15,7 @@ export const Input: React.FC<InputProps> = ({ label, error, containerClassName =
         placeholderTextColor="#9CA3AF"
         className={`w-full bg-white border ${
           error ? 'border-red-500' : 'border-zinc-200'
-        } rounded-xl px-4 py-3 text-base text-zinc-900 focus:border-zinc-900 ${className}`}
+        } rounded-xl px-4 py-3 text-base text-zinc-900 ${className}`}
         {...props}
       />
       {error && <Text className="text-xs text-red-500 mt-1 font-medium">{error}</Text>}
