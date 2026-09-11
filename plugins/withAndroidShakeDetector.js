@@ -1610,6 +1610,7 @@ class PocketWiseShakeModule(private val reactContext: ReactApplicationContext) :
 }
 `;
 
+
       // 2d. PocketWiseShakePackage.kt
       const shakePackageContent = `package com.pocketwise.app.shake
 
@@ -1663,6 +1664,8 @@ class QuickExpenseActivity : AppCompatActivity() {
 
     private lateinit var etAmount: EditText
     private lateinit var etDescription: EditText
+    private lateinit var layoutCustomReason: LinearLayout
+    private lateinit var etCustomReason: EditText
     private lateinit var spAccount: Spinner
     private lateinit var spCategory: Spinner
     private lateinit var btnDone: Button
@@ -1683,7 +1686,7 @@ class QuickExpenseActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val eventId = intent?.getStringExtra("shakeEventId") ?: ""
-        Log.d(TAG, "[SHAKE-8] QuickExpenseActivity onCreate called. EventId: \$eventId")
+        Log.d(TAG, "[SHAKE-8] QuickExpenseActivity onCreate called. EventId: $eventId")
         lastActiveEventId = eventId
         lastLifecycleEventTimestamp = System.currentTimeMillis()
         incrementLifecycleCount(KEY_POPUP_ON_CREATE, KEY_LAST_POPUP_ON_CREATE_MS)
@@ -1739,7 +1742,7 @@ class QuickExpenseActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         val eventId = intent.getStringExtra("shakeEventId") ?: ""
-        Log.d(TAG, "[SHAKE-8-NEW] QuickExpenseActivity onNewIntent called. EventId: \$eventId")
+        Log.d(TAG, "[SHAKE-8-NEW] QuickExpenseActivity onNewIntent called. EventId: $eventId")
         lastActiveEventId = eventId
         lastLifecycleEventTimestamp = System.currentTimeMillis()
         ShakeDetector.isPopupActive = true
@@ -1754,6 +1757,12 @@ class QuickExpenseActivity : AppCompatActivity() {
         }
         if (::etDescription.isInitialized) {
             etDescription.setText("")
+        }
+        if (::etCustomReason.isInitialized) {
+            etCustomReason.setText("")
+        }
+        if (::layoutCustomReason.isInitialized) {
+            layoutCustomReason.visibility = View.GONE
         }
         if (::tvError.isInitialized) {
             tvError.visibility = View.GONE
@@ -1802,6 +1811,8 @@ class QuickExpenseActivity : AppCompatActivity() {
         rootContainer = findViewById(R.id.rootContainer)
         etAmount = findViewById(R.id.etAmount)
         etDescription = findViewById(R.id.etDescription)
+        layoutCustomReason = findViewById(R.id.layoutCustomReason)
+        etCustomReason = findViewById(R.id.etCustomReason)
         spAccount = findViewById(R.id.spAccount)
         spCategory = findViewById(R.id.spCategory)
         btnDone = findViewById(R.id.btnDone)
@@ -1814,6 +1825,7 @@ class QuickExpenseActivity : AppCompatActivity() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
         // Load Accounts
+        accountList.clear()
         val accountsJsonStr = prefs.getString(KEY_ACCOUNTS, "[]") ?: "[]"
         try {
             val accountsArray = JSONArray(accountsJsonStr)
@@ -1864,6 +1876,7 @@ class QuickExpenseActivity : AppCompatActivity() {
         spAccount.adapter = accountAdapter
 
         // Load Categories
+        categoryList.clear()
         val categoriesJsonStr = prefs.getString(KEY_CATEGORIES, "[]") ?: "[]"
         try {
             val categoriesArray = JSONArray(categoriesJsonStr)
@@ -1886,6 +1899,11 @@ class QuickExpenseActivity : AppCompatActivity() {
             categoryList.add(CategoryItem("cat_food", "Food & Dining"))
             categoryList.add(CategoryItem("cat_groceries", "Groceries"))
             categoryList.add(CategoryItem("cat_shopping", "Shopping"))
+        }
+
+        // Ensure 'Others' option is always present
+        if (!categoryList.any { it.name.contains("other", ignoreCase = true) }) {
+            categoryList.add(CategoryItem("cat_others", "Others"))
         }
 
         val categoryAdapter = object : ArrayAdapter<String>(
@@ -1927,6 +1945,21 @@ class QuickExpenseActivity : AppCompatActivity() {
             dismissPopup()
         }
 
+        spCategory.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val selectedCat = categoryList.getOrNull(position)
+                val isOther = selectedCat?.name?.contains("other", ignoreCase = true) == true || selectedCat?.id == "cat_others"
+                if (::layoutCustomReason.isInitialized) {
+                    layoutCustomReason.visibility = if (isOther) View.VISIBLE else View.GONE
+                    if (isOther && ::etCustomReason.isInitialized) {
+                        etCustomReason.requestFocus()
+                    }
+                }
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+
         btnDone.setOnClickListener {
             handleDone()
         }
@@ -1937,6 +1970,7 @@ class QuickExpenseActivity : AppCompatActivity() {
 
         val rawAmount = etAmount.text.toString().trim()
         val description = etDescription.text.toString().trim()
+        val customReason = if (::etCustomReason.isInitialized) etCustomReason.text.toString().trim() else ""
 
         // Validation
         if (rawAmount.isEmpty()) {
@@ -1951,14 +1985,27 @@ class QuickExpenseActivity : AppCompatActivity() {
             return
         }
 
-        if (description.isEmpty()) {
-            showError("Please enter a description (e.g. Petrol)")
+        val selectedAccount = accountList.getOrNull(spAccount.selectedItemPosition) ?: accountList[0]
+        val selectedCategory = categoryList.getOrNull(spCategory.selectedItemPosition)
+        val isOther = selectedCategory?.name?.contains("other", ignoreCase = true) == true || selectedCategory?.id == "cat_others"
+
+        val finalDescription = if (isOther && customReason.isNotEmpty()) {
+            customReason
+        } else if (description.isNotEmpty()) {
+            description
+        } else if (isOther) {
+            "Others"
+        } else {
+            selectedCategory?.name ?: "Quick Expense"
+        }
+
+        if (finalDescription.isEmpty()) {
+            showError("Please enter a description or reason")
             return
         }
 
         val minorAmount = Math.round(parsedDouble * 100)
-        val selectedAccount = accountList.getOrNull(spAccount.selectedItemPosition) ?: accountList[0]
-        val selectedCategory = categoryList.getOrNull(spCategory.selectedItemPosition)
+        val categoryIdToSave = if (selectedCategory != null && selectedCategory.id != "cat_others") selectedCategory.id else null
 
         val txId = UUID.randomUUID().toString()
         val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
@@ -1969,14 +2016,14 @@ class QuickExpenseActivity : AppCompatActivity() {
         val emitted = PocketWiseShakeModule.emitExpenseSubmitted(
             id = txId,
             amountMinor = minorAmount,
-            description = description,
+            description = finalDescription,
             accountId = selectedAccount.id,
-            categoryId = selectedCategory?.id,
+            categoryId = categoryIdToSave,
             date = dateStr
         )
 
         if (emitted) {
-            Log.d(TAG, "Expense submitted to active React Native bridge: ID=\$txId, Amount=\$minorAmount")
+            Log.d(TAG, "Expense submitted to active React Native bridge: ID=$txId, Amount=$minorAmount")
             playSuccessHaptic()
             dismissPopup()
             return
@@ -1988,9 +2035,9 @@ class QuickExpenseActivity : AppCompatActivity() {
             val success = persistExpenseDirectly(
                 txId = txId,
                 amountMinor = minorAmount,
-                description = description,
+                description = finalDescription,
                 accountId = selectedAccount.id,
-                categoryId = selectedCategory?.id,
+                categoryId = categoryIdToSave,
                 dateStr = dateStr
             )
 
@@ -2049,7 +2096,7 @@ class QuickExpenseActivity : AppCompatActivity() {
 
             val authHeader = "Bearer " + (if (accessToken.isNotEmpty()) accessToken else supabaseAnonKey)
 
-            val txEndpoint = URL("\$supabaseUrl/rest/v1/transactions")
+            val txEndpoint = URL("$supabaseUrl/rest/v1/transactions")
             val conn = txEndpoint.openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
             conn.setRequestProperty("apikey", supabaseAnonKey)
@@ -2067,11 +2114,11 @@ class QuickExpenseActivity : AppCompatActivity() {
 
             val responseCode = conn.responseCode
             if (responseCode in 200..299) {
-                Log.d(TAG, "Successfully persisted transaction directly to Supabase. HTTP \$responseCode")
+                Log.d(TAG, "Successfully persisted transaction directly to Supabase. HTTP $responseCode")
 
                 // 2. Fetch current balance & update account balance
                 try {
-                    val accEndpoint = URL("\$supabaseUrl/rest/v1/accounts?id=eq.\$accountId&select=balance")
+                    val accEndpoint = URL("$supabaseUrl/rest/v1/accounts?id=eq.$accountId&select=balance")
                     val accConn = accEndpoint.openConnection() as HttpURLConnection
                     accConn.requestMethod = "GET"
                     accConn.setRequestProperty("apikey", supabaseAnonKey)
@@ -2085,7 +2132,7 @@ class QuickExpenseActivity : AppCompatActivity() {
                             val currBalance = accArr.getJSONObject(0).optLong("balance", 0L)
                             val newBalance = currBalance - amountMinor
 
-                            val patchConn = URL("\$supabaseUrl/rest/v1/accounts?id=eq.\$accountId").openConnection() as HttpURLConnection
+                            val patchConn = URL("$supabaseUrl/rest/v1/accounts?id=eq.$accountId").openConnection() as HttpURLConnection
                             patchConn.requestMethod = "PATCH"
                             patchConn.setRequestProperty("apikey", supabaseAnonKey)
                             patchConn.setRequestProperty("Authorization", authHeader)
@@ -2111,7 +2158,7 @@ class QuickExpenseActivity : AppCompatActivity() {
                 return true
             } else {
                 val errBody = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
-                Log.e(TAG, "Supabase HTTP error \$responseCode: \$errBody")
+                Log.e(TAG, "Supabase HTTP error $responseCode: $errBody")
                 return false
             }
         } catch (e: Exception) {
@@ -2166,7 +2213,7 @@ class QuickExpenseActivity : AppCompatActivity() {
                 }
             }.apply()
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to persist lifecycle count for \$countKey", e)
+            Log.w(TAG, "Failed to persist lifecycle count for $countKey", e)
         }
     }
 
@@ -2438,10 +2485,43 @@ class ShakeBootReceiver : BroadcastReceiver() {
             android:id="@+id/spCategory"
             android:layout_width="match_parent"
             android:layout_height="48dp"
-            android:layout_marginBottom="16dp"
+            android:layout_marginBottom="14dp"
             android:background="@drawable/bg_input_field"
             android:paddingHorizontal="10dp"
             android:spinnerMode="dropdown" />
+
+        <!-- Custom Reason Section (Visible when 'Others' is selected) -->
+        <LinearLayout
+            android:id="@+id/layoutCustomReason"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="14dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="6dp"
+                android:text="CUSTOM REASON / NOTE"
+                android:textColor="#F59E0B"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <EditText
+                android:id="@+id/etCustomReason"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:background="@drawable/bg_input_field"
+                android:hint="e.g. Doctor fees, Bike service, Gift"
+                android:inputType="textCapSentences"
+                android:maxLines="1"
+                android:paddingHorizontal="14dp"
+                android:singleLine="true"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#71717A"
+                android:textSize="14sp" />
+        </LinearLayout>
 
         <!-- Inline Error Message -->
         <TextView
@@ -2481,6 +2561,7 @@ class ShakeBootReceiver : BroadcastReceiver() {
     </LinearLayout>
 </FrameLayout>
 `;
+
       fs.writeFileSync(path.join(resLayoutDir, 'activity_quick_expense.xml'), layoutContent);
 
       // 2h. XML Drawables

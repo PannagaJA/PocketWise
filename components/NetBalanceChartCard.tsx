@@ -11,12 +11,14 @@ export type TimePeriod = 'Day' | 'Month' | 'Year';
 
 interface AccountItem {
   id: string;
+  name?: string;
   balance: number;
 }
 
 interface NetBalanceChartCardProps {
   accounts: AccountItem[];
   transactions: Transaction[];
+  selectedAccountId?: string;
   isLoading?: boolean;
 }
 
@@ -26,7 +28,7 @@ const PADDING_Y = 14;
 const PADDING_X = 12;
 const DWELL_HOLD_MS = 1000; // Hold readout for 1 second on touch release
 
-export function NetBalanceChartCard({ accounts, transactions, isLoading }: NetBalanceChartCardProps) {
+export function NetBalanceChartCard({ accounts, transactions, selectedAccountId, isLoading }: NetBalanceChartCardProps) {
   const [period, setPeriod] = useState<TimePeriod>('Month');
   const [activeTouchPos, setActiveTouchPos] = useState<number | null>(null);
   const chartLayoutWidthRef = useRef<number>(SVG_WIDTH);
@@ -41,10 +43,27 @@ export function NetBalanceChartCard({ accounts, transactions, isLoading }: NetBa
     }
   };
 
-  // 1. Compute Current Total Net Balance
+  // Selected Account resolution
+  const selectedAccount = useMemo(() => {
+    if (!selectedAccountId || selectedAccountId === 'all') return null;
+    return accounts.find((a) => a.id === selectedAccountId) || null;
+  }, [accounts, selectedAccountId]);
+
+  // 1. Compute Current Net Balance (Selected Bank vs All Accounts)
   const totalBalance = useMemo(() => {
+    if (selectedAccount) {
+      return selectedAccount.balance || 0;
+    }
     return accounts.reduce((sum, a) => sum + (a.balance || 0), 0);
-  }, [accounts]);
+  }, [accounts, selectedAccount]);
+
+  // Filter transactions for selected account
+  const activeTransactions = useMemo(() => {
+    if (selectedAccountId && selectedAccountId !== 'all') {
+      return transactions.filter((t) => t.account_id === selectedAccountId);
+    }
+    return transactions;
+  }, [transactions, selectedAccountId]);
 
   // 2. Build Time Series Data Points (Net Balance + Red Spent Graph)
   const chartPoints = useMemo(() => {
@@ -56,7 +75,7 @@ export function NetBalanceChartCard({ accounts, transactions, isLoading }: NetBa
     let rawPoints: { timestamp: number; dateLabel: string; subLabel: string; balance: number; spent: number; delta: number }[] = [];
 
     // Clean and sort valid transactions chronologically
-    const sortedTxs = [...transactions]
+    const sortedTxs = [...activeTransactions]
       .filter((t) => t.date && !isNaN(new Date(t.date).getTime()))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -460,7 +479,11 @@ export function NetBalanceChartCard({ accounts, transactions, isLoading }: NetBa
       <View className="flex-row justify-between items-start mb-2">
         <View className="flex-1 mr-2">
           <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
-            {activeInterpolatedState ? activeInterpolatedState.dateLabel : 'Net Total Balance'}
+            {activeInterpolatedState
+              ? activeInterpolatedState.dateLabel
+              : selectedAccount
+              ? `${selectedAccount.name || 'Bank'} Balance`
+              : 'Net Total Balance'}
           </Text>
 
           <View className="flex-row items-baseline gap-2 mt-1">

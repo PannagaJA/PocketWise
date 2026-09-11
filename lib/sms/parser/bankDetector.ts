@@ -14,14 +14,17 @@ export function identifyBank(
   accountMappings: AccountMapping[] = [],
   extractedAccount?: string
 ): { bank: BankDefinition | null; confidence: number; method: string } {
-  const normSender = (sender || '').toUpperCase();
-  const normBody = (body || '').toUpperCase();
+  const normSender = (sender || '').trim().toUpperCase();
+  const normBody = (body || '').trim().toUpperCase();
 
   // 1. Account Mapping (Highest Priority Signal if matching account found)
   if (extractedAccount && accountMappings.length > 0) {
     const normExtracted = extractedAccount.toUpperCase();
+    const cleanExtractedDigits = normExtracted.replace(/\D/g, '');
     const mapped = accountMappings.find(
-      (m) => m.maskedAccount.toUpperCase() === normExtracted || normExtracted.endsWith(m.maskedAccount.replace(/\D/g, ''))
+      (m) =>
+        m.maskedAccount.toUpperCase() === normExtracted ||
+        (cleanExtractedDigits.length >= 3 && cleanExtractedDigits.endsWith(m.maskedAccount.replace(/\D/g, '')))
     );
 
     if (mapped) {
@@ -32,28 +35,52 @@ export function identifyBank(
     }
   }
 
-  // 2. Sender ID Matching
+  // 2. Sender ID Matching with registered patterns
   for (const bank of INDIAN_BANKS) {
     for (const pattern of bank.senderPatterns) {
       if (pattern.test(normSender)) {
-        return { bank, confidence: 90, method: 'sender_id' };
+        return { bank, confidence: 95, method: 'sender_id' };
       }
     }
   }
 
-  // 3. Explicit Bank Name In Message Body
+  // 3. Explicit Bank Name / Keywords in Message Body
   for (const bank of INDIAN_BANKS) {
     for (const pattern of bank.messagePatterns) {
       if (pattern.test(normBody)) {
-        return { bank, confidence: 80, method: 'body_explicit' };
+        return { bank, confidence: 90, method: 'body_explicit' };
       }
     }
   }
 
-  // 4. Sender ID Prefix extraction fallback (e.g., AD-KOTAKB, VM-HDFCBK, AX-PAYTM, VK-CITIBK)
+  // 4. UPI VPA Handle Extraction (e.g. UPI/P2A/.../@barodampay, @cnrb, @okhdfcbank, @oksbi)
+  const vpaMatch = /@([A-Z0-9.\-_]+)/i.exec(body);
+  if (vpaMatch && vpaMatch[1]) {
+    const handle = vpaMatch[1].toLowerCase();
+    for (const bank of INDIAN_BANKS) {
+      for (const pattern of bank.messagePatterns) {
+        if (pattern.test(handle)) {
+          return { bank, confidence: 85, method: 'upi_vpa_handle' };
+        }
+      }
+    }
+  }
+
+  // 5. Sender ID Token Parsing (e.g., AD-KOTAKB, VM-HDFCBK, VK-BOBTXN, AD-CANBNK, BZ-CANARA)
   const senderMatch = /^[A-Z]{2}-([A-Z0-9]+)$/i.exec(normSender);
   if (senderMatch && senderMatch[1]) {
-    const rawBankCode = senderMatch[1];
+    const rawBankCode = senderMatch[1].toUpperCase();
+
+    // Check if rawBankCode matches any bank keywords
+    for (const bank of INDIAN_BANKS) {
+      if (
+        rawBankCode.includes(bank.shortName.toUpperCase()) ||
+        rawBankCode.includes(bank.id.toUpperCase())
+      ) {
+        return { bank, confidence: 80, method: 'sender_token_match' };
+      }
+    }
+
     return {
       bank: {
         id: rawBankCode.toLowerCase(),
@@ -68,7 +95,7 @@ export function identifyBank(
     };
   }
 
-  // 5. UNKNOWN Bank Fallback
+  // 6. UNKNOWN Bank Fallback
   return {
     bank: null,
     confidence: 0,

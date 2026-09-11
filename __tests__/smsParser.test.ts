@@ -203,4 +203,69 @@ describe('Android Bank SMS Transaction Auto-Detection Parser Pipeline', () => {
     expect(parsed?.bankId).toBe('bob');
     expect(parsed?.upiReference).toBe('846395257524');
   });
+
+  // Test 13: Canara Bank Debit SMS
+  test('13. Parses Canara Bank debit SMS correctly', () => {
+    const sms: RawSMS = {
+      sender: 'AD-CANBNK-S',
+      body: 'Your A/C XX4321 debited with INR 200.00 on 11-09-2026 via UPI Ref 523910482910. Avl Bal: INR 4500.00. - Canara Bank',
+      timestamp: Date.now(),
+    };
+
+    const parsed = parseBankSms(sms);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.type).toBe('expense');
+    expect(parsed?.amount).toBe(200.00);
+    expect(parsed?.bankId).toBe('canara');
+    expect(parsed?.maskedAccount).toBe('XX4321');
+  });
+
+  // Test 14: Bank detection from UPI VPA handle (@barodampay, @cnrb, @oksbi)
+  test('14. Identifies bank correctly from UPI VPA handles in message', () => {
+    const bankBob = identifyBank('VM-ALERT', 'Paid Rs.150 to merchant@barodampay on 11-09-2026');
+    expect(bankBob?.bank?.id).toBe('bob');
+
+    const bankCanara = identifyBank('VK-ALERT', 'Received Rs.300 from friend@cnrb for dinner');
+    expect(bankCanara?.bank?.id).toBe('canara');
+
+    const bankSbi = identifyBank('JX-ALERT', 'Transferred Rs.500 to user@oksbi via GooglePay');
+    expect(bankSbi?.bank?.id).toBe('sbi');
+  });
+
+  // Test 15: Deduplication with persistent reference numbers & fingerprints
+  test('15. Deduplicates identical transaction with same fingerprint even with slight whitespace variation', () => {
+    const existing = [
+      {
+        account_id: 'acc_bob',
+        type: 'expense',
+        amount_minor: 10000,
+        currency: 'INR',
+        date: '2026-09-11',
+        description: 'Paid to merchant',
+        notes: 'UPI Ref 123456789012',
+      },
+    ];
+
+    const duplicateIncoming: ParsedSmsTransaction = {
+      smsSender: 'BOBSMS',
+      type: 'expense',
+      amount: 100,
+      amountMinor: 10000,
+      currency: 'INR',
+      bankId: 'bob',
+      bankName: 'Bank of Baroda',
+      paymentMethod: 'UPI',
+      category: 'General',
+      transactionDate: '2026-09-11T12:00:00.000Z',
+      referenceNumber: '123456789012',
+      confidenceScore: 95,
+      isSalary: false,
+      isRefund: false,
+      isTransfer: false,
+      isAutoDetected: true,
+      needsReview: false,
+    };
+
+    expect(isDuplicateTransaction(duplicateIncoming, existing)).toBe(true);
+  });
 });

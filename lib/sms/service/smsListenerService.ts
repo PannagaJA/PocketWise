@@ -171,7 +171,7 @@ class SmsListenerService {
    * Process an incoming raw SMS object through the local pipeline.
    */
   async processIncomingSms(rawSms: RawSMS): Promise<ParsedSmsTransaction | null> {
-    // Avoid double processing exact same SMS ID
+    // 1. In-memory exact SMS ID check
     if (rawSms.id && this.processedSmsIds.has(rawSms.id)) {
       return null;
     }
@@ -187,19 +187,44 @@ class SmsListenerService {
     const parsedTx = parseBankSms(rawSms, accountMappings, learnedCategories);
     if (!parsedTx) return null;
 
-    // Check duplicate against store transactions
-    const appState = useAppStore.getState();
-    const existingParsed = appState.transactions.map((t) => ({
-      ...t,
-      amountMinor: t.amount,
-      transactionDate: t.date,
-      bankId: t.account_id,
-    })) as unknown as ParsedSmsTransaction[];
-
-    if (isDuplicateTransaction(parsedTx, existingParsed)) {
-      console.log('[SMS Parser] Duplicate transaction ignored:', parsedTx.referenceNumber || parsedTx.amount);
+    // 2. Persistent Reference / UTR deduplication check
+    if (parsedTx.referenceNumber && (await smsStorage.isRefIdProcessed(parsedTx.referenceNumber))) {
+      console.log('[SMS Parser] Duplicate referenceNumber ignored:', parsedTx.referenceNumber);
       return null;
     }
+    if (parsedTx.upiReference && (await smsStorage.isRefIdProcessed(parsedTx.upiReference))) {
+      console.log('[SMS Parser] Duplicate upiReference ignored:', parsedTx.upiReference);
+      return null;
+    }
+
+    // 3. Check duplicate against pending reviews queue
+    const pendingReviews = await smsStorage.getPendingReviews();
+    if (isDuplicateTransaction(parsedTx, pendingReviews)) {
+      console.log('[SMS Parser] Duplicate pending review ignored:', parsedTx.referenceNumber || parsedTx.amount);
+      return null;
+    }
+
+    // 4. Check duplicate against active Supabase DB transactions for logged-in user
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      const userId = authData?.user?.id;
+      if (userId) {
+        const txDateStr = parsedTx.transactionDate ? parsedTx.transactionDate.split('T')[0] : new Date().toISOString().split('T')[0];
+        const recentTxs = await transactionService.getTransactions(userId, 100);
+        if (isDuplicateTransaction(parsedTx, recentTxs)) {
+          console.log('[SMS Parser] Duplicate Supabase transaction ignored:', parsedTx.referenceNumber || parsedTx.amount);
+          if (parsedTx.referenceNumber) await smsStorage.markRefIdProcessed(parsedTx.referenceNumber);
+          if (parsedTx.upiReference) await smsStorage.markRefIdProcessed(parsedTx.upiReference);
+          return null;
+        }
+      }
+    } catch (e) {
+      console.warn('[SMS Parser] Non-fatal DB duplicate check error:', e);
+    }
+
+    // Mark reference ID as processed
+    if (parsedTx.referenceNumber) await smsStorage.markRefIdProcessed(parsedTx.referenceNumber);
+    if (parsedTx.upiReference) await smsStorage.markRefIdProcessed(parsedTx.upiReference);
 
     // Update statistics count
     await smsStorage.incrementDetectedCount();

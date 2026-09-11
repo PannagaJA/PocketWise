@@ -26,6 +26,8 @@ import { smsListenerService } from '../../lib/sms/service/smsListenerService';
 import { ParsedSmsTransaction } from '../../lib/sms/types';
 import { NetBalanceChartCard } from '../../components/NetBalanceChartCard';
 
+import { shakeService } from '../../lib/shake/shakeService';
+
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 function SwipeableNotificationItem({
@@ -97,6 +99,7 @@ export default function DashboardScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  const [selectedBankId, setSelectedBankId] = useState<string>('all');
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const [smsOnboardingVisible, setSmsOnboardingVisible] = useState(false);
   const [pendingReviews, setPendingReviews] = useState<ParsedSmsTransaction[]>([]);
@@ -152,7 +155,7 @@ export default function DashboardScreen() {
     enabled: !!user?.id,
   });
 
-  // Automatically refresh queries whenever returning to the Dashboard tab
+  // Automatically refresh queries and sync accounts to native whenever returning to the Dashboard tab
   useFocusEffect(
     useCallback(() => {
       if (user?.id) {
@@ -161,6 +164,7 @@ export default function DashboardScreen() {
         refetchBills();
         refetchGoals();
         refetchReminders();
+        shakeService.syncUserDataToNative(user.id);
 
         if (transactions.length > 0) {
           const currentMonth = new Date().toISOString().substring(0, 7);
@@ -172,8 +176,6 @@ export default function DashboardScreen() {
       }
     }, [user?.id, refetchAcc, refetchTx, refetchBills, refetchGoals, refetchReminders, transactions])
   );
-
-
 
   const upcomingBills = bills.filter((b) => !b.is_paid).slice(0, 3);
   const activeGoals = goals.slice(0, 2);
@@ -187,13 +189,11 @@ export default function DashboardScreen() {
     .filter((t) => t.type === 'expense')
     .reduce((sum, t) => sum + t.amount_minor, 0);
 
-
-
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       <ScrollView className="flex-1 px-4 pt-2" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 110 }}>
         {/* Header */}
-        <View className="flex-row justify-between items-center mb-6">
+        <View className="flex-row justify-between items-center mb-5">
           <View>
             <Text className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Welcome back</Text>
             <Text className="text-2xl font-black text-zinc-900 mt-0.5">
@@ -214,8 +214,100 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Bank Selector Horizontal Pill Bar */}
+        {accounts.length > 0 && (
+          <View className="mb-4">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row gap-2">
+              {/* All Accounts Pill */}
+              <TouchableOpacity
+                onPress={() => {
+                  try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                  setSelectedBankId('all');
+                }}
+                className={`flex-row items-center gap-2 px-3.5 py-2 rounded-2xl border mr-2 ${
+                  selectedBankId === 'all'
+                    ? 'bg-zinc-900 border-zinc-900 shadow-sm'
+                    : 'bg-white border-zinc-200'
+                }`}
+              >
+                <Wallet size={14} color={selectedBankId === 'all' ? '#10B981' : '#71717A'} />
+                <Text
+                  className={`text-xs font-bold ${
+                    selectedBankId === 'all' ? 'text-white' : 'text-zinc-700'
+                  }`}
+                >
+                  All Accounts
+                </Text>
+                <View
+                  className={`px-1.5 py-0.5 rounded-full ${
+                    selectedBankId === 'all' ? 'bg-zinc-800' : 'bg-zinc-100'
+                  }`}
+                >
+                  <Text
+                    className={`text-[10px] font-extrabold ${
+                      selectedBankId === 'all' ? 'text-emerald-400' : 'text-zinc-600'
+                    }`}
+                  >
+                    {formatMoney(totalBalance)}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Individual Bank Pills */}
+              {accounts.map((acc) => {
+                const isSelected = selectedBankId === acc.id;
+                return (
+                  <TouchableOpacity
+                    key={acc.id}
+                    onPress={() => {
+                      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                      setSelectedBankId(acc.id);
+                    }}
+                    className={`flex-row items-center gap-2 px-3.5 py-2 rounded-2xl border mr-2 ${
+                      isSelected
+                        ? 'bg-zinc-900 border-zinc-900 shadow-sm'
+                        : 'bg-white border-zinc-200'
+                    }`}
+                  >
+                    <View
+                      style={{ backgroundColor: acc.color || '#6366F1' }}
+                      className="w-2.5 h-2.5 rounded-full"
+                    />
+                    <Text
+                      className={`text-xs font-bold ${
+                        isSelected ? 'text-white' : 'text-zinc-700'
+                      }`}
+                      numberOfLines={1}
+                    >
+                      {acc.name}
+                    </Text>
+                    <View
+                      className={`px-1.5 py-0.5 rounded-full ${
+                        isSelected ? 'bg-zinc-800' : 'bg-zinc-100'
+                      }`}
+                    >
+                      <Text
+                        className={`text-[10px] font-extrabold ${
+                          isSelected ? 'text-emerald-400' : 'text-zinc-600'
+                        }`}
+                      >
+                        {formatMoney(acc.balance || 0)}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
         {/* Net Total Balance Interactive Live Growth Chart Card */}
-        <NetBalanceChartCard accounts={accounts} transactions={transactions} isLoading={loadingAcc} />
+        <NetBalanceChartCard
+          accounts={accounts}
+          transactions={transactions}
+          selectedAccountId={selectedBankId}
+          isLoading={loadingAcc}
+        />
 
         {/* Pending SMS Transaction Review Alert Banner */}
         {pendingReviews.length > 0 && (
@@ -268,21 +360,43 @@ export default function DashboardScreen() {
         {/* Recent 5 Transactions Widget */}
         <View className="mb-6">
           <View className="flex-row justify-between items-center mb-3">
-            <Text className="text-base font-bold text-zinc-900">Recent Transactions</Text>
+            <View className="flex-row items-center gap-2">
+              <Text className="text-base font-bold text-zinc-900">Recent Transactions</Text>
+              {selectedBankId !== 'all' && (
+                <View className="px-2 py-0.5 bg-zinc-100 rounded-full">
+                  <Text className="text-[10px] font-bold text-zinc-600">
+                    {accounts.find((a) => a.id === selectedBankId)?.name || 'Filtered'}
+                  </Text>
+                </View>
+              )}
+            </View>
             <Pressable onPress={() => router.push('/(tabs)/transactions' as any)}>
               <Text className="text-xs font-bold text-indigo-600">See All</Text>
             </Pressable>
           </View>
-          {transactions.length === 0 ? (
-            <Card className="p-6 bg-white border border-zinc-200 items-center rounded-2xl">
-              <Text className="text-sm font-semibold text-zinc-700">No recent transactions</Text>
-              <Text className="text-xs text-zinc-400 mt-0.5 mb-3 text-center">Your latest 5 financial activities will show here.</Text>
-              <Button size="sm" variant="primary" onPress={() => router.push('/(tabs)/transactions' as any)}>
-                <Text className="text-white font-semibold text-xs">Add Transaction</Text>
-              </Button>
-            </Card>
-          ) : (
-            transactions.slice(0, 5).map((tx) => (
+          {(() => {
+            const filteredTxs =
+              selectedBankId === 'all'
+                ? transactions
+                : transactions.filter((t) => t.account_id === selectedBankId);
+
+            if (filteredTxs.length === 0) {
+              return (
+                <Card className="p-6 bg-white border border-zinc-200 items-center rounded-2xl">
+                  <Text className="text-sm font-semibold text-zinc-700">No transactions found</Text>
+                  <Text className="text-xs text-zinc-400 mt-0.5 mb-3 text-center">
+                    {selectedBankId === 'all'
+                      ? 'Your latest financial activities will show here.'
+                      : `No transactions recorded for ${accounts.find((a) => a.id === selectedBankId)?.name || 'this bank'}.`}
+                  </Text>
+                  <Button size="sm" variant="primary" onPress={() => router.push('/(tabs)/transactions' as any)}>
+                    <Text className="text-white font-semibold text-xs">Add Transaction</Text>
+                  </Button>
+                </Card>
+              );
+            }
+
+            return filteredTxs.slice(0, 5).map((tx) => (
               <Card key={tx.id} className="mb-2.5 p-3.5 bg-white border border-zinc-200 rounded-2xl">
                 <View className="flex-row items-center justify-between">
                   <View className="flex-row items-center flex-1 pr-3">
@@ -315,8 +429,8 @@ export default function DashboardScreen() {
                   </View>
                 </View>
               </Card>
-            ))
-          )}
+            ));
+          })()}
         </View>
 
         {/* Upcoming Bills Widget */}

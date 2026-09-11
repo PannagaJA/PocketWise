@@ -102,4 +102,32 @@ export const smsStorage = {
     await this.saveSettings({ totalDetectedCount: newCount });
     return newCount;
   },
+
+  // Processed Reference & Fingerprint Tracker for Strict Deduplication
+  async getProcessedRefIds(): Promise<string[]> {
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEYS.PROCESSED_REF_IDS);
+      if (data) return JSON.parse(data);
+    } catch {
+      // Ignore
+    }
+    return [];
+  },
+
+  async isRefIdProcessed(refId: string): Promise<boolean> {
+    if (!refId) return false;
+    const list = await this.getProcessedRefIds();
+    return list.includes(refId.toUpperCase().trim());
+  },
+
+  async markRefIdProcessed(refId: string): Promise<void> {
+    if (!refId) return;
+    const clean = refId.toUpperCase().trim();
+    const current = await this.getProcessedRefIds();
+    if (!current.includes(clean)) {
+      // Keep last 500 reference IDs to avoid unbounded growth
+      const updated = [clean, ...current.slice(0, 499)];
+      await AsyncStorage.setItem(STORAGE_KEYS.PROCESSED_REF_IDS, JSON.stringify(updated));
+    }
+  },
 };

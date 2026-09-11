@@ -17,6 +17,7 @@ export function QuickExpenseModal() {
   const [visible, setVisible] = useState(false);
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
+  const [customReason, setCustomReason] = useState('');
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -39,7 +40,14 @@ export function QuickExpenseModal() {
     enabled: !!user?.id,
   });
 
-  const expenseCategories = categories.filter((c) => c.type === 'expense');
+  // Ensure 'Others' option is always available in category list
+  const expenseCategories = React.useMemo(() => {
+    const list = categories.filter((c) => c.type === 'expense');
+    if (!list.some((c) => c.name.toLowerCase().includes('other'))) {
+      return [...list, { id: 'cat_others', name: 'Others', type: 'expense' as const, user_id: user?.id || '' }];
+    }
+    return list;
+  }, [categories, user?.id]);
 
   useEffect(() => {
     // Subscribe to in-app shake events
@@ -52,6 +60,7 @@ export function QuickExpenseModal() {
   const openModal = () => {
     setAmount('');
     setDescription('');
+    setCustomReason('');
     setErrorMessage('');
     setSelectedAccountId(accounts[0]?.id || '');
     setSelectedCategoryId(expenseCategories[0]?.id || '');
@@ -74,6 +83,9 @@ export function QuickExpenseModal() {
     shakeService.setModalOpen(false);
   };
 
+  const selectedCat = expenseCategories.find((c) => c.id === selectedCategoryId) || expenseCategories[0];
+  const isOtherSelected = selectedCat?.name?.toLowerCase().includes('other') || selectedCategoryId === 'cat_others';
+
   const createExpenseMutation = useMutation({
     mutationFn: async () => {
       setErrorMessage('');
@@ -81,9 +93,15 @@ export function QuickExpenseModal() {
       if (minorAmount <= 0) {
         throw new Error('Please enter an amount greater than ₹0');
       }
-      if (!description.trim()) {
-        throw new Error('Please enter a description (e.g. Petrol)');
+
+      const finalDesc = isOtherSelected && customReason.trim()
+        ? customReason.trim()
+        : description.trim() || selectedCat?.name || 'Quick Expense';
+
+      if (!finalDesc) {
+        throw new Error('Please enter a description or reason');
       }
+
       const targetAccountId = selectedAccountId || accounts[0]?.id;
       if (!targetAccountId) {
         throw new Error('No account found. Please create an account first.');
@@ -95,8 +113,9 @@ export function QuickExpenseModal() {
         type: 'expense',
         amount_minor: minorAmount,
         currency: 'INR',
-        category_id: selectedCategoryId || undefined,
-        description: description.trim(),
+        category_id: selectedCategoryId && selectedCategoryId !== 'cat_others' ? selectedCategoryId : undefined,
+        description: finalDesc,
+        notes: customReason.trim() || undefined,
         date: new Date().toISOString().split('T')[0],
       });
     },
@@ -116,7 +135,6 @@ export function QuickExpenseModal() {
   });
 
   const selectedAcc = accounts.find((a) => a.id === selectedAccountId) || accounts[0];
-  const selectedCat = expenseCategories.find((c) => c.id === selectedCategoryId) || expenseCategories[0];
 
   return (
     <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={closeModal}>
@@ -247,6 +265,23 @@ export function QuickExpenseModal() {
                       </ScrollView>
                     </View>
                   )}
+                </View>
+              )}
+
+              {/* Custom Reason Field when 'Others' is selected */}
+              {isOtherSelected && (
+                <View className="mb-4">
+                  <Text className="text-[11px] font-bold text-amber-400 uppercase tracking-widest mb-1.5">Custom Reason / Note</Text>
+                  <View className="bg-zinc-800 border border-amber-500/50 rounded-2xl px-4 py-3">
+                    <TextInput
+                      placeholder="e.g. Doctor fees, Bike service, Gift"
+                      placeholderTextColor="#71717A"
+                      value={customReason}
+                      onChangeText={setCustomReason}
+                      className="text-sm font-medium text-white p-0"
+                      autoFocus
+                    />
+                  </View>
                 </View>
               )}
 
