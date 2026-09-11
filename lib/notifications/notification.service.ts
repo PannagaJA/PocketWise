@@ -15,22 +15,22 @@ import { supabase } from '../supabase';
 
 const isExpoGo = Constants?.executionEnvironment === ExecutionEnvironment.StoreClient;
 
+// Always load expo-notifications — it works in dev builds and production APKs.
+// In Expo Go the scheduleNotificationAsync calls will simply fail gracefully.
 let Notifications: any = null;
-if (!isExpoGo) {
-  try {
-    Notifications = require('expo-notifications');
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-        shouldShowBanner: true,
-        shouldShowList: true,
-      }),
-    });
-  } catch {
-    Notifications = null;
-  }
+try {
+  Notifications = require('expo-notifications');
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+} catch {
+  Notifications = null;
 }
 
 export type NotificationCategory =
@@ -58,8 +58,8 @@ export const notificationService = {
    */
   async init(): Promise<boolean> {
     if (isInitialized) return true;
-    if (isExpoGo || !Notifications) {
-      console.log('[NotificationService] Running in Expo Go or module unavailable.');
+    if (!Notifications) {
+      console.log('[NotificationService] expo-notifications module unavailable.');
       return false;
     }
 
@@ -96,7 +96,7 @@ export const notificationService = {
   },
 
   async requestPermissions(): Promise<boolean> {
-    if (isExpoGo || !Notifications) {
+    if (!Notifications) {
       return false;
     }
 
@@ -134,7 +134,7 @@ export const notificationService = {
   },
 
   async checkPermissions(): Promise<boolean> {
-    if (isExpoGo || !Notifications) return false;
+    if (!Notifications) return false;
     try {
       const settings: any = await Notifications.getPermissionsAsync();
       return !!(settings.granted || settings.status === 'granted');
@@ -144,7 +144,7 @@ export const notificationService = {
   },
 
   async registerDeviceToken(userId: string): Promise<string | null> {
-    if (isExpoGo || !Notifications) return null;
+    if (!Notifications) return null;
 
     try {
       const hasPermission = await this.requestPermissions();
@@ -232,7 +232,10 @@ export const notificationService = {
             reference_id: id,
           },
         },
-        trigger: Platform.OS === 'android' ? { type: 'date', date: targetDate } : targetDate,
+        // Android requires the date as a milliseconds timestamp; iOS accepts a Date object directly.
+        trigger: Platform.OS === 'android'
+          ? { type: 'date', date: targetDate.getTime() }
+          : { date: targetDate },
       });
 
       console.log(`[NotificationService] Successfully scheduled local notification (ID: ${id}) for ${targetDate.toISOString()}`);
@@ -251,7 +254,8 @@ export const notificationService = {
             channelId: 'pocketwise-reminders',
             data: { reminderId: id, type: type, reference_id: id },
           },
-          trigger: { seconds: diffSeconds, channelId: 'pocketwise-reminders' },
+          // channelId must NOT be in trigger — it belongs in content only
+          trigger: { seconds: diffSeconds },
         });
         return fallbackId;
       } catch (fallbackErr) {
@@ -353,7 +357,7 @@ export const notificationService = {
           channelId: 'pocketwise-reminders',
           data: { type: 'test' },
         },
-        trigger: { seconds: delaySeconds, channelId: 'pocketwise-reminders' },
+        trigger: { seconds: delaySeconds },
       });
       return true;
     } catch (err) {

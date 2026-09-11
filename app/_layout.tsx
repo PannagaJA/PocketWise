@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '../context/AuthContext';
@@ -9,9 +9,9 @@ import { deepLinkService } from '../lib/notifications/deep-link.service';
 import { notificationService } from '../lib/notifications/notification.service';
 import { financialAnalyticsEngine } from '../lib/finance/analyticsEngine';
 import { smsListenerService } from '../lib/sms/service/smsListenerService';
-import { shakeService } from '../lib/shake/shakeService';
 import { QuickExpenseModal } from '../components/QuickExpenseModal';
 import { supabase } from '../lib/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import '../global.css';
 
 const queryClient = new QueryClient({
@@ -39,6 +39,23 @@ const queryClient = new QueryClient({
   }),
 });
 
+/**
+ * Guard scheduleOfflineSummaryAlarms so it runs at most once per calendar day.
+ * Prevents duplicate pending notifications from being stacked on every app open.
+ */
+async function scheduleSummaryAlarmsOnce() {
+  try {
+    const TODAY_KEY = 'pocketwise_summary_alarm_date';
+    const today = new Date().toISOString().substring(0, 10); // e.g. "2026-09-11"
+    const lastScheduled = await AsyncStorage.getItem(TODAY_KEY);
+    if (lastScheduled === today) return; // Already scheduled today
+    await financialAnalyticsEngine.scheduleOfflineSummaryAlarms();
+    await AsyncStorage.setItem(TODAY_KEY, today);
+  } catch (err) {
+    console.warn('[Layout] Failed to schedule summary alarms:', err);
+  }
+}
+
 function GlobalRealtimeSync() {
   const { user } = useAuth();
 
@@ -48,10 +65,9 @@ function GlobalRealtimeSync() {
 
     // Idempotently initialize OS notification channels & permissions
     notificationService.init();
-    financialAnalyticsEngine.scheduleOfflineSummaryAlarms();
 
-    // Initialize native shake detection service & session sync
-    shakeService.init(user?.id);
+    // Schedule daily summary notification (guarded: once per day max)
+    scheduleSummaryAlarmsOnce();
 
     // Register notification response listener for deep linking when clicking phone tray notifications
     const cleanupListener = deepLinkService.registerNotificationListener();
@@ -87,7 +103,6 @@ export default function RootLayout() {
         <AuthProvider>
           <AppLockGate>
             <GlobalRealtimeSync />
-            <QuickExpenseModal />
             <StatusBar style="dark" translucent={true} backgroundColor="transparent" />
             <Stack
               screenOptions={{
@@ -97,7 +112,6 @@ export default function RootLayout() {
               }}
             >
               <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="(auth)" />
               <Stack.Screen name="shake-settings" />
               <Stack.Screen name="sms-settings" />
               <Stack.Screen name="notification-settings" />
@@ -105,6 +119,8 @@ export default function RootLayout() {
               <Stack.Screen name="goals" />
               <Stack.Screen name="reports" />
             </Stack>
+            {/* QuickExpenseModal is a screen-agnostic overlay — rendered after Stack so it floats above all screens */}
+            <QuickExpenseModal />
           </AppLockGate>
         </AuthProvider>
       </QueryClientProvider>

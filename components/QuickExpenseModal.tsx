@@ -50,12 +50,14 @@ export function QuickExpenseModal() {
   }, [categories, user?.id]);
 
   useEffect(() => {
-    // Subscribe to in-app shake events
+    // Subscribe to in-app shake events — subscribe once on mount only.
+    // openModal reads accounts/categories from component state which is always current.
     const unsubscribe = shakeService.subscribeToShake(() => {
       openModal();
     });
     return () => unsubscribe();
-  }, [accounts]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const openModal = () => {
     setAmount('');

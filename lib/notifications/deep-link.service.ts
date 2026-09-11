@@ -9,7 +9,6 @@ let pendingRoute: string | null = null;
 let isAppLockedState = false;
 
 function getNotificationsModule() {
-  if (isExpoGo) return null;
   try {
     return require('expo-notifications');
   } catch {
@@ -91,7 +90,7 @@ export const deepLinkService = {
   registerNotificationListener() {
     try {
       const Notifications = getNotificationsModule();
-      if (!Notifications) return;
+      if (!Notifications) return () => {};
       const subscription = Notifications.addNotificationResponseReceivedListener((response: any) => {
         this.handleNotificationResponse(response);
       });

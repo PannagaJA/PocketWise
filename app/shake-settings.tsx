@@ -16,7 +16,7 @@ export default function ShakeSettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [enabled, setEnabled] = useState(true);
   const [backgroundEnabled, setBackgroundEnabled] = useState(true);
-  const [sensitivity, setSensitivity] = useState<ShakeSensitivity>('normal');
+  const [sensitivity, setSensitivity] = useState<ShakeSensitivity>('3');
   const [overlayGranted, setOverlayGranted] = useState(false);
   const [serviceRunning, setServiceRunning] = useState(false);
   const [diagnostics, setDiagnostics] = useState<ShakeDiagnostics | null>(null);
