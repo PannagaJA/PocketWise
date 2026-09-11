@@ -178,9 +178,9 @@ class ShakeDetector(
         val linearThreshold: Float,  // m/s^2 linear acceleration (gravity removed)
         val gForceThreshold: Float   // total G-force threshold
     ) {
-        LOW(12.0f, 1.90f),     // Requires a firmer, deliberate shake
-        NORMAL(8.0f, 1.50f),   // Standard intentional shake (balanced)
-        HIGH(5.5f, 1.25f)      // Lighter shake
+        LOW(15.0f, 2.20f),     // Requires a firmer, deliberate shake
+        NORMAL(11.5f, 1.85f),  // Standard intentional shake (ignores walking and tilting)
+        HIGH(9.0f, 1.60f)      // Responsive intentional shake
     }
 
     init {
@@ -252,8 +252,8 @@ class ShakeDetector(
 
         val currentSensitivity = sensitivity
 
-        // Check if motion threshold is exceeded
-        val isThresholdExceeded = linearMagnitude >= currentSensitivity.linearThreshold ||
+        // Require BOTH sufficient linear acceleration stroke AND elevated total G-force
+        val isThresholdExceeded = linearMagnitude >= currentSensitivity.linearThreshold &&
                 gForce >= currentSensitivity.gForceThreshold
 
         if (isThresholdExceeded) {
@@ -324,10 +324,10 @@ class ShakeDetector(
         private const val KEY_MAX_DELTA_MS = "diag_max_event_delta_ms"
 
         private const val ALPHA = 0.85f // Low-pass filter factor for gravity estimation
-        private const val MIN_PEAK_INTERVAL_MS = 80L // Minimum separation between distinct shake strokes
-        private const val PEAK_WINDOW_MS = 650L // Sliding window to accumulate shake peaks
-        private const val REQUIRED_PEAKS = 2 // Number of distinct strokes required to confirm shake
-        private const val COOLDOWN_MS = 1800L // Debounce cooldown after shake trigger
+        private const val MIN_PEAK_INTERVAL_MS = 100L // Minimum separation between distinct shake strokes
+        private const val PEAK_WINDOW_MS = 800L // Sliding window to accumulate shake peaks
+        private const val REQUIRED_PEAKS = 3 // Number of distinct directional strokes required to confirm shake
+        private const val COOLDOWN_MS = 2000L // Debounce cooldown after shake trigger
         private const val POPUP_LOCK_TIMEOUT_MS = 4000L // Safeguard timeout against stale locks
 
         // Telemetry counters
@@ -1709,19 +1709,12 @@ class QuickExpenseActivity : AppCompatActivity() {
             )
         }
 
-        // Configure Dialog Window layout params for a comfortable, responsive card width (88% of screen)
+        // Configure Bottom Sheet Window layout params to match in-app bottom sheet modal
         window?.let { win ->
-            val displayMetrics = resources.displayMetrics
-            val screenWidth = displayMetrics.widthPixels
-            val density = displayMetrics.density
-            val minWidthPx = (320 * density).toInt()
-            val maxWidthPx = (420 * density).toInt()
-            val marginPx = (32 * density).toInt()
-            val targetWidth = (screenWidth * 0.88f).toInt().coerceIn(minWidthPx.coerceAtMost(screenWidth - marginPx), maxWidthPx)
-
-            win.setLayout(targetWidth, ViewGroup.LayoutParams.WRAP_CONTENT)
-            win.setGravity(Gravity.CENTER)
+            win.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            win.setGravity(Gravity.BOTTOM)
             win.setBackgroundDrawableResource(android.R.color.transparent)
+            win.setWindowAnimations(android.R.style.Animation_Dialog)
         }
 
         setContentView(R.layout.activity_quick_expense)
@@ -2322,19 +2315,29 @@ class ShakeBootReceiver : BroadcastReceiver() {
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/rootContainer"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_gravity="center"
-    android:padding="8dp">
+    android:layout_height="match_parent"
+    android:background="#99000000">
 
+    <!-- Bottom Sheet Card Container -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="center"
+        android:layout_gravity="bottom"
         android:background="@drawable/bg_quick_expense_dialog"
-        android:elevation="12dp"
-        android:minWidth="320dp"
+        android:clickable="true"
+        android:focusable="true"
         android:orientation="vertical"
-        android:padding="22dp">
+        android:paddingHorizontal="24dp"
+        android:paddingTop="20dp"
+        android:paddingBottom="28dp">
+
+        <!-- Top Drag / Handle Indicator -->
+        <View
+            android:layout_width="36dp"
+            android:layout_height="4dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="16dp"
+            android:background="#3F3F46" />
 
         <!-- Header Row -->
         <RelativeLayout
@@ -2351,22 +2354,31 @@ class ShakeBootReceiver : BroadcastReceiver() {
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="⚡"
-                    android:textSize="20sp" />
+                <!-- Emerald circular badge -->
+                <FrameLayout
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:background="@drawable/bg_badge_emerald">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:text="⚡"
+                        android:textColor="#10B981"
+                        android:textSize="18sp" />
+                </FrameLayout>
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
+                    android:layout_marginStart="10dp"
                     android:ellipsize="end"
                     android:maxLines="1"
                     android:singleLine="true"
                     android:text="Quick Expense"
                     android:textColor="#FFFFFF"
-                    android:textSize="18sp"
+                    android:textSize="19sp"
                     android:textStyle="bold" />
             </LinearLayout>
 
@@ -2380,7 +2392,7 @@ class ShakeBootReceiver : BroadcastReceiver() {
                 android:gravity="center"
                 android:text="✕"
                 android:textColor="#A1A1AA"
-                android:textSize="18sp"
+                android:textSize="19sp"
                 android:textStyle="bold" />
         </RelativeLayout>
 
@@ -2389,6 +2401,7 @@ class ShakeBootReceiver : BroadcastReceiver() {
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="6dp"
+            android:letterSpacing="0.05"
             android:text="AMOUNT (₹)"
             android:textColor="#A1A1AA"
             android:textSize="11sp"
@@ -2408,7 +2421,7 @@ class ShakeBootReceiver : BroadcastReceiver() {
                 android:layout_height="wrap_content"
                 android:text="₹"
                 android:textColor="#10B981"
-                android:textSize="20sp"
+                android:textSize="22sp"
                 android:textStyle="bold" />
 
             <EditText
@@ -2423,7 +2436,7 @@ class ShakeBootReceiver : BroadcastReceiver() {
                 android:singleLine="true"
                 android:textColor="#FFFFFF"
                 android:textColorHint="#71717A"
-                android:textSize="20sp"
+                android:textSize="22sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
@@ -2432,6 +2445,7 @@ class ShakeBootReceiver : BroadcastReceiver() {
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="6dp"
+            android:letterSpacing="0.05"
             android:text="DESCRIPTION"
             android:textColor="#A1A1AA"
             android:textSize="11sp"
@@ -2443,7 +2457,7 @@ class ShakeBootReceiver : BroadcastReceiver() {
             android:layout_height="50dp"
             android:layout_marginBottom="14dp"
             android:background="@drawable/bg_input_field"
-            android:hint="e.g. Petrol, Coffee, Groceries"
+            android:hint="e.g. Petrol, Groceries, Coffee"
             android:inputType="textCapSentences"
             android:maxLines="1"
             android:paddingHorizontal="14dp"
@@ -2452,43 +2466,81 @@ class ShakeBootReceiver : BroadcastReceiver() {
             android:textColorHint="#71717A"
             android:textSize="14sp" />
 
-        <!-- Account Spinner -->
+        <!-- Account Dropdown Section -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="6dp"
+            android:letterSpacing="0.05"
             android:text="ACCOUNT"
             android:textColor="#A1A1AA"
             android:textSize="11sp"
             android:textStyle="bold" />
 
-        <Spinner
-            android:id="@+id/spAccount"
+        <RelativeLayout
             android:layout_width="match_parent"
-            android:layout_height="48dp"
+            android:layout_height="50dp"
             android:layout_marginBottom="14dp"
-            android:background="@drawable/bg_input_field"
-            android:paddingHorizontal="10dp"
-            android:spinnerMode="dropdown" />
+            android:background="@drawable/bg_input_field">
 
-        <!-- Category Spinner -->
+            <Spinner
+                android:id="@+id/spAccount"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@android:color/transparent"
+                android:paddingStart="14dp"
+                android:paddingEnd="36dp"
+                android:spinnerMode="dropdown" />
+
+            <!-- Chevron Down Icon -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:layout_marginEnd="14dp"
+                android:text="▼"
+                android:textColor="#A1A1AA"
+                android:textSize="11sp" />
+        </RelativeLayout>
+
+        <!-- Category Dropdown Section -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="6dp"
+            android:letterSpacing="0.05"
             android:text="CATEGORY"
             android:textColor="#A1A1AA"
             android:textSize="11sp"
             android:textStyle="bold" />
 
-        <Spinner
-            android:id="@+id/spCategory"
+        <RelativeLayout
             android:layout_width="match_parent"
-            android:layout_height="48dp"
+            android:layout_height="50dp"
             android:layout_marginBottom="14dp"
-            android:background="@drawable/bg_input_field"
-            android:paddingHorizontal="10dp"
-            android:spinnerMode="dropdown" />
+            android:background="@drawable/bg_input_field">
+
+            <Spinner
+                android:id="@+id/spCategory"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@android:color/transparent"
+                android:paddingStart="14dp"
+                android:paddingEnd="36dp"
+                android:spinnerMode="dropdown" />
+
+            <!-- Chevron Down Icon -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:layout_marginEnd="14dp"
+                android:text="▼"
+                android:textColor="#A1A1AA"
+                android:textSize="11sp" />
+        </RelativeLayout>
 
         <!-- Custom Reason Section (Visible when 'Others' is selected) -->
         <LinearLayout
@@ -2503,6 +2555,7 @@ class ShakeBootReceiver : BroadcastReceiver() {
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="6dp"
+                android:letterSpacing="0.05"
                 android:text="CUSTOM REASON / NOTE"
                 android:textColor="#F59E0B"
                 android:textSize="11sp"
@@ -2537,7 +2590,7 @@ class ShakeBootReceiver : BroadcastReceiver() {
         <!-- Done / Submit Button -->
         <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="50dp">
+            android:layout_height="52dp">
 
             <Button
                 android:id="@+id/btnDone"
@@ -2574,10 +2627,24 @@ class ShakeBootReceiver : BroadcastReceiver() {
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <solid android:color="#18181B" />
-    <corners android:radius="24dp" />
+    <corners
+        android:topLeftRadius="24dp"
+        android:topRightRadius="24dp"
+        android:bottomLeftRadius="0dp"
+        android:bottomRightRadius="0dp" />
     <stroke
         android:width="1dp"
         android:color="#27272A" />
+</shape>
+`;
+
+      const bgBadgeContent = `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="#3310B981" />
+    <stroke
+        android:width="1dp"
+        android:color="#4D10B981" />
 </shape>
 `;
 
@@ -2601,6 +2668,7 @@ class ShakeBootReceiver : BroadcastReceiver() {
 `;
 
       fs.writeFileSync(path.join(resDrawableDir, 'bg_quick_expense_dialog.xml'), bgDialogContent);
+      fs.writeFileSync(path.join(resDrawableDir, 'bg_badge_emerald.xml'), bgBadgeContent);
       fs.writeFileSync(path.join(resDrawableDir, 'bg_input_field.xml'), bgInputContent);
       fs.writeFileSync(path.join(resDrawableDir, 'bg_button_done.xml'), bgButtonContent);
 
@@ -2619,8 +2687,9 @@ class ShakeBootReceiver : BroadcastReceiver() {
     <item name="android:backgroundDimEnabled">true</item>
     <item name="android:backgroundDimAmount">0.6</item>
     <item name="android:windowAnimationStyle">@android:style/Animation.Dialog</item>
-    <item name="android:windowMinWidthMajor">88%</item>
-    <item name="android:windowMinWidthMinor">88%</item>
+    <item name="android:windowGravity">bottom</item>
+    <item name="android:windowMinWidthMajor">100%</item>
+    <item name="android:windowMinWidthMinor">100%</item>
   </style>`;
 
       if (fs.existsSync(stylesPath)) {

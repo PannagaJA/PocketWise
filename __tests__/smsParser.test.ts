@@ -268,4 +268,46 @@ describe('Android Bank SMS Transaction Auto-Detection Parser Pipeline', () => {
 
     expect(isDuplicateTransaction(duplicateIncoming, existing)).toBe(true);
   });
+
+  // Test 16: Deduplication with Supabase UUID account structure
+  test('16. Deduplicates incoming transaction against Supabase transaction with UUID account_id', () => {
+    const existing = [
+      {
+        id: 'tx_uuid_123',
+        account_id: 'd84f9384-e85d-4f6c-b3b4-e2bcf8198dc0',
+        account: {
+          id: 'd84f9384-e85d-4f6c-b3b4-e2bcf8198dc0',
+          name: 'Bank of Baroda',
+          account_number: 'XXXXXX0572',
+        },
+        type: 'income',
+        amount_minor: 2680000,
+        currency: 'INR',
+        date: '2026-09-11',
+        description: 'NEFT Salary Credit [Auto detected]',
+      },
+    ];
+
+    const duplicateIncoming: ParsedSmsTransaction = {
+      smsSender: 'BOBSMS',
+      type: 'income',
+      amount: 26800,
+      amountMinor: 2680000,
+      currency: 'INR',
+      bankId: 'bob',
+      bankName: 'Bank of Baroda',
+      paymentMethod: 'NEFT',
+      category: 'Salary',
+      transactionDate: '2026-09-11T09:30:00.000Z',
+      confidenceScore: 95,
+      isSalary: true,
+      isRefund: false,
+      isTransfer: false,
+      isAutoDetected: true,
+      needsReview: false,
+    };
+
+    expect(isDuplicateTransaction(duplicateIncoming, existing)).toBe(true);
+  });
 });
+

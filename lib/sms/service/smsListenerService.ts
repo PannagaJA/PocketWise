@@ -1,7 +1,7 @@
 import { Platform, PermissionsAndroid, Alert, NativeModules, DeviceEventEmitter } from 'react-native';
 import { RawSMS, ParsedSmsTransaction } from '../types';
 import { parseBankSms } from '../parser';
-import { isDuplicateTransaction } from '../parser/duplicateDetector';
+import { isDuplicateTransaction, createTransactionFingerprint } from '../parser/duplicateDetector';
 import { smsStorage } from '../storage/smsStore';
 import { useAppStore } from '../../../store/useAppStore';
 import { supabase } from '../../supabase';
@@ -187,7 +187,8 @@ class SmsListenerService {
     const parsedTx = parseBankSms(rawSms, accountMappings, learnedCategories);
     if (!parsedTx) return null;
 
-    // 2. Persistent Reference / UTR deduplication check
+    // 2. Persistent Reference / UTR & Fingerprint deduplication check
+    const txFingerprint = createTransactionFingerprint(parsedTx);
     if (parsedTx.referenceNumber && (await smsStorage.isRefIdProcessed(parsedTx.referenceNumber))) {
       console.log('[SMS Parser] Duplicate referenceNumber ignored:', parsedTx.referenceNumber);
       return null;
@@ -196,11 +197,16 @@ class SmsListenerService {
       console.log('[SMS Parser] Duplicate upiReference ignored:', parsedTx.upiReference);
       return null;
     }
+    if (txFingerprint && (await smsStorage.isRefIdProcessed(txFingerprint))) {
+      console.log('[SMS Parser] Duplicate fingerprint ignored:', txFingerprint);
+      return null;
+    }
 
     // 3. Check duplicate against pending reviews queue
     const pendingReviews = await smsStorage.getPendingReviews();
     if (isDuplicateTransaction(parsedTx, pendingReviews)) {
       console.log('[SMS Parser] Duplicate pending review ignored:', parsedTx.referenceNumber || parsedTx.amount);
+      if (txFingerprint) await smsStorage.markRefIdProcessed(txFingerprint);
       return null;
     }
 
@@ -209,12 +215,12 @@ class SmsListenerService {
       const { data: authData } = await supabase.auth.getUser();
       const userId = authData?.user?.id;
       if (userId) {
-        const txDateStr = parsedTx.transactionDate ? parsedTx.transactionDate.split('T')[0] : new Date().toISOString().split('T')[0];
         const recentTxs = await transactionService.getTransactions(userId, 100);
         if (isDuplicateTransaction(parsedTx, recentTxs)) {
           console.log('[SMS Parser] Duplicate Supabase transaction ignored:', parsedTx.referenceNumber || parsedTx.amount);
           if (parsedTx.referenceNumber) await smsStorage.markRefIdProcessed(parsedTx.referenceNumber);
           if (parsedTx.upiReference) await smsStorage.markRefIdProcessed(parsedTx.upiReference);
+          if (txFingerprint) await smsStorage.markRefIdProcessed(txFingerprint);
           return null;
         }
       }
@@ -222,9 +228,10 @@ class SmsListenerService {
       console.warn('[SMS Parser] Non-fatal DB duplicate check error:', e);
     }
 
-    // Mark reference ID as processed
+    // Mark reference ID and fingerprint as processed
     if (parsedTx.referenceNumber) await smsStorage.markRefIdProcessed(parsedTx.referenceNumber);
     if (parsedTx.upiReference) await smsStorage.markRefIdProcessed(parsedTx.upiReference);
+    if (txFingerprint) await smsStorage.markRefIdProcessed(txFingerprint);
 
     // Update statistics count
     await smsStorage.incrementDetectedCount();

@@ -13,13 +13,13 @@ export function createTransactionFingerprint(tx: {
   if (tx.upiReference) return `upi_${tx.upiReference.toUpperCase().trim()}`;
 
   const dateStr = tx.transactionDate ? tx.transactionDate.split('T')[0] : 'nodate';
-  const cleanBank = (tx.bankId || 'unknown').toLowerCase().trim();
+  const cleanBank = (tx.bankId || 'any').toLowerCase().trim();
   const cleanAcc = (tx.maskedAccount || 'any').replace(/\D/g, '').slice(-4);
   return `fp_${cleanBank}_${cleanAcc}_${tx.amountMinor}_${tx.type}_${dateStr}`;
 }
 
 /**
- * Prevents duplicate transactions by checking reference IDs or creating fallback fingerprints.
+ * Prevents duplicate transactions by checking reference IDs, UPI UTRs, or fallback transaction fingerprints.
  */
 export function isDuplicateTransaction(
   newTx: ParsedSmsTransaction,
@@ -33,6 +33,10 @@ export function isDuplicateTransaction(
   const newUpiRef = newTx.upiReference?.toUpperCase().trim();
   const newDateStr = newTx.transactionDate ? newTx.transactionDate.split('T')[0] : '';
   const newAmount = newTx.amountMinor;
+  const newType = newTx.type || 'expense';
+  const newBankId = (newTx.bankId || '').toLowerCase().trim();
+  const newBankName = (newTx.bankName || '').toLowerCase().trim();
+  const newMasked = (newTx.maskedAccount || '').replace(/\D/g, '').slice(-4);
 
   for (const tx of existingTransactions) {
     const txRef = (tx.referenceNumber || tx.reference_number || '')?.toUpperCase().trim();
@@ -52,18 +56,39 @@ export function isDuplicateTransaction(
       }
     }
 
-    // 2. Fallback Fingerprint Check (Same date, amount, type, and bank/account)
-    const txAmount = tx.amountMinor ?? tx.amount_minor ?? tx.amount ?? 0;
+    // 2. Exact amount + type + date check
+    const txAmount = tx.amountMinor ?? tx.amount_minor ?? (typeof tx.amount === 'number' ? Math.round(tx.amount * 100) : 0);
     const txDateStr = (tx.transactionDate || tx.date || '').split('T')[0];
     const txType = tx.type || 'expense';
 
-    if (txAmount === newAmount && txType === newTx.type && txDateStr === newDateStr) {
-      const txBankId = (tx.bankId || tx.bank_id || tx.account_id || '').toLowerCase();
-      const newBankId = (newTx.bankId || '').toLowerCase();
+    if (txAmount === newAmount && txType === newType && txDateStr === newDateStr) {
+      const txAccountName = (tx.account?.name || tx.account_name || '').toLowerCase();
+      const txBankId = (tx.bankId || tx.bank_id || '').toLowerCase();
 
-      // If bank matches or is generic
-      const bankMatches = !newBankId || !txBankId || txBankId === newBankId || txBankId.includes(newBankId) || newBankId.includes(txBankId);
-      if (bankMatches) {
+      // Check if both reference the same bank or account if known
+      const bankOrAccountMatches =
+        !newBankId ||
+        newBankId === 'unknown' ||
+        !txAccountName ||
+        (newBankId && txAccountName.includes(newBankId)) ||
+        (newBankName && txAccountName.includes(newBankName)) ||
+        (txBankId && (txBankId === newBankId || txBankId.includes(newBankId) || newBankId.includes(txBankId)));
+
+      // If masked account is present in both, ensure it matches
+      const txMasked = (tx.account?.account_number || tx.maskedAccount || '').replace(/\D/g, '').slice(-4);
+      const maskedMatches = !newMasked || !txMasked || newMasked === txMasked;
+
+      if (bankOrAccountMatches && maskedMatches) {
+        return true;
+      }
+
+      // If both are exact same amount on same date and type, and description has overlap or auto-detected tag
+      if (txNotes && (txNotes.includes('AUTO DETECTED') || (newBankName && txNotes.includes(newBankName.toUpperCase())))) {
+        return true;
+      }
+
+      // If both have identical amount, type, date and at least one is without bank detail
+      if (!txBankId && !txAccountName) {
         return true;
       }
     }
@@ -71,3 +96,4 @@ export function isDuplicateTransaction(
 
   return false;
 }
+

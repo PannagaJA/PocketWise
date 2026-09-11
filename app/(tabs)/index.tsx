@@ -16,7 +16,7 @@ import { goalService } from '../../lib/services/goal.service';
 import { reminderService, Reminder } from '../../lib/services/reminder.service';
 import { financialAnalyticsEngine } from '../../lib/finance/analyticsEngine';
 import { formatMoney, formatDate, formatDateTime } from '../../lib/finance/core';
-import { Plus, ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight, ShieldCheck, TrendingUp, TrendingDown, ArrowRightLeft, X, Clock, Trash2 } from 'lucide-react-native';
+import { Plus, ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight, ChevronDown, Check, Building2, ShieldCheck, TrendingUp, TrendingDown, ArrowRightLeft, X, Clock, Trash2 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 import { SmsOnboardingModal } from '../../components/SmsOnboardingCard';
@@ -100,6 +100,7 @@ export default function DashboardScreen() {
   const queryClient = useQueryClient();
 
   const [selectedBankId, setSelectedBankId] = useState<string>('all');
+  const [bankSelectModalVisible, setBankSelectModalVisible] = useState(false);
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const [smsOnboardingVisible, setSmsOnboardingVisible] = useState(false);
   const [pendingReviews, setPendingReviews] = useState<ParsedSmsTransaction[]>([]);
@@ -214,92 +215,50 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Bank Selector Horizontal Pill Bar */}
-        {accounts.length > 0 && (
-          <View className="mb-4">
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row gap-2">
-              {/* All Accounts Pill */}
+        {/* Bank Account Dropdown Selector */}
+        {accounts.length > 0 && (() => {
+          const selectedAccount = accounts.find((a) => a.id === selectedBankId);
+          return (
+            <View className="mb-4">
               <TouchableOpacity
+                activeOpacity={0.7}
                 onPress={() => {
                   try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                  setSelectedBankId('all');
+                  setBankSelectModalVisible(true);
                 }}
-                className={`flex-row items-center gap-2 px-3.5 py-2 rounded-2xl border mr-2 ${
-                  selectedBankId === 'all'
-                    ? 'bg-zinc-900 border-zinc-900 shadow-sm'
-                    : 'bg-white border-zinc-200'
-                }`}
+                className="flex-row items-center justify-between p-3.5 bg-white border border-zinc-200 rounded-2xl shadow-sm"
               >
-                <Wallet size={14} color={selectedBankId === 'all' ? '#10B981' : '#71717A'} />
-                <Text
-                  className={`text-xs font-bold ${
-                    selectedBankId === 'all' ? 'text-white' : 'text-zinc-700'
-                  }`}
-                >
-                  All Accounts
-                </Text>
-                <View
-                  className={`px-1.5 py-0.5 rounded-full ${
-                    selectedBankId === 'all' ? 'bg-zinc-800' : 'bg-zinc-100'
-                  }`}
-                >
-                  <Text
-                    className={`text-[10px] font-extrabold ${
-                      selectedBankId === 'all' ? 'text-emerald-400' : 'text-zinc-600'
-                    }`}
+                <View className="flex-row items-center gap-3 flex-1 mr-2">
+                  <View
+                    style={{ backgroundColor: selectedBankId === 'all' ? '#09090B' : (selectedAccount?.color || '#6366F1') }}
+                    className="w-9 h-9 rounded-xl items-center justify-center shadow-sm"
                   >
-                    {formatMoney(totalBalance)}
-                  </Text>
+                    {selectedBankId === 'all' ? (
+                      <Wallet size={16} color="#10B981" />
+                    ) : (
+                      <Building2 size={16} color="#FFFFFF" />
+                    )}
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Active Account Filter</Text>
+                    <Text className="text-sm font-extrabold text-zinc-900" numberOfLines={1}>
+                      {selectedBankId === 'all' ? 'All Accounts Combined' : selectedAccount?.name || 'Selected Bank'}
+                    </Text>
+                  </View>
+                </View>
+
+                <View className="flex-row items-center gap-2">
+                  <View className="px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded-xl">
+                    <Text className="text-xs font-black text-emerald-700">
+                      {formatMoney(selectedBankId === 'all' ? totalBalance : (selectedAccount?.balance || 0))}
+                    </Text>
+                  </View>
+                  <ChevronDown size={18} color="#71717A" />
                 </View>
               </TouchableOpacity>
-
-              {/* Individual Bank Pills */}
-              {accounts.map((acc) => {
-                const isSelected = selectedBankId === acc.id;
-                return (
-                  <TouchableOpacity
-                    key={acc.id}
-                    onPress={() => {
-                      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                      setSelectedBankId(acc.id);
-                    }}
-                    className={`flex-row items-center gap-2 px-3.5 py-2 rounded-2xl border mr-2 ${
-                      isSelected
-                        ? 'bg-zinc-900 border-zinc-900 shadow-sm'
-                        : 'bg-white border-zinc-200'
-                    }`}
-                  >
-                    <View
-                      style={{ backgroundColor: acc.color || '#6366F1' }}
-                      className="w-2.5 h-2.5 rounded-full"
-                    />
-                    <Text
-                      className={`text-xs font-bold ${
-                        isSelected ? 'text-white' : 'text-zinc-700'
-                      }`}
-                      numberOfLines={1}
-                    >
-                      {acc.name}
-                    </Text>
-                    <View
-                      className={`px-1.5 py-0.5 rounded-full ${
-                        isSelected ? 'bg-zinc-800' : 'bg-zinc-100'
-                      }`}
-                    >
-                      <Text
-                        className={`text-[10px] font-extrabold ${
-                          isSelected ? 'text-emerald-400' : 'text-zinc-600'
-                        }`}
-                      >
-                        {formatMoney(acc.balance || 0)}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
-        )}
+            </View>
+          );
+        })()}
 
         {/* Net Total Balance Interactive Live Growth Chart Card */}
         <NetBalanceChartCard
@@ -580,6 +539,124 @@ export default function DashboardScreen() {
             </Button>
           </View>
         </View>
+      </Modal>
+
+      {/* Bank Selection Dropdown Modal */}
+      <Modal visible={bankSelectModalVisible} animationType="slide" transparent>
+        <Pressable
+          className="flex-1 justify-end bg-black/50"
+          onPress={() => setBankSelectModalVisible(false)}
+        >
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[75%]"
+          >
+            <View className="flex-row justify-between items-center mb-4">
+              <View>
+                <Text className="text-lg font-extrabold text-zinc-900">Select Account</Text>
+                <Text className="text-xs text-zinc-500">Filter dashboard metrics, charts, & transactions</Text>
+              </View>
+              <Pressable
+                onPress={() => setBankSelectModalVisible(false)}
+                className="w-8 h-8 rounded-full bg-zinc-100 items-center justify-center"
+              >
+                <X size={18} color="#71717A" />
+              </Pressable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} className="mb-4">
+              {/* All Accounts Option */}
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => {
+                  try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                  setSelectedBankId('all');
+                  setBankSelectModalVisible(false);
+                }}
+                className={`flex-row items-center justify-between p-3.5 mb-2.5 rounded-2xl border ${
+                  selectedBankId === 'all'
+                    ? 'bg-zinc-900 border-zinc-900 shadow-sm'
+                    : 'bg-zinc-50 border-zinc-200'
+                }`}
+              >
+                <View className="flex-row items-center gap-3">
+                  <View className="w-9 h-9 rounded-xl bg-zinc-800 items-center justify-center">
+                    <Wallet size={18} color="#10B981" />
+                  </View>
+                  <View>
+                    <Text className={`text-sm font-bold ${selectedBankId === 'all' ? 'text-white' : 'text-zinc-900'}`}>
+                      All Accounts
+                    </Text>
+                    <Text className={`text-xs ${selectedBankId === 'all' ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                      {accounts.length} linked bank{accounts.length > 1 ? 's' : ''} combined
+                    </Text>
+                  </View>
+                </View>
+
+                <View className="flex-row items-center gap-2">
+                  <Text className={`text-sm font-black ${selectedBankId === 'all' ? 'text-emerald-400' : 'text-zinc-900'}`}>
+                    {formatMoney(totalBalance)}
+                  </Text>
+                  {selectedBankId === 'all' && <Check size={18} color="#10B981" />}
+                </View>
+              </TouchableOpacity>
+
+              {/* Individual Banks */}
+              {accounts.map((acc) => {
+                const isSelected = selectedBankId === acc.id;
+                return (
+                  <TouchableOpacity
+                    key={acc.id}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                      setSelectedBankId(acc.id);
+                      setBankSelectModalVisible(false);
+                    }}
+                    className={`flex-row items-center justify-between p-3.5 mb-2.5 rounded-2xl border ${
+                      isSelected
+                        ? 'bg-zinc-900 border-zinc-900 shadow-sm'
+                        : 'bg-zinc-50 border-zinc-200'
+                    }`}
+                  >
+                    <View className="flex-row items-center gap-3 flex-1 mr-2">
+                      <View
+                        style={{ backgroundColor: acc.color || '#6366F1' }}
+                        className="w-9 h-9 rounded-xl items-center justify-center"
+                      >
+                        <Building2 size={18} color="#FFFFFF" />
+                      </View>
+                      <View className="flex-1">
+                        <Text className={`text-sm font-bold ${isSelected ? 'text-white' : 'text-zinc-900'}`} numberOfLines={1}>
+                          {acc.name}
+                        </Text>
+                        <Text className={`text-xs ${isSelected ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                          {acc.type ? acc.type.toUpperCase() : 'BANK'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View className="flex-row items-center gap-2">
+                      <Text className={`text-sm font-black ${isSelected ? 'text-emerald-400' : 'text-zinc-900'}`}>
+                        {formatMoney(acc.balance || 0)}
+                      </Text>
+                      {isSelected && <Check size={18} color="#10B981" />}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <Button
+              variant="outline"
+              size="md"
+              className="border-zinc-200"
+              onPress={() => setBankSelectModalVisible(false)}
+            >
+              <Text className="text-zinc-800 font-bold text-xs">Close</Text>
+            </Button>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* SMS Onboarding Modal */}
