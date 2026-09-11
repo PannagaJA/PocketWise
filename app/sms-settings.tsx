@@ -282,7 +282,9 @@ export default function SmsSettingsScreen() {
         <Card className="mb-6 p-4 bg-white border border-zinc-200">
           {accountMappings.length === 0 ? (
             <View className="py-4 items-center">
-              <Building2 size={24} color="#A1A1AA" className="mb-2" />
+              <View className="mb-2">
+                <Building2 size={24} color="#A1A1AA" />
+              </View>
               <Text className="text-xs font-medium text-zinc-500">No bank accounts linked yet.</Text>
               <Text className="text-[11px] text-zinc-400 text-center mt-1">
                 When transaction SMS arrive, PocketWise will automatically learn your account numbers.
@@ -311,8 +313,8 @@ export default function SmsSettingsScreen() {
         {/* Developer / Tester Tools */}
         <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3 ml-1">SMS Simulation & Testing</Text>
         <Card className="mb-6 p-4 bg-white border border-zinc-200">
-          <View className="flex-row items-center mb-3">
-            <Sparkles size={18} color="#6366F1" className="mr-2" />
+          <View className="flex-row items-center gap-2 mb-3">
+            <Sparkles size={18} color="#6366F1" />
             <Text className="text-xs font-bold text-zinc-900">Simulate Real SMS Received</Text>
           </View>
 

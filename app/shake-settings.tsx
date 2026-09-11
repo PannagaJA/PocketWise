@@ -280,10 +280,10 @@ export default function ShakeSettingsScreen() {
               <Button
                 variant="primary"
                 size="md"
-                className="bg-indigo-600 active:bg-indigo-700 w-full"
+                className="bg-indigo-600 active:bg-indigo-700 w-full flex-row items-center justify-center gap-2"
                 onPress={handleRequestOverlay}
               >
-                <Shield size={16} color="#FFFFFF" className="mr-2" />
+                <Shield size={16} color="#FFFFFF" />
                 <Text className="text-white font-bold text-xs tracking-wide">Turn On Display Over Other Apps</Text>
               </Button>
               <Text className="text-[11px] text-zinc-400 italic text-center">
@@ -299,10 +299,10 @@ export default function ShakeSettingsScreen() {
               <Button
                 variant="outline"
                 size="sm"
-                className="border-zinc-200 bg-zinc-50"
+                className="border-zinc-200 bg-zinc-50 flex-row items-center gap-1.5"
                 onPress={handleRequestOverlay}
               >
-                <Shield size={14} color="#71717A" className="mr-1.5" />
+                <Shield size={14} color="#71717A" />
                 <Text className="text-zinc-700 font-bold text-xs">Manage Permission</Text>
               </Button>
             </View>
@@ -320,14 +320,14 @@ export default function ShakeSettingsScreen() {
             <Button
               variant="primary"
               size="md"
-              className="flex-1 bg-emerald-600 active:bg-emerald-700"
+              className="flex-1 bg-emerald-600 active:bg-emerald-700 flex-row items-center justify-center gap-2"
               onPress={handleRunSensorTest}
               disabled={isTestingSensor}
             >
               {isTestingSensor ? (
-                <ActivityIndicator size="small" color="#FFFFFF" className="mr-2" />
+                <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <Activity size={16} color="#FFFFFF" className="mr-2" />
+                <Activity size={16} color="#FFFFFF" />
               )}
               <Text className="text-white font-bold text-xs">
                 {isTestingSensor ? 'Testing Accelerometer...' : 'Run 2s Sensor Self-Test'}
@@ -337,10 +337,10 @@ export default function ShakeSettingsScreen() {
             <Button
               variant="outline"
               size="md"
-              className="bg-zinc-900 border-zinc-900"
+              className="bg-zinc-900 border-zinc-900 flex-row items-center justify-center gap-1.5"
               onPress={handleSimulateShake}
             >
-              <Play size={16} color="#FFFFFF" className="mr-1.5" />
+              <Play size={16} color="#FFFFFF" />
               <Text className="text-white font-bold text-xs">Simulate Popup</Text>
             </Button>
           </View>
@@ -586,7 +586,9 @@ export default function ShakeSettingsScreen() {
 
         {/* Battery & System Notice */}
         <View className="p-4 bg-zinc-100 rounded-2xl mb-8 flex-row items-start gap-2.5">
-          <AlertCircle size={16} color="#71717A" className="mt-0.5" />
+          <View className="mt-0.5">
+            <AlertCircle size={16} color="#71717A" />
+          </View>
           <Text className="text-xs text-zinc-500 flex-1 leading-relaxed">
             <Text className="font-bold text-zinc-700">Task Continuity & CPU WakeLock: </Text>
             Shake detection runs via an isolated background HandlerThread with a safe <Text className="font-semibold text-zinc-800">PARTIAL_WAKE_LOCK</Text> and persistent telemetry to maintain sensor delivery without draining battery.

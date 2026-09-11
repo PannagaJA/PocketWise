@@ -134,7 +134,9 @@ export default function ReportsScreen() {
           }
         >
           {loadingSummary || loadingCats ? (
-            <ActivityIndicator size="small" color="#09090B" className="py-12" />
+            <View className="py-12">
+              <ActivityIndicator size="small" color="#09090B" />
+            </View>
           ) : hasNoData ? (
             <Card className="p-8 bg-white border border-zinc-200 items-center mt-4 rounded-3xl">
               <View className="w-14 h-14 rounded-full bg-zinc-100 items-center justify-center mb-3">
@@ -333,8 +335,8 @@ export default function ReportsScreen() {
                       return (
                         <View key={g.id} className="mb-3.5 last:mb-0">
                           <View className="flex-row justify-between items-center mb-1">
-                            <View className="flex-row items-center">
-                              <Target size={14} color="#6366F1" className="mr-1.5" />
+                            <View className="flex-row items-center gap-1.5">
+                              <Target size={14} color="#6366F1" />
                               <Text className="text-xs font-bold text-zinc-900">{g.name}</Text>
                             </View>
                             <Text className="text-xs font-extrabold text-indigo-600">{pct}%</Text>

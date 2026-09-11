@@ -61,8 +61,8 @@ export function SmsOnboardingModal({ visible, onClose, onEnabled }: SmsOnboardin
 
           {/* Privacy Guarantee Box */}
           <View className="bg-emerald-50 rounded-2xl p-4 border border-emerald-200 mb-6">
-            <View className="flex-row items-center mb-2">
-              <ShieldCheck size={20} color="#10B981" className="mr-2" />
+            <View className="flex-row items-center gap-2 mb-2">
+              <ShieldCheck size={20} color="#10B981" />
               <Text className="text-xs font-bold text-emerald-900 uppercase tracking-wider">
                 100% On-Device Privacy Guaranteed
               </Text>

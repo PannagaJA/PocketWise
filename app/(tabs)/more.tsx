@@ -264,10 +264,10 @@ export default function MoreScreen() {
         <Button
           variant="outline"
           size="lg"
-          className="mb-12 border-rose-200 bg-rose-50/50"
+          className="mb-12 border-rose-200 bg-rose-50/50 flex-row items-center justify-center gap-2"
           onPress={handleSignOut}
         >
-          <LogOut size={18} color="#EF4444" className="mr-2" />
+          <LogOut size={18} color="#EF4444" />
           <Text className="text-rose-600 font-bold">Sign Out</Text>
         </Button>
       </ScrollView>

@@ -447,7 +447,9 @@ export default function TransactionsScreen() {
           }
         >
           {loadingTx ? (
-            <ActivityIndicator size="small" color="#09090B" className="py-8" />
+            <View className="py-8">
+              <ActivityIndicator size="small" color="#09090B" />
+            </View>
           ) : displayedTransactions.length === 0 ? (
             <Card className="p-6 bg-white border border-zinc-200 items-center mt-2 rounded-2xl">
               <View className="w-12 h-12 rounded-full bg-zinc-100 items-center justify-center mb-2">

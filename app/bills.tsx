@@ -192,7 +192,9 @@ export default function BillsScreen() {
         {/* Bills List */}
         <ScrollView showsVerticalScrollIndicator={false} className="flex-1" contentContainerStyle={{ paddingBottom: 110 }}>
           {loadingBills ? (
-            <ActivityIndicator size="small" color="#09090B" className="py-8" />
+            <View className="py-8">
+              <ActivityIndicator size="small" color="#09090B" />
+            </View>
           ) : bills.length === 0 ? (
             <Card className="p-6 bg-white border border-zinc-200 items-center mt-2 rounded-2xl">
               <View className="w-12 h-12 rounded-2xl bg-amber-50 items-center justify-center mb-3">

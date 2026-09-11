@@ -174,8 +174,8 @@ export default function SubscriptionsScreen() {
 
             <View>
               <Text className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Renewal Alerts</Text>
-              <View className="flex-row items-center mt-0.5">
-                <ShieldCheck size={14} color="#10B981" className="mr-1" />
+              <View className="flex-row items-center gap-1 mt-0.5">
+                <ShieldCheck size={14} color="#10B981" />
                 <Text className="text-xs font-bold text-emerald-400">24h Prior Alert</Text>
               </View>
             </View>
@@ -185,7 +185,9 @@ export default function SubscriptionsScreen() {
         {/* Subscriptions List */}
         <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
           {loadingSubs ? (
-            <ActivityIndicator size="small" color="#09090B" className="py-8" />
+            <View className="py-8">
+              <ActivityIndicator size="small" color="#09090B" />
+            </View>
           ) : subscriptions.length === 0 ? (
             <Card className="p-8 bg-white border border-zinc-200 items-center mt-2 rounded-3xl">
               <View className="w-14 h-14 rounded-full bg-indigo-50 items-center justify-center mb-3">

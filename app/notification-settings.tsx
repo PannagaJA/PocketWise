@@ -29,8 +29,8 @@ export default function NotificationSettingsScreen() {
 
   if (!prefs) {
     return (
-      <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-        <ActivityIndicator size="small" color="#09090B" className="py-12" />
+      <SafeAreaView className="flex-1 bg-background justify-center items-center" edges={['top']}>
+        <ActivityIndicator size="small" color="#09090B" />
       </SafeAreaView>
     );
   }

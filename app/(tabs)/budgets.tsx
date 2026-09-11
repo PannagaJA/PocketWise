@@ -172,7 +172,9 @@ export default function BudgetsScreen() {
         {/* Budgets List */}
         <ScrollView showsVerticalScrollIndicator={false} className="flex-1" contentContainerStyle={{ paddingBottom: 110 }}>
           {loadingBudgets ? (
-            <ActivityIndicator size="small" color="#09090B" className="py-8" />
+            <View className="py-8">
+              <ActivityIndicator size="small" color="#09090B" />
+            </View>
           ) : budgets.length === 0 ? (
             <Card className="p-6 bg-white border border-zinc-200 items-center mt-2 rounded-2xl">
               <View className="w-12 h-12 rounded-2xl bg-zinc-100 items-center justify-center mb-3">
@@ -230,8 +232,8 @@ export default function BudgetsScreen() {
                   </View>
 
                   {isExceeded && (
-                    <View className="mt-2 pt-2 border-t border-rose-100 flex-row items-center">
-                      <AlertTriangle size={14} color="#EF4444" className="mr-1.5" />
+                    <View className="mt-2 pt-2 border-t border-rose-100 flex-row items-center gap-1.5">
+                      <AlertTriangle size={14} color="#EF4444" />
                       <Text className="text-xs font-semibold text-rose-600">
                         Over budget by {formatMoney(spent - limit)}
                       </Text>

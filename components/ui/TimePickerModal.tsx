@@ -205,10 +205,10 @@ export function TimePickerModal({ visible, onClose, selectedTime24, onSelectTime
             <Button
               variant="primary"
               size="md"
-              className="flex-1 bg-indigo-600 active:bg-indigo-700"
+              className="flex-1 bg-indigo-600 active:bg-indigo-700 flex-row items-center justify-center gap-1.5"
               onPress={handleConfirm}
             >
-              <Check size={16} color="#FFFFFF" className="mr-1" />
+              <Check size={16} color="#FFFFFF" />
               <Text className="text-white font-bold text-xs">Set Time</Text>
             </Button>
           </View>
