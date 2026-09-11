@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Switch, Pressable, AppState, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, ScrollView, Switch, TouchableOpacity, AppState, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Card } from '../components/ui/Card';
@@ -163,12 +163,13 @@ export default function ShakeSettingsScreen() {
     <SafeAreaView className="flex-1 bg-zinc-50" edges={['top']}>
       {/* Header */}
       <View className="flex-row items-center justify-between px-5 py-3 border-b border-zinc-200 bg-white">
-        <Pressable
+        <TouchableOpacity
+          activeOpacity={0.7}
           onPress={() => router.back()}
-          className="w-10 h-10 items-center justify-center rounded-full bg-zinc-100 active:bg-zinc-200"
+          className="w-10 h-10 items-center justify-center rounded-full bg-zinc-100"
         >
           <ArrowLeft size={20} color="#18181B" />
-        </Pressable>
+        </TouchableOpacity>
         <Text className="text-lg font-bold text-zinc-900">Shake to Add Expense</Text>
         <View className="w-10" />
       </View>
@@ -235,13 +236,14 @@ export default function ShakeSettingsScreen() {
             {(['low', 'normal', 'high'] as ShakeSensitivity[]).map((level) => {
               const isSelected = sensitivity === level;
               return (
-                <Pressable
+                <TouchableOpacity
                   key={level}
+                  activeOpacity={0.7}
                   onPress={() => handleSelectSensitivity(level)}
                   className={`flex-1 py-3 px-2 rounded-xl items-center justify-center border ${
                     isSelected
                       ? 'bg-zinc-900 border-zinc-900 shadow-sm'
-                      : 'bg-zinc-50 border-zinc-200 active:bg-zinc-100'
+                      : 'bg-zinc-50 border-zinc-200'
                   }`}
                 >
                   <Text
@@ -251,7 +253,7 @@ export default function ShakeSettingsScreen() {
                   >
                     {level}
                   </Text>
-                </Pressable>
+                </TouchableOpacity>
               );
             })}
           </View>
@@ -384,10 +386,10 @@ export default function ShakeSettingsScreen() {
         {/* Native Bridge & Sensor Diagnostics Card */}
         <View className="flex-row items-center justify-between mb-2.5 ml-1">
           <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Native Bridge & Persisted Telemetry</Text>
-          <Pressable onPress={refreshDiagnostics} className="flex-row items-center gap-1 active:opacity-60">
+          <TouchableOpacity activeOpacity={0.7} onPress={refreshDiagnostics} className="flex-row items-center gap-1">
             <RefreshCw size={12} color="#71717A" />
             <Text className="text-[11px] font-semibold text-zinc-500">Refresh</Text>
-          </Pressable>
+          </TouchableOpacity>
         </View>
         <Card className="mb-5 p-4 bg-zinc-900 border-zinc-800 rounded-2xl">
           <View className="flex-row items-center gap-2 mb-3">

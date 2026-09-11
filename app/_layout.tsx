@@ -95,7 +95,16 @@ export default function RootLayout() {
                 contentStyle: { backgroundColor: '#FAFAFA' },
                 animation: 'none',
               }}
-            />
+            >
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="shake-settings" />
+              <Stack.Screen name="sms-settings" />
+              <Stack.Screen name="notification-settings" />
+              <Stack.Screen name="bills" />
+              <Stack.Screen name="goals" />
+              <Stack.Screen name="reports" />
+            </Stack>
           </AppLockGate>
         </AuthProvider>
       </QueryClientProvider>
