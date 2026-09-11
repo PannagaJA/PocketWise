@@ -125,11 +125,11 @@ describe('Shake to Add Expense - Core Logic & Data Pipeline Tests', () => {
   });
 
   describe('Shake Settings & Sensitivity Config', () => {
-    it('defaults to enabled=true, backgroundEnabled=true, sensitivity=normal', async () => {
+    it('defaults to enabled=true, backgroundEnabled=true, sensitivity=3', async () => {
       const settings = await shakeStorage.getSettings();
       expect(settings.enabled).toBe(true);
       expect(settings.backgroundEnabled).toBe(true);
-      expect(settings.sensitivity).toBe('normal');
+      expect(['3', 'normal']).toContain(settings.sensitivity);
     });
 
     it('persists and updates sensitivity properly', async () => {

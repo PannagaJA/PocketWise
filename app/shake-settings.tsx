@@ -222,25 +222,33 @@ export default function ShakeSettingsScreen() {
           </View>
         </Card>
 
-        {/* Sensitivity Selector */}
-        <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5 ml-1">Motion Sensitivity</Text>
+        {/* Shake Count Requirement Selector */}
+        <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5 ml-1">Shake Count Requirement</Text>
         <Card className="mb-4 p-4 bg-white border border-zinc-200 rounded-2xl">
           <View className="flex-row items-center gap-2 mb-3">
             <Smartphone size={16} color="#71717A" />
             <Text className="text-xs text-zinc-500">
-              Adjust how firmly you need to shake the device to trigger the modal.
+              Select how many firm, deliberate physical shakes are required to open the popup.
             </Text>
           </View>
 
           <View className="flex-row gap-2">
-            {(['low', 'normal', 'high'] as ShakeSensitivity[]).map((level) => {
-              const isSelected = sensitivity === level;
-              const label = level === 'low' ? 'Low' : level === 'normal' ? 'Normal' : 'High';
+            {[
+              { id: '2' as ShakeSensitivity, label: '2 Shakes', sub: 'Quick' },
+              { id: '3' as ShakeSensitivity, label: '3 Shakes', sub: 'Recommended' },
+              { id: '5' as ShakeSensitivity, label: '5 Shakes', sub: 'Strict' },
+            ].map((item) => {
+              const isSelected =
+                sensitivity === item.id ||
+                (item.id === '3' && (sensitivity === 'normal' || !['2', '3', '5'].includes(sensitivity))) ||
+                (item.id === '2' && sensitivity === 'high') ||
+                (item.id === '5' && sensitivity === 'low');
+
               return (
                 <TouchableOpacity
-                  key={level}
+                  key={item.id}
                   activeOpacity={0.7}
-                  onPress={() => handleSelectSensitivity(level)}
+                  onPress={() => handleSelectSensitivity(item.id)}
                   className={`flex-1 py-3 px-2 rounded-xl items-center justify-center border ${
                     isSelected
                       ? 'bg-zinc-900 border-zinc-900'
@@ -249,10 +257,17 @@ export default function ShakeSettingsScreen() {
                 >
                   <Text
                     className={`text-xs font-bold ${
-                      isSelected ? 'text-white' : 'text-zinc-700'
+                      isSelected ? 'text-white' : 'text-zinc-800'
                     }`}
                   >
-                    {label}
+                    {item.label}
+                  </Text>
+                  <Text
+                    className={`text-[10px] mt-0.5 ${
+                      isSelected ? 'text-zinc-300' : 'text-zinc-400'
+                    }`}
+                  >
+                    {item.sub}
                   </Text>
                 </TouchableOpacity>
               );

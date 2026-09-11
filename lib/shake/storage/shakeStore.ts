@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export type ShakeSensitivity = 'low' | 'normal' | 'high';
+export type ShakeSensitivity = '2' | '3' | '5' | 'low' | 'normal' | 'high';
 
 export interface ShakeSettings {
   enabled: boolean;
@@ -15,7 +15,7 @@ const STORAGE_KEYS = {
 const DEFAULT_SETTINGS: ShakeSettings = {
   enabled: true,
   backgroundEnabled: true,
-  sensitivity: 'normal',
+  sensitivity: '3',
 };
 
 export const shakeStorage = {

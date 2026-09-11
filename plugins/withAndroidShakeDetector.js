@@ -160,7 +160,7 @@ class ShakeDetector(
     private val onShakeListener: (String) -> Unit
 ) : SensorEventListener {
 
-    var sensitivity: Sensitivity = Sensitivity.NORMAL
+    var sensitivity: Sensitivity = Sensitivity.COUNT_3
 
     // Gravity components isolated via low-pass filter
     private var gravityX = 0f
@@ -171,16 +171,32 @@ class ShakeDetector(
     private var lastShakeTimestamp: Long = 0
     private var lastPeakTimestamp: Long = 0
     private val peakTimestamps = mutableListOf<Long>()
+    private var isWaitingForValley: Boolean = false // Hysteresis lock: must drop below valley before counting next peak
     private var unpersistedEventCount = 0
     private var prevEventTimestamp: Long = 0L
 
     enum class Sensitivity(
+        val requiredPeaks: Int,
+        val windowMs: Long,
         val linearThreshold: Float,  // m/s^2 linear acceleration (gravity removed)
-        val gForceThreshold: Float   // total G-force threshold
+        val gForceThreshold: Float,   // total G-force threshold
+        val valleyThreshold: Float   // m/s^2 valley reset threshold
     ) {
-        LOW(16.0f, 2.40f),     // Extra hard shake (requires very strong deliberate force)
-        NORMAL(13.0f, 2.00f),  // 3 Hard shakes (requires deliberate hard strokes with ~2x gravity)
-        HIGH(10.5f, 1.75f)     // Firm shake
+        COUNT_2(2, 1400L, 12.5f, 1.90f, 5.0f),  // 2 Distinct Hard Shakes
+        COUNT_3(3, 2000L, 12.5f, 1.90f, 5.0f),  // 3 Distinct Hard Shakes (Default / Recommended)
+        COUNT_5(5, 3000L, 12.5f, 1.90f, 5.0f);  // 5 Distinct Hard Shakes (Strict)
+
+        companion object {
+            fun fromString(value: String?): Sensitivity {
+                if (value == null) return COUNT_3
+                return when (value.trim().lowercase()) {
+                    "2", "count_2", "high" -> COUNT_2
+                    "5", "count_5", "low" -> COUNT_5
+                    "3", "count_3", "normal" -> COUNT_3
+                    else -> COUNT_3
+                }
+            }
+        }
     }
 
     init {
@@ -252,25 +268,33 @@ class ShakeDetector(
 
         val currentSensitivity = sensitivity
 
-        // Require BOTH sufficient linear acceleration stroke AND elevated total G-force
+        // Hysteresis Reset: When acceleration drops back down below valleyThreshold,
+        // unlock the detector so the NEXT shake stroke can be registered.
+        if (linearMagnitude < currentSensitivity.valleyThreshold) {
+            isWaitingForValley = false
+        }
+
+        // Always prune expired peaks from the sliding window
+        peakTimestamps.removeAll { now - it > currentSensitivity.windowMs }
+
+        // Peak Detection: Both linear acceleration and G-force must exceed the hard shake threshold
         val isThresholdExceeded = linearMagnitude >= currentSensitivity.linearThreshold &&
                 gForce >= currentSensitivity.gForceThreshold
 
         if (isThresholdExceeded) {
             totalThresholdCrossings++
 
-            // Require at least MIN_PEAK_INTERVAL_MS between recorded peaks to count distinct motion strokes
-            if (now - lastPeakTimestamp >= MIN_PEAK_INTERVAL_MS) {
+            // Only count a new peak if we are NOT waiting for valley and minimum stroke interval has elapsed
+            if (!isWaitingForValley && (now - lastPeakTimestamp >= MIN_PEAK_INTERVAL_MS)) {
                 lastPeakTimestamp = now
                 peakTimestamps.add(now)
                 totalPeaksDetected++
+                isWaitingForValley = true // Lock until acceleration returns to valley / resting
+                Log.d(TAG, "[SHAKE-PEAK] Stroke #\${peakTimestamps.size}/\${currentSensitivity.requiredPeaks} detected. Linear: \$linearMagnitude m/s^2, G-Force: \${gForce}g")
             }
 
-            // Prune peaks outside the sliding temporal window
-            peakTimestamps.removeAll { now - it > PEAK_WINDOW_MS }
-
-            // Require at least REQUIRED_PEAKS distinct motion strokes within the sliding window
-            if (peakTimestamps.size >= REQUIRED_PEAKS) {
+            // Require exact number of distinct hard strokes within the sliding window
+            if (peakTimestamps.size >= currentSensitivity.requiredPeaks) {
                 // If a popup or expense flow is already active on screen, ignore motion trigger
                 if (!isPopupCurrentlyActive()) {
                     if (lastShakeTimestamp == 0L || now - lastShakeTimestamp >= COOLDOWN_MS) {
@@ -279,16 +303,16 @@ class ShakeDetector(
                         totalConfirmedShakes++
                         peakTimestamps.clear()
                         lastPeakTimestamp = 0L
+                        isWaitingForValley = false
 
                         val eventId = java.util.UUID.randomUUID().toString()
                         lastShakeEventId = eventId
                         if (appContext != null) {
                             flushTelemetry(appContext)
                         }
-                        Log.d(TAG, "[SHAKE-2] Intentional shake confirmed! Linear: \$linearMagnitude m/s^2, G-Force: \${gForce}g, Shakes: \$totalConfirmedShakes, EventId: \$eventId")
+                        Log.d(TAG, "[SHAKE-CONFIRMED] Multi-stroke shake confirmed (\${currentSensitivity.requiredPeaks} strokes)! Linear: \$linearMagnitude m/s^2, G-Force: \${gForce}g, EventId: \$eventId")
                         
                         try {
-                            Log.d(TAG, "[SHAKE-3] onShakeListener entered for EventId: \$eventId")
                             onShakeListener(eventId)
                         } catch (e: Throwable) {
                             Log.e(TAG, "[SHAKE-FATAL] Uncaught exception in onShakeListener for EventId: \$eventId", e)
@@ -324,9 +348,7 @@ class ShakeDetector(
         private const val KEY_MAX_DELTA_MS = "diag_max_event_delta_ms"
 
         private const val ALPHA = 0.85f // Low-pass filter factor for gravity estimation
-        private const val MIN_PEAK_INTERVAL_MS = 130L // Minimum separation between distinct shake strokes
-        private const val PEAK_WINDOW_MS = 1200L // Sliding window to accumulate 3 hard shake strokes
-        private const val REQUIRED_PEAKS = 3 // Number of distinct directional strokes required to confirm shake
+        private const val MIN_PEAK_INTERVAL_MS = 140L // Minimum separation between distinct shake strokes
         private const val COOLDOWN_MS = 2000L // Debounce cooldown after shake trigger
         private const val POPUP_LOCK_TIMEOUT_MS = 4000L // Safeguard timeout against stale locks
 
@@ -542,14 +564,10 @@ class ShakeDetectionService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_UPDATE_SENSITIVITY -> {
-                val sensStr = intent?.getStringExtra("sensitivity") ?: "NORMAL"
-                val sens = try {
-                    ShakeDetector.Sensitivity.valueOf(sensStr)
-                } catch (e: Exception) {
-                    ShakeDetector.Sensitivity.NORMAL
-                }
+                val sensStr = intent?.getStringExtra("sensitivity") ?: "3"
+                val sens = ShakeDetector.Sensitivity.fromString(sensStr)
                 shakeDetector?.sensitivity = sens
-                Log.d(TAG, "Updated shake detector sensitivity to: \$sens")
+                Log.d(TAG, "Updated shake detector sensitivity to: \$sens (requiredPeaks=\${sens.requiredPeaks})")
             }
             ACTION_SET_BACKGROUND_ENABLED -> {
                 val bgEnabled = intent?.getBooleanExtra("backgroundEnabled", true) ?: true
@@ -623,12 +641,8 @@ class ShakeDetectionService : Service() {
         sensorType = accelerometer?.type ?: -1
 
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val sensStr = prefs.getString(KEY_SENSITIVITY, "NORMAL") ?: "NORMAL"
-        val initialSensitivity = try {
-            ShakeDetector.Sensitivity.valueOf(sensStr)
-        } catch (e: Exception) {
-            ShakeDetector.Sensitivity.NORMAL
-        }
+        val sensStr = prefs.getString(KEY_SENSITIVITY, "3") ?: "3"
+        val initialSensitivity = ShakeDetector.Sensitivity.fromString(sensStr)
 
         shakeDetector = ShakeDetector(applicationContext) { eventId ->
             handleShakeTriggered(eventId)
@@ -1184,12 +1198,8 @@ class PocketWiseShakeModule(private val reactContext: ReactApplicationContext) :
             val prefs = reactContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val isEnabled = prefs.getBoolean(KEY_SERVICE_ENABLED, true)
             val isBgEnabled = prefs.getBoolean(KEY_BACKGROUND_ENABLED, true)
-            val sensitivityStr = prefs.getString(KEY_SENSITIVITY, "NORMAL") ?: "NORMAL"
-            val sensEnum = try {
-                ShakeDetector.Sensitivity.valueOf(sensitivityStr)
-            } catch (e: Exception) {
-                ShakeDetector.Sensitivity.NORMAL
-            }
+            val sensitivityStr = prefs.getString(KEY_SENSITIVITY, "3") ?: "3"
+            val sensEnum = ShakeDetector.Sensitivity.fromString(sensitivityStr)
 
             // Persisted counters
             val pEvents = prefs.getLong("diag_total_sensor_events", 0L)
