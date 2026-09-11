@@ -1679,10 +1679,10 @@ class QuickExpenseActivity : AppCompatActivity() {
         }, 150)
     }
 
-    override fun onNewIntent(intent: Intent?) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        val eventId = intent?.getStringExtra("shakeEventId") ?: ""
+        val eventId = intent.getStringExtra("shakeEventId") ?: ""
         Log.d(TAG, "[SHAKE-8-NEW] QuickExpenseActivity onNewIntent called. EventId: \$eventId")
         ShakeDetector.isPopupActive = true
 
@@ -1984,11 +1984,13 @@ class QuickExpenseActivity : AppCompatActivity() {
                 put("date", dateStr)
             }
 
+            val authHeader = "Bearer " + (if (accessToken.isNotEmpty()) accessToken else supabaseAnonKey)
+
             val txEndpoint = URL("\$supabaseUrl/rest/v1/transactions")
             val conn = txEndpoint.openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
             conn.setRequestProperty("apikey", supabaseAnonKey)
-            conn.setRequestProperty("Authorization", "Bearer \\\${if (accessToken.isNotEmpty()) accessToken else supabaseAnonKey}")
+            conn.setRequestProperty("Authorization", authHeader)
             conn.setRequestProperty("Content-Type", "application/json")
             conn.setRequestProperty("Prefer", "return=representation")
             conn.doOutput = true
@@ -2010,7 +2012,7 @@ class QuickExpenseActivity : AppCompatActivity() {
                     val accConn = accEndpoint.openConnection() as HttpURLConnection
                     accConn.requestMethod = "GET"
                     accConn.setRequestProperty("apikey", supabaseAnonKey)
-                    accConn.setRequestProperty("Authorization", "Bearer \\\${if (accessToken.isNotEmpty()) accessToken else supabaseAnonKey}")
+                    accConn.setRequestProperty("Authorization", authHeader)
                     accConn.connectTimeout = 5000
 
                     if (accConn.responseCode in 200..299) {
@@ -2023,7 +2025,7 @@ class QuickExpenseActivity : AppCompatActivity() {
                             val patchConn = URL("\$supabaseUrl/rest/v1/accounts?id=eq.\$accountId").openConnection() as HttpURLConnection
                             patchConn.requestMethod = "PATCH"
                             patchConn.setRequestProperty("apikey", supabaseAnonKey)
-                            patchConn.setRequestProperty("Authorization", "Bearer \\\${if (accessToken.isNotEmpty()) accessToken else supabaseAnonKey}")
+                            patchConn.setRequestProperty("Authorization", authHeader)
                             patchConn.setRequestProperty("Content-Type", "application/json")
                             patchConn.doOutput = true
 
