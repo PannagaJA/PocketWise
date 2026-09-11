@@ -178,9 +178,9 @@ class ShakeDetector(
         val linearThreshold: Float,  // m/s^2 linear acceleration (gravity removed)
         val gForceThreshold: Float   // total G-force threshold
     ) {
-        LOW(15.0f, 2.20f),     // Requires a firmer, deliberate shake
-        NORMAL(11.5f, 1.85f),  // Standard intentional shake (ignores walking and tilting)
-        HIGH(9.0f, 1.60f)      // Responsive intentional shake
+        LOW(16.0f, 2.40f),     // Extra hard shake (requires very strong deliberate force)
+        NORMAL(13.0f, 2.00f),  // 3 Hard shakes (requires deliberate hard strokes with ~2x gravity)
+        HIGH(10.5f, 1.75f)     // Firm shake
     }
 
     init {
@@ -324,8 +324,8 @@ class ShakeDetector(
         private const val KEY_MAX_DELTA_MS = "diag_max_event_delta_ms"
 
         private const val ALPHA = 0.85f // Low-pass filter factor for gravity estimation
-        private const val MIN_PEAK_INTERVAL_MS = 100L // Minimum separation between distinct shake strokes
-        private const val PEAK_WINDOW_MS = 800L // Sliding window to accumulate shake peaks
+        private const val MIN_PEAK_INTERVAL_MS = 130L // Minimum separation between distinct shake strokes
+        private const val PEAK_WINDOW_MS = 1200L // Sliding window to accumulate 3 hard shake strokes
         private const val REQUIRED_PEAKS = 3 // Number of distinct directional strokes required to confirm shake
         private const val COOLDOWN_MS = 2000L // Debounce cooldown after shake trigger
         private const val POPUP_LOCK_TIMEOUT_MS = 4000L // Safeguard timeout against stale locks
