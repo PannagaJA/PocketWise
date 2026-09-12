@@ -3,6 +3,7 @@ import { View, Text, Modal, Pressable, TextInput, ScrollView, ActivityIndicator,
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { X, ChevronDown, Check, Zap } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { AppModal } from './ui/AppModal';
 import { useAuth } from '../context/AuthContext';
 import { transactionService } from '../lib/services/transaction.service';
 import { accountService } from '../lib/services/account.service';
@@ -139,179 +140,172 @@ export function QuickExpenseModal() {
   const selectedAcc = accounts.find((a) => a.id === selectedAccountId) || accounts[0];
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={closeModal}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1 }}
+    <AppModal visible={visible} animationType="slide" onClose={closeModal}>
+      <Pressable
+        className="bg-zinc-900 rounded-t-3xl p-6 border-t border-zinc-800 max-h-[85%]"
+        onPress={(e) => e.stopPropagation()}
       >
-        <Pressable className="flex-1 justify-end bg-black/60" onPress={closeModal}>
-          <Pressable
-            className="bg-zinc-900 rounded-t-3xl p-6 border-t border-zinc-800"
-            onPress={(e) => e.stopPropagation()}
-          >
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              {/* Header */}
-              <View className="flex-row justify-between items-center mb-4">
-                <View className="flex-row items-center gap-2">
-                  <View className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/30 items-center justify-center">
-                    <Zap size={18} color="#10B981" />
-                  </View>
-                  <Text className="text-xl font-extrabold text-white">Quick Expense</Text>
-                </View>
-                <Pressable onPress={closeModal} className="p-1">
-                  <X size={20} color="#A1A1AA" />
-                </Pressable>
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          {/* Header */}
+          <View className="flex-row justify-between items-center mb-4">
+            <View className="flex-row items-center gap-2">
+              <View className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/30 items-center justify-center">
+                <Zap size={18} color="#10B981" />
               </View>
+              <Text className="text-xl font-extrabold text-white">Quick Expense</Text>
+            </View>
+            <Pressable onPress={closeModal} className="p-1">
+              <X size={20} color="#A1A1AA" />
+            </Pressable>
+          </View>
 
-              {/* Amount Input */}
-              <Text className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Amount (₹)</Text>
-              <View className="flex-row items-center bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 mb-4">
-                <Text className="text-xl font-black text-emerald-400 mr-2">₹</Text>
-                <TextInput
-                  ref={amountInputRef}
-                  placeholder="500"
-                  placeholderTextColor="#71717A"
-                  keyboardType="numeric"
-                  value={amount}
-                  onChangeText={setAmount}
-                  className="flex-1 text-2xl font-black text-white p-0"
-                />
+          {/* Amount Input */}
+          <Text className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Amount (₹)</Text>
+          <View className="flex-row items-center bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 mb-4">
+            <Text className="text-xl font-black text-emerald-400 mr-2">₹</Text>
+            <TextInput
+              ref={amountInputRef}
+              placeholder="500"
+              placeholderTextColor="#71717A"
+              keyboardType="numeric"
+              value={amount}
+              onChangeText={setAmount}
+              className="flex-1 text-2xl font-black text-white p-0"
+            />
+          </View>
+
+          {/* Description Input */}
+          <Text className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Description</Text>
+          <View className="bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 mb-4">
+            <TextInput
+              placeholder="e.g. Petrol, Groceries, Coffee"
+              placeholderTextColor="#71717A"
+              value={description}
+              onChangeText={setDescription}
+              className="text-sm font-medium text-white p-0"
+            />
+          </View>
+
+          {/* Account Dropdown */}
+          <View className="mb-4">
+            <Text className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Account</Text>
+            <Pressable
+              onPress={() => {
+                setAccountDropdownOpen(!accountDropdownOpen);
+                setCategoryDropdownOpen(false);
+              }}
+              className="flex-row justify-between items-center p-3.5 bg-zinc-800 border border-zinc-700 rounded-2xl"
+            >
+              <Text className="text-sm font-bold text-white">
+                {selectedAcc ? selectedAcc.name : 'Select Account'}
+              </Text>
+              <ChevronDown size={18} color="#A1A1AA" />
+            </Pressable>
+
+            {accountDropdownOpen && (
+              <View className="mt-1 bg-zinc-800 border border-zinc-700 rounded-2xl max-h-36 overflow-hidden">
+                <ScrollView nestedScrollEnabled className="p-1">
+                  {accounts.map((acc) => (
+                    <Pressable
+                      key={acc.id}
+                      onPress={() => {
+                        setSelectedAccountId(acc.id);
+                        setAccountDropdownOpen(false);
+                      }}
+                      className={`flex-row justify-between items-center p-3 rounded-xl ${
+                        selectedAccountId === acc.id ? 'bg-zinc-700' : ''
+                      }`}
+                    >
+                      <Text className="text-sm font-medium text-white">{acc.name}</Text>
+                      {selectedAccountId === acc.id && <Check size={16} color="#10B981" />}
+                    </Pressable>
+                  ))}
+                </ScrollView>
               </View>
+            )}
+          </View>
 
-              {/* Description Input */}
-              <Text className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Description</Text>
-              <View className="bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 mb-4">
-                <TextInput
-                  placeholder="e.g. Petrol, Groceries, Coffee"
-                  placeholderTextColor="#71717A"
-                  value={description}
-                  onChangeText={setDescription}
-                  className="text-sm font-medium text-white p-0"
-                />
-              </View>
-
-              {/* Account Dropdown */}
-              <View className="mb-4">
-                <Text className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Account</Text>
-                <Pressable
-                  onPress={() => {
-                    setAccountDropdownOpen(!accountDropdownOpen);
-                    setCategoryDropdownOpen(false);
-                  }}
-                  className="flex-row justify-between items-center p-3.5 bg-zinc-800 border border-zinc-700 rounded-2xl"
-                >
-                  <Text className="text-sm font-bold text-white">
-                    {selectedAcc ? selectedAcc.name : 'Select Account'}
-                  </Text>
-                  <ChevronDown size={18} color="#A1A1AA" />
-                </Pressable>
-
-                {accountDropdownOpen && (
-                  <View className="mt-1 bg-zinc-800 border border-zinc-700 rounded-2xl max-h-36 overflow-hidden">
-                    <ScrollView nestedScrollEnabled className="p-1">
-                      {accounts.map((acc) => (
-                        <Pressable
-                          key={acc.id}
-                          onPress={() => {
-                            setSelectedAccountId(acc.id);
-                            setAccountDropdownOpen(false);
-                          }}
-                          className={`flex-row justify-between items-center p-3 rounded-xl ${
-                            selectedAccountId === acc.id ? 'bg-zinc-700' : ''
-                          }`}
-                        >
-                          <Text className="text-sm font-medium text-white">{acc.name}</Text>
-                          {selectedAccountId === acc.id && <Check size={16} color="#10B981" />}
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-              </View>
-
-              {/* Category Dropdown */}
-              {expenseCategories.length > 0 && (
-                <View className="mb-4">
-                  <Text className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Category</Text>
-                  <Pressable
-                    onPress={() => {
-                      setCategoryDropdownOpen(!categoryDropdownOpen);
-                      setAccountDropdownOpen(false);
-                    }}
-                    className="flex-row justify-between items-center p-3.5 bg-zinc-800 border border-zinc-700 rounded-2xl"
-                  >
-                    <Text className="text-sm font-bold text-white">
-                      {selectedCat ? selectedCat.name : 'General'}
-                    </Text>
-                    <ChevronDown size={18} color="#A1A1AA" />
-                  </Pressable>
-
-                  {categoryDropdownOpen && (
-                    <View className="mt-1 bg-zinc-800 border border-zinc-700 rounded-2xl max-h-36 overflow-hidden">
-                      <ScrollView nestedScrollEnabled className="p-1">
-                        {expenseCategories.map((cat) => (
-                          <Pressable
-                            key={cat.id}
-                            onPress={() => {
-                              setSelectedCategoryId(cat.id);
-                              setCategoryDropdownOpen(false);
-                            }}
-                            className={`flex-row justify-between items-center p-3 rounded-xl ${
-                              selectedCategoryId === cat.id ? 'bg-zinc-700' : ''
-                            }`}
-                          >
-                            <Text className="text-sm font-medium text-white">{cat.name}</Text>
-                            {selectedCategoryId === cat.id && <Check size={16} color="#10B981" />}
-                          </Pressable>
-                        ))}
-                      </ScrollView>
-                    </View>
-                  )}
-                </View>
-              )}
-
-              {/* Custom Reason Field when 'Others' is selected */}
-              {isOtherSelected && (
-                <View className="mb-4">
-                  <Text className="text-[11px] font-bold text-amber-400 uppercase tracking-widest mb-1.5">Custom Reason / Note</Text>
-                  <View className="bg-zinc-800 border border-amber-500/50 rounded-2xl px-4 py-3">
-                    <TextInput
-                      placeholder="e.g. Doctor fees, Bike service, Gift"
-                      placeholderTextColor="#71717A"
-                      value={customReason}
-                      onChangeText={setCustomReason}
-                      className="text-sm font-medium text-white p-0"
-                      autoFocus
-                    />
-                  </View>
-                </View>
-              )}
-
-              {/* Inline Error Message */}
-              {errorMessage ? (
-                <Text className="text-xs text-rose-400 font-bold mb-3 text-center">
-                  {errorMessage}
-                </Text>
-              ) : null}
-
-              {/* Done Button */}
+          {/* Category Dropdown */}
+          {expenseCategories.length > 0 && (
+            <View className="mb-4">
+              <Text className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Category</Text>
               <Pressable
-                disabled={createExpenseMutation.isPending}
-                onPress={() => createExpenseMutation.mutate()}
-                className={`w-full py-4 rounded-2xl items-center justify-center mb-3 ${
-                  createExpenseMutation.isPending ? 'bg-emerald-700' : 'bg-emerald-500 active:bg-emerald-600'
-                }`}
+                onPress={() => {
+                  setCategoryDropdownOpen(!categoryDropdownOpen);
+                  setAccountDropdownOpen(false);
+                }}
+                className="flex-row justify-between items-center p-3.5 bg-zinc-800 border border-zinc-700 rounded-2xl"
               >
-                {createExpenseMutation.isPending ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Text className="text-base font-black text-white tracking-wider">DONE</Text>
-                )}
+                <Text className="text-sm font-bold text-white">
+                  {selectedCat ? selectedCat.name : 'General'}
+                </Text>
+                <ChevronDown size={18} color="#A1A1AA" />
               </Pressable>
-            </ScrollView>
+
+              {categoryDropdownOpen && (
+                <View className="mt-1 bg-zinc-800 border border-zinc-700 rounded-2xl max-h-36 overflow-hidden">
+                  <ScrollView nestedScrollEnabled className="p-1">
+                    {expenseCategories.map((cat) => (
+                      <Pressable
+                        key={cat.id}
+                        onPress={() => {
+                          setSelectedCategoryId(cat.id);
+                          setCategoryDropdownOpen(false);
+                        }}
+                        className={`flex-row justify-between items-center p-3 rounded-xl ${
+                          selectedCategoryId === cat.id ? 'bg-zinc-700' : ''
+                        }`}
+                      >
+                        <Text className="text-sm font-medium text-white">{cat.name}</Text>
+                        {selectedCategoryId === cat.id && <Check size={16} color="#10B981" />}
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Custom Reason Field when 'Others' is selected */}
+          {isOtherSelected && (
+            <View className="mb-4">
+              <Text className="text-[11px] font-bold text-amber-400 uppercase tracking-widest mb-1.5">Custom Reason / Note</Text>
+              <View className="bg-zinc-800 border border-amber-500/50 rounded-2xl px-4 py-3">
+                <TextInput
+                  placeholder="e.g. Doctor fees, Bike service, Gift"
+                  placeholderTextColor="#71717A"
+                  value={customReason}
+                  onChangeText={setCustomReason}
+                  className="text-sm font-medium text-white p-0"
+                  autoFocus
+                />
+              </View>
+            </View>
+          )}
+
+          {/* Inline Error Message */}
+          {errorMessage ? (
+            <Text className="text-xs text-rose-400 font-bold mb-3 text-center">
+              {errorMessage}
+            </Text>
+          ) : null}
+
+          {/* Done Button */}
+          <Pressable
+            disabled={createExpenseMutation.isPending}
+            onPress={() => createExpenseMutation.mutate()}
+            className={`w-full py-4 rounded-2xl items-center justify-center mb-3 ${
+              createExpenseMutation.isPending ? 'bg-emerald-700' : 'bg-emerald-500 active:bg-emerald-600'
+            }`}
+          >
+            {createExpenseMutation.isPending ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text className="text-base font-black text-white tracking-wider">DONE</Text>
+            )}
           </Pressable>
-        </Pressable>
-      </KeyboardAvoidingView>
-    </Modal>
+        </ScrollView>
+      </Pressable>
+    </AppModal>
   );
 }

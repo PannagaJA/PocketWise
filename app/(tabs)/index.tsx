@@ -7,6 +7,7 @@ import Svg, { Path, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
+import { AppModal } from '../../components/ui/AppModal';
 import { useAuth } from '../../context/AuthContext';
 import { useAppLock } from '../../components/AppLockGate';
 import { accountService } from '../../lib/services/account.service';
@@ -467,195 +468,199 @@ export default function DashboardScreen() {
       </ScrollView>
 
       {/* Notifications Drawer Modal */}
-      <Modal visible={notifModalVisible} animationType="slide" transparent>
-        <View className="flex-1 justify-end bg-black/50">
-          <View className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[80%]">
-            <View className="flex-row justify-between items-center mb-4">
-              <View className="flex-row items-center gap-2">
-                <View className="w-8 h-8 rounded-full bg-indigo-50 items-center justify-center">
-                  <Bell size={18} color="#6366F1" />
-                </View>
-                <View>
-                  <Text className="text-xl font-extrabold text-zinc-900">Notifications</Text>
-                  <Text className="text-xs text-zinc-500">Recent push alerts & reminders</Text>
-                </View>
+      <AppModal
+        visible={notifModalVisible}
+        onClose={() => setNotifModalVisible(false)}
+        animationType="slide"
+      >
+        <Pressable
+          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[80%]"
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View className="flex-row justify-between items-center mb-4">
+            <View className="flex-row items-center gap-2">
+              <View className="w-8 h-8 rounded-full bg-indigo-50 items-center justify-center">
+                <Bell size={18} color="#6366F1" />
               </View>
-
-              <View className="flex-row items-center gap-2">
-                {reminders.length > 0 && (
-                  <TouchableOpacity
-                    onPress={async () => {
-                      if (user?.id) {
-                        await reminderService.clearAllReminders(user.id);
-                        refetchReminders();
-                      }
-                    }}
-                    className="px-2.5 py-1 rounded-full bg-rose-50 border border-rose-200"
-                  >
-                    <Text className="text-xs font-bold text-rose-600">Clear All</Text>
-                  </TouchableOpacity>
-                )}
-                <Pressable
-                  onPress={() => setNotifModalVisible(false)}
-                  className="w-8 h-8 rounded-full bg-zinc-100 items-center justify-center"
-                >
-                  <X size={18} color="#71717A" />
-                </Pressable>
+              <View>
+                <Text className="text-xl font-extrabold text-zinc-900">Notifications</Text>
+                <Text className="text-xs text-zinc-500">Recent push alerts & reminders</Text>
               </View>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} className="mb-4">
-              {reminders.length === 0 ? (
-                <View className="items-center py-10">
-                  <View className="w-12 h-12 rounded-full bg-zinc-100 items-center justify-center mb-2">
-                    <Bell size={22} color="#A1A1AA" />
-                  </View>
-                  <Text className="text-sm font-bold text-zinc-800">No recent notifications</Text>
-                  <Text className="text-xs text-zinc-400 mt-1 text-center">Your upcoming bill & budget push notifications will appear here.</Text>
-                </View>
-              ) : (
-                reminders.map((r) => (
-                  <SwipeableNotificationItem
-                    key={r.id}
-                    item={r}
-                    onDismiss={async (id) => {
-                      await reminderService.deleteReminder(id);
+            <View className="flex-row items-center gap-2">
+              {reminders.length > 0 && (
+                <TouchableOpacity
+                  onPress={async () => {
+                    if (user?.id) {
+                      await reminderService.clearAllReminders(user.id);
                       refetchReminders();
-                    }}
-                  />
-                ))
+                    }
+                  }}
+                  className="px-2.5 py-1 rounded-full bg-rose-50 border border-rose-200"
+                >
+                  <Text className="text-xs font-bold text-rose-600">Clear All</Text>
+                </TouchableOpacity>
               )}
-            </ScrollView>
-
-            <Button
-              variant="outline"
-              size="md"
-              className="border-zinc-200"
-              onPress={() => setNotifModalVisible(false)}
-            >
-              <Text className="text-zinc-800 font-bold text-xs">Close</Text>
-            </Button>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Bank Selection Dropdown Modal */}
-      <Modal visible={bankSelectModalVisible} animationType="slide" transparent>
-        <Pressable
-          className="flex-1 justify-end bg-black/50"
-          onPress={() => setBankSelectModalVisible(false)}
-        >
-          <Pressable
-            onPress={(e) => e.stopPropagation()}
-            className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[75%]"
-          >
-            <View className="flex-row justify-between items-center mb-4">
-              <View>
-                <Text className="text-lg font-extrabold text-zinc-900">Select Account</Text>
-                <Text className="text-xs text-zinc-500">Filter dashboard metrics, charts, & transactions</Text>
-              </View>
               <Pressable
-                onPress={() => setBankSelectModalVisible(false)}
+                onPress={() => setNotifModalVisible(false)}
                 className="w-8 h-8 rounded-full bg-zinc-100 items-center justify-center"
               >
                 <X size={18} color="#71717A" />
               </Pressable>
             </View>
+          </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} className="mb-4">
-              {/* All Accounts Option */}
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => {
-                  try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                  setSelectedBankId('all');
-                  setBankSelectModalVisible(false);
-                }}
-                className={`flex-row items-center justify-between p-3.5 mb-2.5 rounded-2xl border ${
-                  selectedBankId === 'all'
-                    ? 'bg-zinc-900 border-zinc-900 shadow-sm'
-                    : 'bg-zinc-50 border-zinc-200'
-                }`}
-              >
-                <View className="flex-row items-center gap-3">
-                  <View className="w-9 h-9 rounded-xl bg-zinc-800 items-center justify-center">
-                    <Wallet size={18} color="#10B981" />
-                  </View>
-                  <View>
-                    <Text className={`text-sm font-bold ${selectedBankId === 'all' ? 'text-white' : 'text-zinc-900'}`}>
-                      All Accounts
-                    </Text>
-                    <Text className={`text-xs ${selectedBankId === 'all' ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                      {accounts.length} linked bank{accounts.length > 1 ? 's' : ''} combined
-                    </Text>
-                  </View>
+          <ScrollView showsVerticalScrollIndicator={false} className="mb-4">
+            {reminders.length === 0 ? (
+              <View className="items-center py-10">
+                <View className="w-12 h-12 rounded-full bg-zinc-100 items-center justify-center mb-2">
+                  <Bell size={22} color="#A1A1AA" />
                 </View>
+                <Text className="text-sm font-bold text-zinc-800">No recent notifications</Text>
+                <Text className="text-xs text-zinc-400 mt-1 text-center">Your upcoming bill & budget push notifications will appear here.</Text>
+              </View>
+            ) : (
+              reminders.map((r) => (
+                <SwipeableNotificationItem
+                  key={r.id}
+                  item={r}
+                  onDismiss={async (id) => {
+                    await reminderService.deleteReminder(id);
+                    refetchReminders();
+                  }}
+                />
+              ))
+            )}
+          </ScrollView>
 
-                <View className="flex-row items-center gap-2">
-                  <Text className={`text-sm font-black ${selectedBankId === 'all' ? 'text-emerald-400' : 'text-zinc-900'}`}>
-                    {formatMoney(totalBalance)}
-                  </Text>
-                  {selectedBankId === 'all' && <Check size={18} color="#10B981" />}
-                </View>
-              </TouchableOpacity>
-
-              {/* Individual Banks */}
-              {accounts.map((acc) => {
-                const isSelected = selectedBankId === acc.id;
-                return (
-                  <TouchableOpacity
-                    key={acc.id}
-                    activeOpacity={0.7}
-                    onPress={() => {
-                      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                      setSelectedBankId(acc.id);
-                      setBankSelectModalVisible(false);
-                    }}
-                    className={`flex-row items-center justify-between p-3.5 mb-2.5 rounded-2xl border ${
-                      isSelected
-                        ? 'bg-zinc-900 border-zinc-900 shadow-sm'
-                        : 'bg-zinc-50 border-zinc-200'
-                    }`}
-                  >
-                    <View className="flex-row items-center gap-3 flex-1 mr-2">
-                      <View
-                        style={{ backgroundColor: acc.color || '#6366F1' }}
-                        className="w-9 h-9 rounded-xl items-center justify-center"
-                      >
-                        <Building2 size={18} color="#FFFFFF" />
-                      </View>
-                      <View className="flex-1">
-                        <Text className={`text-sm font-bold ${isSelected ? 'text-white' : 'text-zinc-900'}`} numberOfLines={1}>
-                          {acc.name}
-                        </Text>
-                        <Text className={`text-xs ${isSelected ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                          {acc.type ? acc.type.toUpperCase() : 'BANK'}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View className="flex-row items-center gap-2">
-                      <Text className={`text-sm font-black ${isSelected ? 'text-emerald-400' : 'text-zinc-900'}`}>
-                        {formatMoney(acc.balance || 0)}
-                      </Text>
-                      {isSelected && <Check size={18} color="#10B981" />}
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-
-            <Button
-              variant="outline"
-              size="md"
-              className="border-zinc-200"
-              onPress={() => setBankSelectModalVisible(false)}
-            >
-              <Text className="text-zinc-800 font-bold text-xs">Close</Text>
-            </Button>
-          </Pressable>
+          <Button
+            variant="outline"
+            size="md"
+            className="border-zinc-200"
+            onPress={() => setNotifModalVisible(false)}
+          >
+            <Text className="text-zinc-800 font-bold text-xs">Close</Text>
+          </Button>
         </Pressable>
-      </Modal>
+      </AppModal>
+
+      {/* Bank Selection Dropdown Modal */}
+      <AppModal
+        visible={bankSelectModalVisible}
+        onClose={() => setBankSelectModalVisible(false)}
+        animationType="slide"
+      >
+        <Pressable
+          onPress={(e) => e.stopPropagation()}
+          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[75%]"
+        >
+          <View className="flex-row justify-between items-center mb-4">
+            <View>
+              <Text className="text-lg font-extrabold text-zinc-900">Select Account</Text>
+              <Text className="text-xs text-zinc-500">Filter dashboard metrics, charts, & transactions</Text>
+            </View>
+            <Pressable
+              onPress={() => setBankSelectModalVisible(false)}
+              className="w-8 h-8 rounded-full bg-zinc-100 items-center justify-center"
+            >
+              <X size={18} color="#71717A" />
+            </Pressable>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} className="mb-4">
+            {/* All Accounts Option */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                setSelectedBankId('all');
+                setBankSelectModalVisible(false);
+              }}
+              className={`flex-row items-center justify-between p-3.5 mb-2.5 rounded-2xl border ${
+                selectedBankId === 'all'
+                  ? 'bg-zinc-900 border-zinc-900 shadow-sm'
+                  : 'bg-zinc-50 border-zinc-200'
+              }`}
+            >
+              <View className="flex-row items-center gap-3">
+                <View className="w-9 h-9 rounded-xl bg-zinc-800 items-center justify-center">
+                  <Wallet size={18} color="#10B981" />
+                </View>
+                <View>
+                  <Text className={`text-sm font-bold ${selectedBankId === 'all' ? 'text-white' : 'text-zinc-900'}`}>
+                    All Accounts
+                  </Text>
+                  <Text className={`text-xs ${selectedBankId === 'all' ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                    {accounts.length} linked bank{accounts.length > 1 ? 's' : ''} combined
+                  </Text>
+                </View>
+              </View>
+
+              <View className="flex-row items-center gap-2">
+                <Text className={`text-sm font-black ${selectedBankId === 'all' ? 'text-emerald-400' : 'text-zinc-900'}`}>
+                  {formatMoney(totalBalance)}
+                </Text>
+                {selectedBankId === 'all' && <Check size={18} color="#10B981" />}
+              </View>
+            </TouchableOpacity>
+
+            {/* Individual Banks */}
+            {accounts.map((acc) => {
+              const isSelected = selectedBankId === acc.id;
+              return (
+                <TouchableOpacity
+                  key={acc.id}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                    setSelectedBankId(acc.id);
+                    setBankSelectModalVisible(false);
+                  }}
+                  className={`flex-row items-center justify-between p-3.5 mb-2.5 rounded-2xl border ${
+                    isSelected
+                      ? 'bg-zinc-900 border-zinc-900 shadow-sm'
+                      : 'bg-zinc-50 border-zinc-200'
+                  }`}
+                >
+                  <View className="flex-row items-center gap-3 flex-1 mr-2">
+                    <View
+                      style={{ backgroundColor: acc.color || '#6366F1' }}
+                      className="w-9 h-9 rounded-xl items-center justify-center"
+                    >
+                      <Building2 size={18} color="#FFFFFF" />
+                    </View>
+                    <View className="flex-1">
+                      <Text className={`text-sm font-bold ${isSelected ? 'text-white' : 'text-zinc-900'}`} numberOfLines={1}>
+                        {acc.name}
+                      </Text>
+                      <Text className={`text-xs ${isSelected ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                        {acc.type ? acc.type.toUpperCase() : 'BANK'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View className="flex-row items-center gap-2">
+                    <Text className={`text-sm font-black ${isSelected ? 'text-emerald-400' : 'text-zinc-900'}`}>
+                      {formatMoney(acc.balance || 0)}
+                    </Text>
+                    {isSelected && <Check size={18} color="#10B981" />}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          <Button
+            variant="outline"
+            size="md"
+            className="border-zinc-200"
+            onPress={() => setBankSelectModalVisible(false)}
+          >
+            <Text className="text-zinc-800 font-bold text-xs">Close</Text>
+          </Button>
+        </Pressable>
+      </AppModal>
 
       {/* SMS Onboarding Modal */}
       <SmsOnboardingModal

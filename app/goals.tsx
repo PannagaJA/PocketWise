@@ -8,6 +8,7 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
+import { AppModal } from '../components/ui/AppModal';
 import { useAuth } from '../context/AuthContext';
 import { goalService, Goal } from '../lib/services/goal.service';
 import { formatMoney, parseMoneyToMinor } from '../lib/finance/core';
@@ -395,103 +396,97 @@ export default function GoalsScreen() {
       </View>
 
       {/* Add Goal Modal */}
-      <Modal visible={modalVisible} animationType="slide" transparent>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1 }}
+      <AppModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        animationType="slide"
+      >
+        <Pressable
+          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]"
+          onPress={(e) => e.stopPropagation()}
         >
-          <Pressable
-            className="flex-1 justify-end bg-black/40"
-            onPress={() => Keyboard.dismiss()}
-          >
-            <Pressable className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]" onPress={(e) => e.stopPropagation()}>
-              <View className="flex-row justify-between items-center mb-4">
-                <Text className="text-xl font-bold text-zinc-900">Create Goal</Text>
-                <Pressable onPress={() => setModalVisible(false)} className="p-1">
-                  <X size={20} color="#71717A" />
-                </Pressable>
-              </View>
-
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                <Input
-                  label="Goal Name"
-                  placeholder="e.g. New iPhone, Vacation, Emergency Fund"
-                  value={name}
-                  onChangeText={setName}
-                />
-
-                <Input
-                  label="Target Amount (₹)"
-                  placeholder="50000.00"
-                  keyboardType="numeric"
-                  value={targetAmount}
-                  onChangeText={setTargetAmount}
-                />
-
-                <Input
-                  label="Initial Amount Saved (₹) (Optional)"
-                  placeholder="5000.00"
-                  keyboardType="numeric"
-                  value={currentSaved}
-                  onChangeText={setCurrentSaved}
-                />
-
-                <Button
-                  variant="primary"
-                  size="lg"
-                  loading={createGoalMutation.isPending}
-                  className="mt-2 mb-4"
-                  onPress={() => createGoalMutation.mutate()}
-                >
-                  <Text className="text-white font-semibold">Save Goal</Text>
-                </Button>
-              </ScrollView>
+          <View className="flex-row justify-between items-center mb-4">
+            <Text className="text-xl font-bold text-zinc-900">Create Goal</Text>
+            <Pressable onPress={() => setModalVisible(false)} className="p-1">
+              <X size={20} color="#71717A" />
             </Pressable>
-          </Pressable>
-        </KeyboardAvoidingView>
-      </Modal>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <Input
+              label="Goal Name"
+              placeholder="e.g. New iPhone, Vacation, Emergency Fund"
+              value={name}
+              onChangeText={setName}
+            />
+
+            <Input
+              label="Target Amount (₹)"
+              placeholder="50000.00"
+              keyboardType="numeric"
+              value={targetAmount}
+              onChangeText={setTargetAmount}
+            />
+
+            <Input
+              label="Initial Amount Saved (₹) (Optional)"
+              placeholder="5000.00"
+              keyboardType="numeric"
+              value={currentSaved}
+              onChangeText={setCurrentSaved}
+            />
+
+            <Button
+              variant="primary"
+              size="lg"
+              loading={createGoalMutation.isPending}
+              className="mt-2 mb-4"
+              onPress={() => createGoalMutation.mutate()}
+            >
+              <Text className="text-white font-semibold">Save Goal</Text>
+            </Button>
+          </ScrollView>
+        </Pressable>
+      </AppModal>
 
       {/* Add Contribution Modal */}
-      <Modal visible={contribModalVisible} animationType="slide" transparent>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1 }}
+      <AppModal
+        visible={contribModalVisible}
+        onClose={() => setContribModalVisible(false)}
+        animationType="slide"
+      >
+        <Pressable
+          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]"
+          onPress={(e) => e.stopPropagation()}
         >
-          <Pressable
-            className="flex-1 justify-end bg-black/40"
-            onPress={() => Keyboard.dismiss()}
-          >
-            <Pressable className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]" onPress={(e) => e.stopPropagation()}>
-              <View className="flex-row justify-between items-center mb-4">
-                <Text className="text-xl font-bold text-zinc-900">Add Contribution</Text>
-                <Pressable onPress={() => setContribModalVisible(false)} className="p-1">
-                  <X size={20} color="#71717A" />
-                </Pressable>
-              </View>
-
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                <Input
-                  label="Contribution Amount (₹)"
-                  placeholder="1000.00"
-                  keyboardType="numeric"
-                  value={contribAmount}
-                  onChangeText={setContribAmount}
-                />
-
-                <Button
-                  variant="primary"
-                  size="lg"
-                  loading={contribMutation.isPending}
-                  className="mt-2 mb-4"
-                  onPress={() => contribMutation.mutate()}
-                >
-                  <Text className="text-white font-semibold">Add Contribution</Text>
-                </Button>
-              </ScrollView>
+          <View className="flex-row justify-between items-center mb-4">
+            <Text className="text-xl font-bold text-zinc-900">Add Contribution</Text>
+            <Pressable onPress={() => setContribModalVisible(false)} className="p-1">
+              <X size={20} color="#71717A" />
             </Pressable>
-          </Pressable>
-        </KeyboardAvoidingView>
-      </Modal>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <Input
+              label="Contribution Amount (₹)"
+              placeholder="1000.00"
+              keyboardType="numeric"
+              value={contribAmount}
+              onChangeText={setContribAmount}
+            />
+
+            <Button
+              variant="primary"
+              size="lg"
+              loading={contribMutation.isPending}
+              className="mt-2 mb-4"
+              onPress={() => contribMutation.mutate()}
+            >
+              <Text className="text-white font-semibold">Add Contribution</Text>
+            </Button>
+          </ScrollView>
+        </Pressable>
+      </AppModal>
     </SafeAreaView>
   );
 }

@@ -3,6 +3,7 @@ import { View, Text, Modal, Pressable, ScrollView, KeyboardAvoidingView, Platfor
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
+import { AppModal } from './ui/AppModal';
 import { INDIAN_BANKS } from '../lib/sms/banks/bankRegistry';
 import { ParsedSmsTransaction } from '../lib/sms/types';
 import { smsStorage } from '../lib/sms/storage/smsStore';
@@ -71,127 +72,122 @@ export function SmsTransactionReviewModal({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1 }}
-      >
-        <Pressable className="flex-1 justify-end bg-black/50 p-4" onPress={() => Keyboard.dismiss()}>
-          <Card className="bg-white rounded-3xl p-6 border border-zinc-200">
-            <View className="flex-row justify-between items-center mb-4">
-              <View className="flex-row items-center gap-2">
-                <View className="w-8 h-8 rounded-full bg-amber-50 items-center justify-center">
-                  <AlertCircle size={18} color="#F59E0B" />
-                </View>
-                <Text className="text-lg font-bold text-zinc-900">Transaction Review</Text>
+    <AppModal visible={visible} animationType="slide" onClose={onClose}>
+      <Pressable className="p-2 w-full max-w-lg" onPress={(e) => e.stopPropagation()}>
+        <Card className="bg-white rounded-3xl p-6 border border-zinc-200">
+          <View className="flex-row justify-between items-center mb-4">
+            <View className="flex-row items-center gap-2">
+              <View className="w-8 h-8 rounded-full bg-amber-50 items-center justify-center">
+                <AlertCircle size={18} color="#F59E0B" />
               </View>
-              <Pressable onPress={onClose} className="p-1">
-                <X size={20} color="#71717A" />
-              </Pressable>
+              <Text className="text-lg font-bold text-zinc-900">Transaction Review</Text>
             </View>
+            <Pressable onPress={onClose} className="p-1">
+              <X size={20} color="#71717A" />
+            </Pressable>
+          </View>
 
-            {step === 'review' ? (
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                <View className="bg-zinc-50 rounded-2xl p-4 border border-zinc-200 mb-4 items-center">
-                  <Text className="text-xs text-zinc-500 font-medium uppercase tracking-widest mb-1">
-                    {transaction.type.toUpperCase()} DETECTED
-                  </Text>
-                  <Text className="text-3xl font-black text-zinc-900 mb-1">
-                    ₹{transaction.amount.toLocaleString('en-IN')}
-                  </Text>
-                  <Text className="text-xs text-zinc-500">
-                    {transaction.transactionDate.split('T')[0]} • {transaction.paymentMethod}
-                  </Text>
-                </View>
+          {step === 'review' ? (
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <View className="bg-zinc-50 rounded-2xl p-4 border border-zinc-200 mb-4 items-center">
+                <Text className="text-xs text-zinc-500 font-medium uppercase tracking-widest mb-1">
+                  {transaction.type.toUpperCase()} DETECTED
+                </Text>
+                <Text className="text-3xl font-black text-zinc-900 mb-1">
+                  ₹{transaction.amount.toLocaleString('en-IN')}
+                </Text>
+                <Text className="text-xs text-zinc-500">
+                  {transaction.transactionDate.split('T')[0]} • {transaction.paymentMethod}
+                </Text>
+              </View>
 
-                {/* Bank Identification Warning */}
-                {transaction.bankId === 'unknown' ? (
-                  <Pressable
-                    onPress={() => setStep('select_bank')}
-                    className="bg-rose-50 border border-rose-200 rounded-xl p-3 mb-4 flex-row items-center justify-between"
-                  >
-                    <View className="flex-row items-center gap-2">
-                      <Building2 size={18} color="#EF4444" />
-                      <View>
-                        <Text className="text-xs font-bold text-rose-900">Bank Not Identified</Text>
-                        <Text className="text-xs text-rose-700">Account: {transaction.maskedAccount || 'Unknown'}</Text>
-                      </View>
+              {/* Bank Identification Warning */}
+              {transaction.bankId === 'unknown' ? (
+                <Pressable
+                  onPress={() => setStep('select_bank')}
+                  className="bg-rose-50 border border-rose-200 rounded-xl p-3 mb-4 flex-row items-center justify-between"
+                >
+                  <View className="flex-row items-center gap-2">
+                    <Building2 size={18} color="#EF4444" />
+                    <View>
+                      <Text className="text-xs font-bold text-rose-900">Bank Not Identified</Text>
+                      <Text className="text-xs text-rose-700">Account: {transaction.maskedAccount || 'Unknown'}</Text>
                     </View>
-                    <Text className="text-xs font-bold text-indigo-600">Select Bank →</Text>
-                  </Pressable>
-                ) : (
-                  <View className="bg-indigo-50/60 border border-indigo-100 rounded-xl p-3 mb-4 flex-row items-center justify-between">
-                    <Text className="text-xs font-bold text-indigo-900">Bank & Account</Text>
-                    <Text className="text-xs font-bold text-indigo-700">
-                      {transaction.bankName} {transaction.maskedAccount ? `(${transaction.maskedAccount})` : ''}
-                    </Text>
                   </View>
-                )}
-
-                <Input
-                  label="Merchant / Payee"
-                  value={merchant}
-                  onChangeText={setMerchant}
-                  placeholder="e.g. Swiggy, Amazon"
-                />
-
-                <Input
-                  label="Category"
-                  value={category}
-                  onChangeText={setCategory}
-                  placeholder="e.g. Food & Dining"
-                />
-
-                <View className="flex-row gap-2 mt-4">
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className="flex-1 border-zinc-200"
-                    onPress={handleIgnore}
-                  >
-                    <Text className="text-zinc-600 font-semibold">Ignore</Text>
-                  </Button>
-
-                  <Button
-                    variant="primary"
-                    size="lg"
-                    className="flex-1 bg-indigo-600 flex-row items-center justify-center"
-                    onPress={handleConfirm}
-                  >
-                    <CheckCircle size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-                    <Text className="text-white font-bold">Confirm</Text>
-                  </Button>
+                  <Text className="text-xs font-bold text-indigo-600">Select Bank →</Text>
+                </Pressable>
+              ) : (
+                <View className="bg-indigo-50/60 border border-indigo-100 rounded-xl p-3 mb-4 flex-row items-center justify-between">
+                  <Text className="text-xs font-bold text-indigo-900">Bank & Account</Text>
+                  <Text className="text-xs font-bold text-indigo-700">
+                    {transaction.bankName} {transaction.maskedAccount ? `(${transaction.maskedAccount})` : ''}
+                  </Text>
                 </View>
-              </ScrollView>
-            ) : (
-              // Select Bank Step
-              <View className="max-h-[350px]">
-                <Text className="text-sm font-bold text-zinc-900 mb-3">Which bank is this account from?</Text>
-                <ScrollView className="flex-1 mb-4" showsVerticalScrollIndicator={false}>
-                  {INDIAN_BANKS.map((b) => (
-                    <Pressable
-                      key={b.id}
-                      onPress={() => {
-                        setSelectedBankId(b.id);
-                        setStep('review');
-                      }}
-                      className={`p-3 rounded-xl border mb-2 flex-row items-center justify-between ${
-                        selectedBankId === b.id ? 'bg-indigo-50 border-indigo-600' : 'bg-white border-zinc-200'
-                      }`}
-                    >
-                      <Text className="text-sm font-bold text-zinc-900">{b.name}</Text>
-                      {selectedBankId === b.id && <CheckCircle size={16} color="#4F46E5" />}
-                    </Pressable>
-                  ))}
-                </ScrollView>
-                <Button variant="outline" size="lg" onPress={() => setStep('review')}>
-                  <Text className="text-zinc-600 font-semibold">Back</Text>
+              )}
+
+              <Input
+                label="Merchant / Payee"
+                value={merchant}
+                onChangeText={setMerchant}
+                placeholder="e.g. Swiggy, Amazon"
+              />
+
+              <Input
+                label="Category"
+                value={category}
+                onChangeText={setCategory}
+                placeholder="e.g. Food & Dining"
+              />
+
+              <View className="flex-row gap-2 mt-4">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="flex-1 border-zinc-200"
+                  onPress={handleIgnore}
+                >
+                  <Text className="text-zinc-600 font-semibold">Ignore</Text>
+                </Button>
+
+                <Button
+                  variant="primary"
+                  size="lg"
+                  className="flex-1 bg-indigo-600 flex-row items-center justify-center"
+                  onPress={handleConfirm}
+                >
+                  <CheckCircle size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text className="text-white font-bold">Confirm</Text>
                 </Button>
               </View>
-            )}
-          </Card>
-        </Pressable>
-      </KeyboardAvoidingView>
-    </Modal>
+            </ScrollView>
+          ) : (
+            // Select Bank Step
+            <View className="max-h-[350px]">
+              <Text className="text-sm font-bold text-zinc-900 mb-3">Which bank is this account from?</Text>
+              <ScrollView className="flex-1 mb-4" showsVerticalScrollIndicator={false}>
+                {INDIAN_BANKS.map((b) => (
+                  <Pressable
+                    key={b.id}
+                    onPress={() => {
+                      setSelectedBankId(b.id);
+                      setStep('review');
+                    }}
+                    className={`p-3 rounded-xl border mb-2 flex-row items-center justify-between ${
+                      selectedBankId === b.id ? 'bg-indigo-50 border-indigo-600' : 'bg-white border-zinc-200'
+                    }`}
+                  >
+                    <Text className="text-sm font-bold text-zinc-900">{b.name}</Text>
+                    {selectedBankId === b.id && <CheckCircle size={16} color="#4F46E5" />}
+                  </Pressable>
+                ))}
+              </ScrollView>
+              <Button variant="outline" size="lg" onPress={() => setStep('review')}>
+                <Text className="text-zinc-600 font-semibold">Back</Text>
+              </Button>
+            </View>
+          )}
+        </Card>
+      </Pressable>
+    </AppModal>
   );
 }

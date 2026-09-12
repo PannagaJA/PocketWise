@@ -6,6 +6,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
+import { AppModal } from '../../components/ui/AppModal';
 import { useAuth } from '../../context/AuthContext';
 import { subscriptionService, Subscription } from '../../lib/services/subscription.service';
 import { notificationService } from '../../lib/notifications/notification.service';
@@ -245,234 +246,242 @@ export default function SubscriptionsScreen() {
       </View>
 
       {/* Custom Delete Confirmation Modal */}
-      <Modal visible={!!subToDelete} animationType="fade" transparent>
-        <View className="flex-1 justify-center items-center bg-black/60 px-5">
-          <View className="bg-white rounded-3xl p-6 border border-zinc-200 w-full max-w-sm items-center shadow-xl">
-            <View className="w-16 h-16 rounded-full bg-rose-50 border border-rose-100 items-center justify-center mb-4">
-              <AlertTriangle size={30} color="#EF4444" />
-            </View>
-
-            <Text className="text-xl font-black text-zinc-900 text-center">Delete Subscription</Text>
-            <Text className="text-xs text-zinc-500 text-center mt-1.5 mb-6 px-2 leading-5">
-              Are you sure you want to delete <Text className="font-bold text-zinc-900">{subToDelete?.name}</Text>? This action cannot be undone.
-            </Text>
-
-            <View className="flex-row gap-3 w-full">
-              <Button
-                variant="outline"
-                size="md"
-                className="flex-1"
-                onPress={() => setSubToDelete(null)}
-              >
-                <Text className="text-zinc-900 font-semibold text-xs">Cancel</Text>
-              </Button>
-
-              <Button
-                variant="destructive"
-                size="md"
-                className="flex-1 bg-rose-600 active:bg-rose-700"
-                loading={deleteSubMutation.isPending}
-                onPress={() => subToDelete && deleteSubMutation.mutate(subToDelete.id)}
-              >
-                <Text className="text-white font-semibold text-xs">Delete</Text>
-              </Button>
-            </View>
+      <AppModal
+        visible={!!subToDelete}
+        onClose={() => setSubToDelete(null)}
+        animationType="fade"
+      >
+        <Pressable
+          className="bg-white rounded-3xl p-6 border border-zinc-200 w-full max-w-sm items-center shadow-xl"
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View className="w-16 h-16 rounded-full bg-rose-50 border border-rose-100 items-center justify-center mb-4">
+            <AlertTriangle size={30} color="#EF4444" />
           </View>
-        </View>
-      </Modal>
+
+          <Text className="text-xl font-black text-zinc-900 text-center">Delete Subscription</Text>
+          <Text className="text-xs text-zinc-500 text-center mt-1.5 mb-6 px-2 leading-5">
+            Are you sure you want to delete <Text className="font-bold text-zinc-900">{subToDelete?.name}</Text>? This action cannot be undone.
+          </Text>
+
+          <View className="flex-row gap-3 w-full">
+            <Button
+              variant="outline"
+              size="md"
+              className="flex-1"
+              onPress={() => setSubToDelete(null)}
+            >
+              <Text className="text-zinc-900 font-semibold text-xs">Cancel</Text>
+            </Button>
+
+            <Button
+              variant="destructive"
+              size="md"
+              className="flex-1 bg-rose-600 active:bg-rose-700"
+              loading={deleteSubMutation.isPending}
+              onPress={() => subToDelete && deleteSubMutation.mutate(subToDelete.id)}
+            >
+              <Text className="text-white font-semibold text-xs">Delete</Text>
+            </Button>
+          </View>
+        </Pressable>
+      </AppModal>
 
       {/* Main Add Subscription Modal */}
-      <Modal visible={modalVisible} animationType="slide" transparent>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1 }}
+      <AppModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        animationType="slide"
+      >
+        <Pressable
+          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]"
+          onPress={(e) => e.stopPropagation()}
         >
-          <Pressable
-            className="flex-1 justify-end bg-black/40"
-            onPress={() => Keyboard.dismiss()}
-          >
-            <Pressable className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]" onPress={(e) => e.stopPropagation()}>
-              <View className="flex-row justify-between items-center mb-6">
-                <Text className="text-xl font-bold text-zinc-900">Add Subscription</Text>
-                <Pressable onPress={() => setModalVisible(false)}>
-                  <X size={20} color="#71717A" />
-                </Pressable>
-              </View>
-
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                <Input
-                  label="Service Name"
-                  placeholder="e.g. Netflix, Spotify, iCloud"
-                  value={name}
-                  onChangeText={setName}
-                />
-
-                <Input
-                  label="Amount (₹)"
-                  placeholder="649.00"
-                  keyboardType="numeric"
-                  value={amount}
-                  onChangeText={setAmount}
-                />
-
-                {/* Renewal Date & Reminder Time on the Same Row */}
-                <View className="flex-row gap-3 mb-4">
-                  {/* Renewal Date */}
-                  <View className="flex-1">
-                    <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Renewal Date</Text>
-                    <Pressable
-                      onPress={() => setCalendarPickerVisible(true)}
-                      className="flex-row items-center justify-between bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-3"
-                    >
-                      <View className="flex-row items-center gap-2 flex-1 pr-1">
-                        <CalendarIcon size={16} color="#6366F1" />
-                        <Text className={`text-xs ${nextBillingDate ? 'text-zinc-900 font-bold' : 'text-zinc-400 font-medium'}`} numberOfLines={1}>
-                          {nextBillingDate ? formatDate(nextBillingDate) : 'Auto (+1 cycle)'}
-                        </Text>
-                      </View>
-                      {nextBillingDate ? (
-                        <Pressable
-                          onPress={() => setNextBillingDate('')}
-                          className="w-5 h-5 rounded-full bg-zinc-200 items-center justify-center ml-1"
-                        >
-                          <X size={12} color="#3F3F46" />
-                        </Pressable>
-                      ) : null}
-                    </Pressable>
-                  </View>
-
-                  {/* Reminder Time */}
-                  <View className="flex-1">
-                    <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Reminder Time</Text>
-                    <Pressable
-                      onPress={() => {
-                        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                        setTimePickerVisible(true);
-                      }}
-                      className="flex-row items-center justify-between bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-3"
-                    >
-                      <View className="flex-row items-center gap-2 flex-1">
-                        <Clock size={16} color="#6366F1" />
-                        <Text className="text-xs font-bold text-zinc-900" numberOfLines={1}>
-                          {format12HourTime(renewalTime)}
-                        </Text>
-                      </View>
-                    </Pressable>
-                  </View>
-                </View>
-
-                {/* Cycle */}
-                <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-6">
-                  <Pressable
-                    onPress={() => setCycle('monthly')}
-                    className={`flex-1 py-2.5 rounded-xl items-center ${cycle === 'monthly' ? 'bg-white' : ''}`}
-                  >
-                  <Text className={`font-semibold ${cycle === 'monthly' ? 'text-zinc-900' : 'text-zinc-500'}`}>Monthly</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => setCycle('yearly')}
-                  className={`flex-1 py-2.5 rounded-xl items-center ${cycle === 'yearly' ? 'bg-white' : ''}`}
-                >
-                  <Text className={`font-semibold ${cycle === 'yearly' ? 'text-zinc-900' : 'text-zinc-500'}`}>Yearly</Text>
-                </Pressable>
-              </View>
-
-              <Button
-                variant="primary"
-                size="lg"
-                loading={createSubMutation.isPending}
-                onPress={() => createSubMutation.mutate()}
-              >
-                <Text className="text-white font-semibold">Save Subscription</Text>
-              </Button>
-              </ScrollView>
-            </Pressable>
-          </Pressable>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* Calendar Picker Sub-Modal */}
-      <Modal visible={calendarPickerVisible} animationType="fade" transparent>
-        <View className="flex-1 justify-center items-center bg-black/50 px-4">
-          <View className="bg-white rounded-3xl p-5 border border-zinc-200 w-full max-w-sm">
-            {/* Calendar Header */}
-            <View className="flex-row justify-between items-center mb-4">
-              <Pressable
-                onPress={() => {
-                  if (calendarMonth === 0) {
-                    setCalendarMonth(11);
-                    setCalendarYear(calendarYear - 1);
-                  } else {
-                    setCalendarMonth(calendarMonth - 1);
-                  }
-                }}
-                className="p-2 rounded-full active:bg-zinc-100"
-              >
-                <ChevronLeft size={20} color="#09090B" />
-              </Pressable>
-
-              <Text className="text-base font-extrabold text-zinc-900">
-                {monthNames[calendarMonth]} {calendarYear}
-              </Text>
-
-              <Pressable
-                onPress={() => {
-                  if (calendarMonth === 11) {
-                    setCalendarMonth(0);
-                    setCalendarYear(calendarYear + 1);
-                  } else {
-                    setCalendarMonth(calendarMonth + 1);
-                  }
-                }}
-                className="p-2 rounded-full active:bg-zinc-100"
-              >
-                <ChevronRight size={20} color="#09090B" />
-              </Pressable>
-            </View>
-
-            {/* Days of Week Header */}
-            <View className="flex-row justify-between mb-2">
-              {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
-                <Text key={d} className="w-9 text-center text-xs font-bold text-zinc-400">{d}</Text>
-              ))}
-            </View>
-
-            {/* Calendar Grid */}
-            <View className="flex-row flex-wrap">
-              {/* Empty leading slots */}
-              {Array.from({ length: firstDayOfMonth(calendarMonth, calendarYear) }).map((_, i) => (
-                <View key={`empty-${i}`} className="w-[14.28%] h-9" />
-              ))}
-
-              {/* Day numbers */}
-              {Array.from({ length: daysInMonth(calendarMonth, calendarYear) }).map((_, i) => {
-                const day = i + 1;
-                const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                const isSelected = nextBillingDate === dateStr;
-
-                return (
-                  <Pressable
-                    key={day}
-                    onPress={() => handleSelectDay(day)}
-                    className={`w-[14.28%] h-9 items-center justify-center rounded-xl mb-1 ${isSelected ? 'bg-indigo-600' : 'active:bg-zinc-100'
-                      }`}
-                  >
-                    <Text className={`text-sm font-bold ${isSelected ? 'text-white' : 'text-zinc-900'}`}>{day}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            {/* Close / Cancel Button */}
-            <Pressable
-              onPress={() => setCalendarPickerVisible(false)}
-              className="mt-4 bg-zinc-900 py-3 rounded-2xl items-center active:bg-zinc-800 shadow-sm"
-            >
-              <Text className="text-white font-bold text-xs">Cancel</Text>
+          <View className="flex-row justify-between items-center mb-6">
+            <Text className="text-xl font-bold text-zinc-900">Add Subscription</Text>
+            <Pressable onPress={() => setModalVisible(false)}>
+              <X size={20} color="#71717A" />
             </Pressable>
           </View>
-        </View>
-      </Modal>
+
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <Input
+              label="Service Name"
+              placeholder="e.g. Netflix, Spotify, iCloud"
+              value={name}
+              onChangeText={setName}
+            />
+
+            <Input
+              label="Amount (₹)"
+              placeholder="649.00"
+              keyboardType="numeric"
+              value={amount}
+              onChangeText={setAmount}
+            />
+
+            {/* Renewal Date & Reminder Time on the Same Row */}
+            <View className="flex-row gap-3 mb-4">
+              {/* Renewal Date */}
+              <View className="flex-1">
+                <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Renewal Date</Text>
+                <Pressable
+                  onPress={() => setCalendarPickerVisible(true)}
+                  className="flex-row items-center justify-between bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-3"
+                >
+                  <View className="flex-row items-center gap-2 flex-1 pr-1">
+                    <CalendarIcon size={16} color="#6366F1" />
+                    <Text className={`text-xs ${nextBillingDate ? 'text-zinc-900 font-bold' : 'text-zinc-400 font-medium'}`} numberOfLines={1}>
+                      {nextBillingDate ? formatDate(nextBillingDate) : 'Auto (+1 cycle)'}
+                    </Text>
+                  </View>
+                  {nextBillingDate ? (
+                    <Pressable
+                      onPress={() => setNextBillingDate('')}
+                      className="w-5 h-5 rounded-full bg-zinc-200 items-center justify-center ml-1"
+                    >
+                      <X size={12} color="#3F3F46" />
+                    </Pressable>
+                  ) : null}
+                </Pressable>
+              </View>
+
+              {/* Reminder Time */}
+              <View className="flex-1">
+                <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Reminder Time</Text>
+                <Pressable
+                  onPress={() => {
+                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                    setTimePickerVisible(true);
+                  }}
+                  className="flex-row items-center justify-between bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-3"
+                >
+                  <View className="flex-row items-center gap-2 flex-1">
+                    <Clock size={16} color="#6366F1" />
+                    <Text className="text-xs font-bold text-zinc-900" numberOfLines={1}>
+                      {format12HourTime(renewalTime)}
+                    </Text>
+                  </View>
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Cycle */}
+            <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-6">
+              <Pressable
+                onPress={() => setCycle('monthly')}
+                className={`flex-1 py-2.5 rounded-xl items-center ${cycle === 'monthly' ? 'bg-white' : ''}`}
+              >
+                <Text className={`font-semibold ${cycle === 'monthly' ? 'text-zinc-900' : 'text-zinc-500'}`}>Monthly</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setCycle('yearly')}
+                className={`flex-1 py-2.5 rounded-xl items-center ${cycle === 'yearly' ? 'bg-white' : ''}`}
+              >
+                <Text className={`font-semibold ${cycle === 'yearly' ? 'text-zinc-900' : 'text-zinc-500'}`}>Yearly</Text>
+              </Pressable>
+            </View>
+
+            <Button
+              variant="primary"
+              size="lg"
+              loading={createSubMutation.isPending}
+              onPress={() => createSubMutation.mutate()}
+            >
+              <Text className="text-white font-semibold">Save Subscription</Text>
+            </Button>
+          </ScrollView>
+        </Pressable>
+      </AppModal>
+
+      {/* Calendar Picker Sub-Modal */}
+      <AppModal
+        visible={calendarPickerVisible}
+        onClose={() => setCalendarPickerVisible(false)}
+        animationType="fade"
+      >
+        <Pressable
+          className="bg-white rounded-3xl p-5 border border-zinc-200 w-full max-w-sm shadow-xl"
+          onPress={(e) => e.stopPropagation()}
+        >
+          {/* Calendar Header */}
+          <View className="flex-row justify-between items-center mb-4">
+            <Pressable
+              onPress={() => {
+                if (calendarMonth === 0) {
+                  setCalendarMonth(11);
+                  setCalendarYear(calendarYear - 1);
+                } else {
+                  setCalendarMonth(calendarMonth - 1);
+                }
+              }}
+              className="p-2 rounded-full active:bg-zinc-100"
+            >
+              <ChevronLeft size={20} color="#09090B" />
+            </Pressable>
+
+            <Text className="text-base font-extrabold text-zinc-900">
+              {monthNames[calendarMonth]} {calendarYear}
+            </Text>
+
+            <Pressable
+              onPress={() => {
+                if (calendarMonth === 11) {
+                  setCalendarMonth(0);
+                  setCalendarYear(calendarYear + 1);
+                } else {
+                  setCalendarMonth(calendarMonth + 1);
+                }
+              }}
+              className="p-2 rounded-full active:bg-zinc-100"
+            >
+              <ChevronRight size={20} color="#09090B" />
+            </Pressable>
+          </View>
+
+          {/* Days of Week Header */}
+          <View className="flex-row justify-between mb-2">
+            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+              <Text key={d} className="w-9 text-center text-xs font-bold text-zinc-400">{d}</Text>
+            ))}
+          </View>
+
+          {/* Calendar Grid */}
+          <View className="flex-row flex-wrap">
+            {/* Empty leading slots */}
+            {Array.from({ length: firstDayOfMonth(calendarMonth, calendarYear) }).map((_, i) => (
+              <View key={`empty-${i}`} className="w-[14.28%] h-9" />
+            ))}
+
+            {/* Day numbers */}
+            {Array.from({ length: daysInMonth(calendarMonth, calendarYear) }).map((_, i) => {
+              const day = i + 1;
+              const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+              const isSelected = nextBillingDate === dateStr;
+
+              return (
+                <Pressable
+                  key={day}
+                  onPress={() => handleSelectDay(day)}
+                  className={`w-[14.28%] h-9 items-center justify-center rounded-xl mb-1 ${
+                    isSelected ? 'bg-indigo-600' : 'active:bg-zinc-100'
+                  }`}
+                >
+                  <Text className={`text-sm font-bold ${isSelected ? 'text-white' : 'text-zinc-900'}`}>{day}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* Close / Cancel Button */}
+          <Pressable
+            onPress={() => setCalendarPickerVisible(false)}
+            className="mt-4 bg-zinc-900 py-3 rounded-2xl items-center active:bg-zinc-800 shadow-sm"
+          >
+            <Text className="text-white font-bold text-xs">Cancel</Text>
+          </Pressable>
+        </Pressable>
+      </AppModal>
 
       {/* Time Picker Modal */}
       <TimePickerModal

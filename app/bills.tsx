@@ -7,6 +7,7 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
+import { AppModal } from '../components/ui/AppModal';
 import { useAuth } from '../context/AuthContext';
 import { billService } from '../lib/services/bill.service';
 import { accountService } from '../lib/services/account.service';
@@ -267,209 +268,216 @@ export default function BillsScreen() {
       </View>
 
       {/* Custom Mark as Paid Confirmation Modal */}
-      <Modal visible={!!billToPay} animationType="fade" transparent>
-        <View className="flex-1 justify-center items-center bg-black/60 px-5">
-          <View className="bg-white rounded-3xl p-6 border border-zinc-200 w-full max-w-sm items-center shadow-xl">
-            <View className="w-16 h-16 rounded-full bg-emerald-50 border border-emerald-100 items-center justify-center mb-4">
-              <CheckCircle2 size={32} color="#10B981" />
-            </View>
-
-            <Text className="text-xl font-black text-zinc-900 text-center">Confirm Bill Payment</Text>
-            <Text className="text-xs text-zinc-500 text-center mt-1.5 mb-6 px-2 leading-5">
-              Mark <Text className="font-bold text-zinc-900">{billToPay?.name}</Text> as paid for <Text className="font-bold text-emerald-600">{formatMoney(billToPay?.expected_amount_minor || 0)}</Text>? An expense transaction will be logged to your account.
-            </Text>
-
-            <View className="flex-row gap-3 w-full">
-              <Button
-                variant="outline"
-                size="md"
-                className="flex-1"
-                onPress={() => setBillToPay(null)}
-              >
-                <Text className="text-zinc-900 font-semibold text-xs">Cancel</Text>
-              </Button>
-
-              <Button
-                variant="primary"
-                size="md"
-                className="flex-1 bg-emerald-600 active:bg-emerald-700"
-                loading={markPaidMutation.isPending}
-                onPress={() => billToPay && markPaidMutation.mutate(billToPay)}
-              >
-                <Text className="text-white font-bold text-xs">Confirm Payment</Text>
-              </Button>
-            </View>
+      <AppModal
+        visible={!!billToPay}
+        onClose={() => setBillToPay(null)}
+        animationType="fade"
+      >
+        <Pressable
+          className="bg-white rounded-3xl p-6 border border-zinc-200 w-full max-w-sm items-center shadow-xl"
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View className="w-16 h-16 rounded-full bg-emerald-50 border border-emerald-100 items-center justify-center mb-4">
+            <CheckCircle2 size={32} color="#10B981" />
           </View>
-        </View>
-      </Modal>
+
+          <Text className="text-xl font-black text-zinc-900 text-center">Confirm Bill Payment</Text>
+          <Text className="text-xs text-zinc-500 text-center mt-1.5 mb-6 px-2 leading-5">
+            Mark <Text className="font-bold text-zinc-900">{billToPay?.name}</Text> as paid for <Text className="font-bold text-emerald-600">{formatMoney(billToPay?.expected_amount_minor || 0)}</Text>? An expense transaction will be logged to your account.
+          </Text>
+
+          <View className="flex-row gap-3 w-full">
+            <Button
+              variant="outline"
+              size="md"
+              className="flex-1"
+              onPress={() => setBillToPay(null)}
+            >
+              <Text className="text-zinc-900 font-semibold text-xs">Cancel</Text>
+            </Button>
+
+            <Button
+              variant="primary"
+              size="md"
+              className="flex-1 bg-emerald-600 active:bg-emerald-700"
+              loading={markPaidMutation.isPending}
+              onPress={() => billToPay && markPaidMutation.mutate(billToPay)}
+            >
+              <Text className="text-white font-bold text-xs">Confirm Payment</Text>
+            </Button>
+          </View>
+        </Pressable>
+      </AppModal>
 
       {/* Add Bill Modal */}
-      <Modal visible={modalVisible} animationType="slide" transparent>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1 }}
+      <AppModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        animationType="slide"
+      >
+        <Pressable
+          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]"
+          onPress={(e) => e.stopPropagation()}
         >
-          <Pressable
-            className="flex-1 justify-end bg-black/40"
-            onPress={() => Keyboard.dismiss()}
-          >
-            <Pressable className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]" onPress={(e) => e.stopPropagation()}>
-              <View className="flex-row justify-between items-center mb-4">
-                <Text className="text-xl font-bold text-zinc-900">Add Bill</Text>
-                <Pressable onPress={() => setModalVisible(false)} className="p-1">
-                  <X size={20} color="#71717A" />
-                </Pressable>
-              </View>
-
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                <Input
-                  label="Bill Name"
-                  placeholder="e.g. Electricity Bill, Wifi"
-                  value={name}
-                  onChangeText={setName}
-                />
-
-                <Input
-                  label="Expected Amount (₹)"
-                  placeholder="1450.00"
-                  keyboardType="numeric"
-                  value={amount}
-                  onChangeText={setAmount}
-                />
-
-                {/* Interactive Calendar Date Picker Button */}
-                <View className="mb-4">
-                  <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Due Date</Text>
-                  <Pressable
-                    onPress={() => {
-                      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                      setCalendarModalVisible(true);
-                    }}
-                    className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
-                  >
-                    <View className="flex-row items-center gap-2">
-                      <Calendar size={18} color="#6366F1" />
-                      <Text className="text-sm font-medium text-zinc-900">{formatDate(dueDate)}</Text>
-                    </View>
-                    <Text className="text-xs font-bold text-indigo-600">Pick Date</Text>
-                  </Pressable>
-                </View>
-
-                {/* Reminder Time Selection */}
-                <View className="mb-4">
-                  <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Reminder Time</Text>
-                  <Pressable
-                    onPress={() => {
-                      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                      setTimePickerVisible(true);
-                    }}
-                    className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
-                  >
-                    <View className="flex-row items-center gap-2">
-                      <Clock size={18} color="#6366F1" />
-                      <Text className="text-sm font-bold text-zinc-900">{format12HourTime(dueTime)}</Text>
-                    </View>
-                    <Text className="text-xs font-bold text-indigo-600">Pick Time</Text>
-                  </Pressable>
-                </View>
-
-                <Button
-                  variant="primary"
-                  size="lg"
-                  loading={createBillMutation.isPending}
-                  className="mt-2 mb-4"
-                  onPress={() => createBillMutation.mutate()}
-                >
-                  <Text className="text-white font-semibold">Save Bill & Enable Reminder</Text>
-                </Button>
-              </ScrollView>
+          <View className="flex-row justify-between items-center mb-4">
+            <Text className="text-xl font-bold text-zinc-900">Add Bill</Text>
+            <Pressable onPress={() => setModalVisible(false)} className="p-1">
+              <X size={20} color="#71717A" />
             </Pressable>
-          </Pressable>
-        </KeyboardAvoidingView>
-      </Modal>
+          </View>
 
-      {/* Visual Interactive Calendar Modal */}
-      <Modal visible={calendarModalVisible} animationType="fade" transparent>
-        <View className="flex-1 justify-center items-center bg-black/50 px-5">
-          <View className="bg-white rounded-3xl p-5 w-full border border-zinc-200 shadow-xl">
-            {/* Calendar Header */}
-            <View className="flex-row justify-between items-center mb-4">
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <Input
+              label="Bill Name"
+              placeholder="e.g. Electricity Bill, Wifi"
+              value={name}
+              onChangeText={setName}
+            />
+
+            <Input
+              label="Expected Amount (₹)"
+              placeholder="1450.00"
+              keyboardType="numeric"
+              value={amount}
+              onChangeText={setAmount}
+            />
+
+            {/* Interactive Calendar Date Picker Button */}
+            <View className="mb-4">
+              <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Due Date</Text>
               <Pressable
                 onPress={() => {
-                  if (calendarMonth === 0) {
-                    setCalendarMonth(11);
-                    setCalendarYear(calendarYear - 1);
-                  } else {
-                    setCalendarMonth(calendarMonth - 1);
-                  }
+                  try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                  setCalendarModalVisible(true);
                 }}
-                className="p-2 rounded-full active:bg-zinc-100"
+                className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
               >
-                <ChevronLeft size={20} color="#09090B" />
-              </Pressable>
-
-              <Text className="text-base font-bold text-zinc-900">
-                {monthNames[calendarMonth]} {calendarYear}
-              </Text>
-
-              <Pressable
-                onPress={() => {
-                  if (calendarMonth === 11) {
-                    setCalendarMonth(0);
-                    setCalendarYear(calendarYear + 1);
-                  } else {
-                    setCalendarMonth(calendarMonth + 1);
-                  }
-                }}
-                className="p-2 rounded-full active:bg-zinc-100"
-              >
-                <ChevronRight size={20} color="#09090B" />
+                <View className="flex-row items-center gap-2">
+                  <Calendar size={18} color="#6366F1" />
+                  <Text className="text-sm font-medium text-zinc-900">{formatDate(dueDate)}</Text>
+                </View>
+                <Text className="text-xs font-bold text-indigo-600">Pick Date</Text>
               </Pressable>
             </View>
 
-            {/* Days of Week Header */}
-            <View className="flex-row justify-between mb-2">
-              {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
-                <Text key={d} className="w-9 text-center text-xs font-bold text-zinc-400">{d}</Text>
-              ))}
-            </View>
-
-            {/* Calendar Grid */}
-            <View className="flex-row flex-wrap">
-              {Array.from({ length: firstDayOfMonth(calendarMonth, calendarYear) }).map((_, i) => (
-                <View key={`empty-${i}`} className="w-[14.28%] h-9" />
-              ))}
-
-              {Array.from({ length: daysInMonth(calendarMonth, calendarYear) }).map((_, i) => {
-                const day = i + 1;
-                const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                const isSelected = dueDate === dateStr;
-
-                return (
-                  <Pressable
-                    key={day}
-                    onPress={() => handleSelectDay(day)}
-                    className={`w-[14.28%] h-9 items-center justify-center rounded-xl mb-1 ${
-                      isSelected ? 'bg-indigo-600' : 'active:bg-zinc-100'
-                    }`}
-                  >
-                    <Text className={`text-sm font-bold ${isSelected ? 'text-white' : 'text-zinc-900'}`}>{day}</Text>
-                  </Pressable>
-                );
-              })}
+            {/* Reminder Time Selection */}
+            <View className="mb-4">
+              <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Reminder Time</Text>
+              <Pressable
+                onPress={() => {
+                  try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                  setTimePickerVisible(true);
+                }}
+                className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
+              >
+                <View className="flex-row items-center gap-2">
+                  <Clock size={18} color="#6366F1" />
+                  <Text className="text-sm font-bold text-zinc-900">{format12HourTime(dueTime)}</Text>
+                </View>
+                <Text className="text-xs font-bold text-indigo-600">Pick Time</Text>
+              </Pressable>
             </View>
 
             <Button
-              variant="outline"
-              size="sm"
-              className="mt-4 border-zinc-200"
-              onPress={() => setCalendarModalVisible(false)}
+              variant="primary"
+              size="lg"
+              loading={createBillMutation.isPending}
+              className="mt-2 mb-4"
+              onPress={() => createBillMutation.mutate()}
             >
-              <Text className="text-zinc-700 font-semibold text-xs">Cancel</Text>
+              <Text className="text-white font-semibold">Save Bill & Enable Reminder</Text>
             </Button>
+          </ScrollView>
+        </Pressable>
+      </AppModal>
+
+      {/* Visual Interactive Calendar Modal */}
+      <AppModal
+        visible={calendarModalVisible}
+        onClose={() => setCalendarModalVisible(false)}
+        animationType="fade"
+      >
+        <Pressable
+          className="bg-white rounded-3xl p-5 w-full border border-zinc-200 shadow-xl"
+          onPress={(e) => e.stopPropagation()}
+        >
+          {/* Calendar Header */}
+          <View className="flex-row justify-between items-center mb-4">
+            <Pressable
+              onPress={() => {
+                if (calendarMonth === 0) {
+                  setCalendarMonth(11);
+                  setCalendarYear(calendarYear - 1);
+                } else {
+                  setCalendarMonth(calendarMonth - 1);
+                }
+              }}
+              className="p-2 rounded-full active:bg-zinc-100"
+            >
+              <ChevronLeft size={20} color="#09090B" />
+            </Pressable>
+
+            <Text className="text-base font-bold text-zinc-900">
+              {monthNames[calendarMonth]} {calendarYear}
+            </Text>
+
+            <Pressable
+              onPress={() => {
+                if (calendarMonth === 11) {
+                  setCalendarMonth(0);
+                  setCalendarYear(calendarYear + 1);
+                } else {
+                  setCalendarMonth(calendarMonth + 1);
+                }
+              }}
+              className="p-2 rounded-full active:bg-zinc-100"
+            >
+              <ChevronRight size={20} color="#09090B" />
+            </Pressable>
           </View>
-        </View>
-      </Modal>
+
+          {/* Days of Week Header */}
+          <View className="flex-row justify-between mb-2">
+            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+              <Text key={d} className="w-9 text-center text-xs font-bold text-zinc-400">{d}</Text>
+            ))}
+          </View>
+
+          {/* Calendar Grid */}
+          <View className="flex-row flex-wrap">
+            {Array.from({ length: firstDayOfMonth(calendarMonth, calendarYear) }).map((_, i) => (
+              <View key={`empty-${i}`} className="w-[14.28%] h-9" />
+            ))}
+
+            {Array.from({ length: daysInMonth(calendarMonth, calendarYear) }).map((_, i) => {
+              const day = i + 1;
+              const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+              const isSelected = dueDate === dateStr;
+
+              return (
+                <Pressable
+                  key={day}
+                  onPress={() => handleSelectDay(day)}
+                  className={`w-[14.28%] h-9 items-center justify-center rounded-xl mb-1 ${
+                    isSelected ? 'bg-indigo-600' : 'active:bg-zinc-100'
+                  }`}
+                >
+                  <Text className={`text-sm font-bold ${isSelected ? 'text-white' : 'text-zinc-900'}`}>{day}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4 border-zinc-200"
+            onPress={() => setCalendarModalVisible(false)}
+          >
+            <Text className="text-zinc-700 font-semibold text-xs">Cancel</Text>
+          </Button>
+        </Pressable>
+      </AppModal>
 
       {/* Time Picker Modal */}
       <TimePickerModal

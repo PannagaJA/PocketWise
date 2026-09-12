@@ -6,6 +6,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
+import { AppModal } from '../../components/ui/AppModal';
 import { useAuth } from '../../context/AuthContext';
 import { appLockService } from '../../lib/security/app-lock.service';
 import { Fingerprint, Bell, Database, LogOut, ChevronRight, Calendar, Target, Lock, PieChart, X, Smartphone, Zap, HandCoins } from 'lucide-react-native';
@@ -286,57 +287,54 @@ export default function MoreScreen() {
       </ScrollView>
 
       {/* Set PIN Modal */}
-      <Modal visible={pinModalVisible} animationType="slide" transparent>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1 }}
+      <AppModal
+        visible={pinModalVisible}
+        onClose={() => setPinModalVisible(false)}
+        animationType="slide"
+      >
+        <Pressable
+          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200"
+          onPress={(e) => e.stopPropagation()}
         >
-          <Pressable
-            className="flex-1 justify-end bg-black/40"
-            onPress={() => Keyboard.dismiss()}
-          >
-            <Pressable className="bg-white rounded-t-3xl p-6 border-t border-zinc-200" onPress={(e) => e.stopPropagation()}>
-              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                <View className="flex-row justify-between items-center mb-4">
-                  <Text className="text-xl font-bold text-zinc-900">Set 4-Digit App PIN</Text>
-                  <Pressable onPress={() => setPinModalVisible(false)} className="p-1">
-                    <X size={20} color="#71717A" />
-                  </Pressable>
-                </View>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <View className="flex-row justify-between items-center mb-4">
+              <Text className="text-xl font-bold text-zinc-900">Set 4-Digit App PIN</Text>
+              <Pressable onPress={() => setPinModalVisible(false)} className="p-1">
+                <X size={20} color="#71717A" />
+              </Pressable>
+            </View>
 
-                <Input
-                  label="Enter 4-Digit PIN"
-                  placeholder="••••"
-                  keyboardType="numeric"
-                  maxLength={4}
-                  secureTextEntry
-                  value={pinInput}
-                  onChangeText={setPinInput}
-                />
+            <Input
+              label="Enter 4-Digit PIN"
+              placeholder="••••"
+              keyboardType="numeric"
+              maxLength={4}
+              secureTextEntry
+              value={pinInput}
+              onChangeText={setPinInput}
+            />
 
-                <Input
-                  label="Confirm 4-Digit PIN"
-                  placeholder="••••"
-                  keyboardType="numeric"
-                  maxLength={4}
-                  secureTextEntry
-                  value={confirmPinInput}
-                  onChangeText={setConfirmPinInput}
-                />
+            <Input
+              label="Confirm 4-Digit PIN"
+              placeholder="••••"
+              keyboardType="numeric"
+              maxLength={4}
+              secureTextEntry
+              value={confirmPinInput}
+              onChangeText={setConfirmPinInput}
+            />
 
-                <Button
-                  variant="primary"
-                  size="lg"
-                  className="mt-2 mb-4"
-                  onPress={handleSavePin}
-                >
-                  <Text className="text-white font-semibold">Enable App Lock</Text>
-                </Button>
-              </ScrollView>
-            </Pressable>
-          </Pressable>
-        </KeyboardAvoidingView>
-      </Modal>
+            <Button
+              variant="primary"
+              size="lg"
+              className="mt-2 mb-4"
+              onPress={handleSavePin}
+            >
+              <Text className="text-white font-semibold">Enable App Lock</Text>
+            </Button>
+          </ScrollView>
+        </Pressable>
+      </AppModal>
     </SafeAreaView>
   );
 }

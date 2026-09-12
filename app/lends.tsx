@@ -19,6 +19,7 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
+import { AppModal } from '../components/ui/AppModal';
 import { useAuth } from '../context/AuthContext';
 import { lendService, LendRecord } from '../lib/services/lend.service';
 import { formatMoney, formatDate, parseMoneyToMinor } from '../lib/finance/core';
@@ -481,183 +482,174 @@ export default function LendsScreen() {
       </View>
 
       {/* ── Add Lend Modal ── */}
-      <Modal visible={showAdd} animationType="slide" transparent>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1 }}
+      <AppModal
+        visible={showAdd}
+        onClose={() => setShowAdd(false)}
+        animationType="slide"
+      >
+        <Pressable
+          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]"
+          onPress={(e) => e.stopPropagation()}
         >
-          <Pressable className="flex-1 justify-end bg-black/40" onPress={() => Keyboard.dismiss()}>
-            <Pressable
-              className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]"
-              onPress={(e) => e.stopPropagation()}
-            >
-              <View className="flex-row justify-between items-center mb-4">
-                <Text className="text-xl font-bold text-zinc-900">Record a Lend</Text>
-                <Pressable onPress={() => setShowAdd(false)} className="p-1">
-                  <X size={20} color="#71717A" />
-                </Pressable>
-              </View>
-
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                <Input
-                  label="Person's Name"
-                  placeholder="e.g. Rahul, Priya, Amit..."
-                  value={personName}
-                  onChangeText={setPersonName}
-                />
-
-                <Input
-                  label="Amount Lent (₹)"
-                  placeholder="500.00"
-                  keyboardType="numeric"
-                  value={amount}
-                  onChangeText={setAmount}
-                />
-
-                <Input
-                  label="Date Lent (YYYY-MM-DD)"
-                  placeholder="YYYY-MM-DD"
-                  value={lentDate}
-                  onChangeText={setLentDate}
-                />
-
-                <Input
-                  label="Collect Back By (YYYY-MM-DD)"
-                  placeholder="YYYY-MM-DD"
-                  value={dueDate}
-                  onChangeText={setDueDate}
-                />
-
-                {/* Preset Pills */}
-                <View className="flex-row gap-2 mb-4 flex-wrap">
-                  {DATE_PRESETS.map((p) => {
-                    const target = addDays(lentDate || getTodayISO(), p.days);
-                    const isSelected = dueDate === target;
-                    return (
-                      <Pressable
-                        key={p.label}
-                        onPress={() => {
-                          try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                          setDueDate(target);
-                        }}
-                        className={`px-3 py-1.5 rounded-full border ${
-                          isSelected ? 'bg-indigo-600 border-indigo-600' : 'bg-zinc-50 border-zinc-200'
-                        }`}
-                      >
-                        <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-zinc-600'}`}>
-                          {p.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-
-                <Input
-                  label="Notes (Optional)"
-                  placeholder="e.g. Rent share, trip expenses..."
-                  value={notes}
-                  onChangeText={setNotes}
-                />
-
-                <View className="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3 mb-4 flex-row gap-2 items-start">
-                  <Text className="text-base">🔔</Text>
-                  <Text className="text-xs text-indigo-700 flex-1 leading-relaxed">
-                    A reminder notification will be sent at{' '}
-                    <Text className="font-bold">9:00 AM on {dueDate ? formatDate(dueDate) : 'due date'}</Text>{' '}
-                    to collect your money.
-                  </Text>
-                </View>
-
-                <Button
-                  variant="primary"
-                  size="lg"
-                  loading={createLendMutation.isPending}
-                  className="mt-2 mb-4"
-                  onPress={() => createLendMutation.mutate()}
-                >
-                  <Text className="text-white font-semibold">Save & Set Reminder</Text>
-                </Button>
-              </ScrollView>
+          <View className="flex-row justify-between items-center mb-4">
+            <Text className="text-xl font-bold text-zinc-900">Record a Lend</Text>
+            <Pressable onPress={() => setShowAdd(false)} className="p-1">
+              <X size={20} color="#71717A" />
             </Pressable>
-          </Pressable>
-        </KeyboardAvoidingView>
-      </Modal>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <Input
+              label="Person's Name"
+              placeholder="e.g. Rahul, Priya, Amit..."
+              value={personName}
+              onChangeText={setPersonName}
+            />
+
+            <Input
+              label="Amount Lent (₹)"
+              placeholder="500.00"
+              keyboardType="numeric"
+              value={amount}
+              onChangeText={setAmount}
+            />
+
+            <Input
+              label="Date Lent (YYYY-MM-DD)"
+              placeholder="YYYY-MM-DD"
+              value={lentDate}
+              onChangeText={setLentDate}
+            />
+
+            <Input
+              label="Collect Back By (YYYY-MM-DD)"
+              placeholder="YYYY-MM-DD"
+              value={dueDate}
+              onChangeText={setDueDate}
+            />
+
+            {/* Preset Pills */}
+            <View className="flex-row gap-2 mb-4 flex-wrap">
+              {DATE_PRESETS.map((p) => {
+                const target = addDays(lentDate || getTodayISO(), p.days);
+                const isSelected = dueDate === target;
+                return (
+                  <Pressable
+                    key={p.label}
+                    onPress={() => {
+                      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                      setDueDate(target);
+                    }}
+                    className={`px-3 py-1.5 rounded-full border ${
+                      isSelected ? 'bg-indigo-600 border-indigo-600' : 'bg-zinc-50 border-zinc-200'
+                    }`}
+                  >
+                    <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-zinc-600'}`}>
+                      {p.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Input
+              label="Notes (Optional)"
+              placeholder="e.g. Rent share, trip expenses..."
+              value={notes}
+              onChangeText={setNotes}
+            />
+
+            <View className="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3 mb-4 flex-row gap-2 items-start">
+              <Text className="text-base">🔔</Text>
+              <Text className="text-xs text-indigo-700 flex-1 leading-relaxed">
+                A reminder notification will be sent at{' '}
+                <Text className="font-bold">9:00 AM on {dueDate ? formatDate(dueDate) : 'due date'}</Text>{' '}
+                to collect your money.
+              </Text>
+            </View>
+
+            <Button
+              variant="primary"
+              size="lg"
+              loading={createLendMutation.isPending}
+              className="mt-2 mb-4"
+              onPress={() => createLendMutation.mutate()}
+            >
+              <Text className="text-white font-semibold">Save & Set Reminder</Text>
+            </Button>
+          </ScrollView>
+        </Pressable>
+      </AppModal>
 
       {/* ── Reschedule Modal ── */}
-      <Modal visible={showReschedule} animationType="fade" transparent>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1 }}
+      <AppModal
+        visible={showReschedule}
+        onClose={() => setShowReschedule(false)}
+        animationType="fade"
+      >
+        <Pressable
+          className="bg-white rounded-3xl p-5 w-full border border-zinc-200 shadow-xl"
+          onPress={(e) => e.stopPropagation()}
         >
-          <Pressable
-            className="flex-1 justify-center items-center bg-black/50 px-5"
-            onPress={() => setShowReschedule(false)}
-          >
-            <Pressable
-              className="bg-white rounded-3xl p-5 w-full border border-zinc-200 shadow-xl"
-              onPress={(e) => e.stopPropagation()}
+          <Text className="text-lg font-black text-zinc-900 mb-1">Reschedule Collection</Text>
+          {rescheduleTarget && (
+            <Text className="text-xs text-zinc-500 mb-4">
+              {rescheduleTarget.personName} · {formatMoney(rescheduleTarget.amountMinor)}
+            </Text>
+          )}
+
+          <Input
+            label="New Collection Date (YYYY-MM-DD)"
+            value={newDueDate}
+            onChangeText={setNewDueDate}
+            placeholder="YYYY-MM-DD"
+          />
+
+          <View className="flex-row gap-2 mb-5 flex-wrap">
+            {DATE_PRESETS.map((p) => {
+              const target = addDays(getTodayISO(), p.days);
+              const isSelected = newDueDate === target;
+              return (
+                <Pressable
+                  key={p.label}
+                  onPress={() => {
+                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                    setNewDueDate(target);
+                  }}
+                  className={`px-3 py-1.5 rounded-full border ${
+                    isSelected ? 'bg-indigo-600 border-indigo-600' : 'bg-zinc-50 border-zinc-200'
+                  }`}
+                >
+                  <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-zinc-600'}`}>
+                    {p.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <View className="flex-row gap-3">
+            <Button
+              variant="outline"
+              size="md"
+              className="flex-1 border-zinc-200"
+              onPress={() => setShowReschedule(false)}
             >
-              <Text className="text-lg font-black text-zinc-900 mb-1">Reschedule Collection</Text>
-              {rescheduleTarget && (
-                <Text className="text-xs text-zinc-500 mb-4">
-                  {rescheduleTarget.personName} · {formatMoney(rescheduleTarget.amountMinor)}
-                </Text>
-              )}
+              <Text className="text-zinc-700 font-semibold text-xs">Cancel</Text>
+            </Button>
 
-              <Input
-                label="New Collection Date (YYYY-MM-DD)"
-                value={newDueDate}
-                onChangeText={setNewDueDate}
-                placeholder="YYYY-MM-DD"
-              />
-
-              <View className="flex-row gap-2 mb-5 flex-wrap">
-                {DATE_PRESETS.map((p) => {
-                  const target = addDays(getTodayISO(), p.days);
-                  const isSelected = newDueDate === target;
-                  return (
-                    <Pressable
-                      key={p.label}
-                      onPress={() => {
-                        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                        setNewDueDate(target);
-                      }}
-                      className={`px-3 py-1.5 rounded-full border ${
-                        isSelected ? 'bg-indigo-600 border-indigo-600' : 'bg-zinc-50 border-zinc-200'
-                      }`}
-                    >
-                      <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-zinc-600'}`}>
-                        {p.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              <View className="flex-row gap-3">
-                <Button
-                  variant="outline"
-                  size="md"
-                  className="flex-1 border-zinc-200"
-                  onPress={() => setShowReschedule(false)}
-                >
-                  <Text className="text-zinc-700 font-semibold text-xs">Cancel</Text>
-                </Button>
-
-                <Button
-                  variant="primary"
-                  size="md"
-                  className="flex-1"
-                  loading={rescheduleMutation.isPending}
-                  onPress={() => rescheduleMutation.mutate()}
-                >
-                  <Text className="text-white font-bold text-xs">Update Date</Text>
-                </Button>
-              </View>
-            </Pressable>
-          </Pressable>
-        </KeyboardAvoidingView>
-      </Modal>
+            <Button
+              variant="primary"
+              size="md"
+              className="flex-1"
+              loading={rescheduleMutation.isPending}
+              onPress={() => rescheduleMutation.mutate()}
+            >
+              <Text className="text-white font-bold text-xs">Update Date</Text>
+            </Button>
+          </View>
+        </Pressable>
+      </AppModal>
     </SafeAreaView>
   );
 }

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, Modal, Pressable } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
+import { AppModal } from './ui/AppModal';
 import { ShieldCheck, Smartphone, CheckCircle, X } from 'lucide-react-native';
 import { smsListenerService } from '../lib/sms/service/smsListenerService';
 import { smsStorage } from '../lib/sms/storage/smsStore';
@@ -39,8 +40,8 @@ export function SmsOnboardingModal({ visible, onClose, onEnabled }: SmsOnboardin
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
-      <View className="flex-1 justify-end bg-black/50 p-4">
+    <AppModal visible={visible} animationType="slide" onClose={onClose}>
+      <Pressable className="p-2 w-full max-w-lg" onPress={(e) => e.stopPropagation()}>
         <Card className="bg-white rounded-3xl p-6 border border-zinc-200">
           <View className="flex-row justify-between items-center mb-4">
             <View className="w-12 h-12 rounded-2xl bg-indigo-50 items-center justify-center">
@@ -94,7 +95,7 @@ export function SmsOnboardingModal({ visible, onClose, onEnabled }: SmsOnboardin
             </Button>
           </View>
         </Card>
-      </View>
-    </Modal>
+      </Pressable>
+    </AppModal>
   );
 }

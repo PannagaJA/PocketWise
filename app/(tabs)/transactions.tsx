@@ -6,6 +6,7 @@ import Svg, { Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { AppModal } from '../../components/ui/AppModal';
 import { useAuth } from '../../context/AuthContext';
 import { transactionService } from '../../lib/services/transaction.service';
 import { accountService } from '../../lib/services/account.service';
@@ -517,333 +518,336 @@ export default function TransactionsScreen() {
       </View>
 
       {/* Custom Date / Month Filter Modal */}
-      <Modal visible={dateFilterModalVisible} animationType="slide" transparent>
-        <View className="flex-1 justify-end bg-black/40">
-          <View className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]">
-            <View className="flex-row justify-between items-center mb-4">
-              <View className="flex-row items-center gap-2">
-                <View className="w-8 h-8 rounded-full bg-indigo-50 items-center justify-center">
-                  <Calendar size={18} color="#6366F1" />
-                </View>
-                <Text className="text-xl font-bold text-zinc-900">Date & Month Filter</Text>
+      <AppModal
+        visible={dateFilterModalVisible}
+        onClose={() => setDateFilterModalVisible(false)}
+        animationType="slide"
+      >
+        <Pressable
+          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]"
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View className="flex-row justify-between items-center mb-4">
+            <View className="flex-row items-center gap-2">
+              <View className="w-8 h-8 rounded-full bg-indigo-50 items-center justify-center">
+                <Calendar size={18} color="#6366F1" />
               </View>
-              <Pressable onPress={() => setDateFilterModalVisible(false)} className="p-1">
-                <X size={20} color="#71717A" />
-              </Pressable>
+              <Text className="text-xl font-bold text-zinc-900">Date & Month Filter</Text>
+            </View>
+            <Pressable onPress={() => setDateFilterModalVisible(false)} className="p-1">
+              <X size={20} color="#71717A" />
+            </Pressable>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {/* Presets Section */}
+            <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5">Quick Presets</Text>
+            <View className="flex-row flex-wrap gap-2 mb-5">
+              {[
+                { mode: 'all', label: 'All Time' },
+                { mode: 'today', label: 'Today' },
+                { mode: 'this_month', label: 'This Month' },
+                { mode: 'last_month', label: 'Last Month' },
+              ].map((item) => {
+                const isSelected = dateFilterMode === item.mode;
+                return (
+                  <Pressable
+                    key={item.mode}
+                    onPress={() => {
+                      setDateFilterMode(item.mode as DateFilterMode);
+                      setDateFilterModalVisible(false);
+                    }}
+                    className={`px-4 py-2.5 rounded-xl border ${
+                      isSelected
+                        ? 'bg-zinc-900 border-zinc-900'
+                        : 'bg-zinc-50 border-zinc-200 active:bg-zinc-100'
+                    }`}
+                  >
+                    <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-zinc-800'}`}>
+                      {item.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Presets Section */}
-              <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5">Quick Presets</Text>
-              <View className="flex-row flex-wrap gap-2 mb-5">
-                {[
-                  { mode: 'all', label: 'All Time' },
-                  { mode: 'today', label: 'Today' },
-                  { mode: 'this_month', label: 'This Month' },
-                  { mode: 'last_month', label: 'Last Month' },
-                ].map((item) => {
-                  const isSelected = dateFilterMode === item.mode;
-                  return (
-                    <Pressable
-                      key={item.mode}
-                      onPress={() => {
-                        setDateFilterMode(item.mode as DateFilterMode);
-                        setDateFilterModalVisible(false);
-                      }}
-                      className={`px-4 py-2.5 rounded-xl border ${
-                        isSelected
-                          ? 'bg-zinc-900 border-zinc-900'
-                          : 'bg-zinc-50 border-zinc-200 active:bg-zinc-100'
-                      }`}
-                    >
-                      <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-zinc-800'}`}>
-                        {item.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-
-
-              {/* Custom Date Range Section */}
-              <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5">Custom Date Range</Text>
-              <View className="flex-row gap-3 mb-4">
-                <View className="flex-1">
-                  <DatePickerButton
-                    label="Start Date"
-                    value={customStartDate}
-                    placeholder="Pick a start date"
-                    onSelectDate={(val) => {
-                      setCustomStartDate(val);
-                      if (val) setDateFilterMode('custom_range');
-                    }}
-                  />
-                </View>
-                <View className="flex-1">
-                  <DatePickerButton
-                    label="End Date"
-                    value={customEndDate}
-                    placeholder="Pick an end date"
-                    onSelectDate={(val) => {
-                      setCustomEndDate(val);
-                      if (val) setDateFilterMode('custom_range');
-                    }}
-                  />
-                </View>
-              </View>
-
-              {/* Modal Actions */}
-              <View className="flex-row gap-3 mt-2 mb-4">
-                <Button
-                  variant="outline"
-                  size="md"
-                  className="flex-1 border-zinc-200"
-                  onPress={() => {
-                    setDateFilterMode('all');
-                    setSelectedCustomMonth('');
-                    setCustomStartDate('');
-                    setCustomEndDate('');
-                    setDateFilterModalVisible(false);
+            {/* Custom Date Range Section */}
+            <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5">Custom Date Range</Text>
+            <View className="flex-row gap-3 mb-4">
+              <View className="flex-1">
+                <DatePickerButton
+                  label="Start Date"
+                  value={customStartDate}
+                  placeholder="Pick a start date"
+                  onSelectDate={(val) => {
+                    setCustomStartDate(val);
+                    if (val) setDateFilterMode('custom_range');
                   }}
-                >
-                  <Text className="text-zinc-800 font-bold text-xs">Reset All</Text>
-                </Button>
-
-                <Button
-                  variant="primary"
-                  size="md"
-                  className="flex-1"
-                  onPress={() => {
-                    if (customStartDate || customEndDate) {
-                      setDateFilterMode('custom_range');
-                    }
-                    setDateFilterModalVisible(false);
+                />
+              </View>
+              <View className="flex-1">
+                <DatePickerButton
+                  label="End Date"
+                  value={customEndDate}
+                  placeholder="Pick an end date"
+                  onSelectDate={(val) => {
+                    setCustomEndDate(val);
+                    if (val) setDateFilterMode('custom_range');
                   }}
-                >
-                  <Text className="text-white font-bold text-xs">Apply Filter</Text>
-                </Button>
-              </View>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Transaction Creation Modal */}
-      <Modal visible={modalVisible} animationType="slide" transparent>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1 }}
-        >
-          <Pressable className="flex-1 justify-end bg-black/40" onPress={() => Keyboard.dismiss()}>
-            <Pressable className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]" onPress={(e) => e.stopPropagation()}>
-              <View className="flex-row justify-between items-center mb-4">
-                <Text className="text-xl font-bold text-zinc-900">Record Transaction</Text>
-                <Pressable onPress={() => setModalVisible(false)} className="p-1">
-                  <X size={20} color="#71717A" />
-                </Pressable>
-              </View>
-
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-4">
-                  <Pressable
-                    onPress={() => setType('expense')}
-                    className={`flex-1 py-2 rounded-xl items-center ${type === 'expense' ? 'bg-white' : ''}`}
-                  >
-                    <Text className={`font-semibold text-xs ${type === 'expense' ? 'text-rose-600' : 'text-zinc-500'}`}>Expense</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => setType('income')}
-                    className={`flex-1 py-2 rounded-xl items-center ${type === 'income' ? 'bg-white' : ''}`}
-                  >
-                    <Text className={`font-semibold text-xs ${type === 'income' ? 'text-emerald-600' : 'text-zinc-500'}`}>Income</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => setType('transfer')}
-                    className={`flex-1 py-2 rounded-xl items-center ${type === 'transfer' ? 'bg-white' : ''}`}
-                  >
-                    <Text className={`font-semibold text-xs ${type === 'transfer' ? 'text-indigo-600' : 'text-zinc-500'}`}>Transfer</Text>
-                  </Pressable>
-                </View>
-
-                <Input
-                  label="Description"
-                  placeholder={currentPlaceholders.description}
-                  value={description}
-                  onChangeText={setDescription}
                 />
-
-                <Input
-                  label="Amount (₹)"
-                  placeholder={currentPlaceholders.amount}
-                  keyboardType="numeric"
-                  value={amount}
-                  onChangeText={setAmount}
-                />
-
-                {type !== 'transfer' && (
-                  <View className="mb-4">
-                    <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Category</Text>
-                    <Pressable
-                      onPress={() => setCategoryDropdownOpen(!categoryDropdownOpen)}
-                      className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
-                    >
-                      <Text className={`text-sm ${selectedCatObj ? 'text-zinc-900 font-medium' : 'text-zinc-400'}`}>
-                        {selectedCatObj ? selectedCatObj.name : 'Select a Category'}
-                      </Text>
-                      <ChevronDown size={18} color="#71717A" />
-                    </Pressable>
-
-                    {categoryDropdownOpen && (
-                      <View className="mt-1 bg-white border border-zinc-200 rounded-xl max-h-48 overflow-hidden shadow-sm">
-                        <ScrollView nestedScrollEnabled className="p-1">
-                          {filteredCategories.map((cat) => (
-                            <Pressable
-                              key={cat.id}
-                              onPress={() => {
-                                setSelectedCategoryId(cat.id);
-                                setCategoryDropdownOpen(false);
-                              }}
-                              className={`flex-row justify-between items-center p-3 rounded-lg ${selectedCategoryId === cat.id ? 'bg-zinc-100' : ''}`}
-                            >
-                              <Text className={`text-sm ${selectedCategoryId === cat.id ? 'font-bold text-zinc-900' : 'text-zinc-700'}`}>{cat.name}</Text>
-                              {selectedCategoryId === cat.id && <Check size={16} color="#09090B" />}
-                            </Pressable>
-                          ))}
-                        </ScrollView>
-                      </View>
-                    )}
-                  </View>
-                )}
-
-                <View className="mb-4">
-                  <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">
-                    {type === 'transfer' ? 'From Account' : 'Account'}
-                  </Text>
-                  <Pressable
-                    onPress={() => setAccountDropdownOpen(!accountDropdownOpen)}
-                    className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
-                  >
-                    <Text className={`text-sm ${selectedAccObj ? 'text-zinc-900 font-medium' : 'text-zinc-400'}`}>
-                      {selectedAccObj ? selectedAccObj.name : 'Select Account'}
-                    </Text>
-                    <ChevronDown size={18} color="#71717A" />
-                  </Pressable>
-
-                  {accountDropdownOpen && (
-                    <View className="mt-1 bg-white border border-zinc-200 rounded-xl max-h-48 overflow-hidden shadow-sm">
-                      <ScrollView nestedScrollEnabled className="p-1">
-                        {accounts.map((acc) => (
-                          <Pressable
-                            key={acc.id}
-                            onPress={() => {
-                              setSelectedAccountId(acc.id);
-                              setAccountDropdownOpen(false);
-                            }}
-                            className={`flex-row justify-between items-center p-3 rounded-lg ${selectedAccountId === acc.id ? 'bg-zinc-100' : ''}`}
-                          >
-                            <Text className={`text-sm ${selectedAccountId === acc.id ? 'font-bold text-zinc-900' : 'text-zinc-700'}`}>{acc.name}</Text>
-                            {selectedAccountId === acc.id && <Check size={16} color="#09090B" />}
-                          </Pressable>
-                        ))}
-                      </ScrollView>
-                    </View>
-                  )}
-                </View>
-
-                {type === 'transfer' && (
-                  <View className="mb-4">
-                    <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">To Account</Text>
-                    <Pressable
-                      onPress={() => setDestAccountDropdownOpen(!destAccountDropdownOpen)}
-                      className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
-                    >
-                      <Text className={`text-sm ${selectedDestAccObj ? 'text-zinc-900 font-medium' : 'text-zinc-400'}`}>
-                        {selectedDestAccObj ? selectedDestAccObj.name : 'Select Destination Account'}
-                      </Text>
-                      <ChevronDown size={18} color="#71717A" />
-                    </Pressable>
-
-                    {destAccountDropdownOpen && (
-                      <View className="mt-1 bg-white border border-zinc-200 rounded-xl max-h-48 overflow-hidden shadow-sm">
-                        <ScrollView nestedScrollEnabled className="p-1">
-                          {accounts.map((acc) => (
-                            <Pressable
-                              key={acc.id}
-                              onPress={() => {
-                                setSelectedDestAccountId(acc.id);
-                                setDestAccountDropdownOpen(false);
-                              }}
-                              className={`flex-row justify-between items-center p-3 rounded-lg ${selectedDestAccountId === acc.id ? 'bg-zinc-100' : ''}`}
-                            >
-                              <Text className={`text-sm ${selectedDestAccountId === acc.id ? 'font-bold text-zinc-900' : 'text-zinc-700'}`}>{acc.name}</Text>
-                              {selectedDestAccountId === acc.id && <Check size={16} color="#09090B" />}
-                            </Pressable>
-                          ))}
-                        </ScrollView>
-                      </View>
-                    )}
-                  </View>
-                )}
-
-                <Button
-                  variant={type === 'income' ? 'income' : type === 'expense' ? 'destructive' : 'primary'}
-                  size="lg"
-                  loading={createTxMutation.isPending}
-                  className="mt-2 mb-4"
-                  onPress={() => createTxMutation.mutate()}
-                >
-                  <Text className="text-white font-semibold">{type === 'income' ? 'Save INCOME' : type === 'expense' ? 'Save EXPENSE' : 'Save TRANSFER'}</Text>
-                </Button>
-              </ScrollView>
-            </Pressable>
-          </Pressable>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* Account Creation Modal */}
-      <Modal visible={accModalVisible} animationType="slide" transparent>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1 }}
-        >
-          <Pressable className="flex-1 justify-end bg-black/40" onPress={() => Keyboard.dismiss()}>
-            <Pressable className="bg-white rounded-t-3xl p-6 border-t border-zinc-200" onPress={(e) => e.stopPropagation()}>
-              <View className="flex-row justify-between items-center mb-4">
-                <Text className="text-xl font-bold text-zinc-900">Create Account</Text>
-                <Pressable onPress={() => setAccModalVisible(false)} className="p-1">
-                  <X size={20} color="#71717A" />
-                </Pressable>
               </View>
+            </View>
 
-              <Input
-                label="Account Name"
-                placeholder="e.g. HDFC Savings, Cash Wallet"
-                value={accName}
-                onChangeText={setAccName}
-              />
-
-              <Input
-                label="Initial Balance (₹)"
-                placeholder="e.g. 10000.00"
-                keyboardType="numeric"
-                value={accBalance}
-                onChangeText={setAccBalance}
-              />
+            {/* Modal Actions */}
+            <View className="flex-row gap-3 mt-2 mb-4">
+              <Button
+                variant="outline"
+                size="md"
+                className="flex-1 border-zinc-200"
+                onPress={() => {
+                  setDateFilterMode('all');
+                  setSelectedCustomMonth('');
+                  setCustomStartDate('');
+                  setCustomEndDate('');
+                  setDateFilterModalVisible(false);
+                }}
+              >
+                <Text className="text-zinc-800 font-bold text-xs">Reset All</Text>
+              </Button>
 
               <Button
                 variant="primary"
-                size="lg"
-                loading={createAccountMutation.isPending}
-                className="mt-2 mb-4"
-                onPress={() => createAccountMutation.mutate()}
+                size="md"
+                className="flex-1"
+                onPress={() => {
+                  if (customStartDate || customEndDate) {
+                    setDateFilterMode('custom_range');
+                  }
+                  setDateFilterModalVisible(false);
+                }}
               >
-                <Text className="text-white font-semibold">Save Account</Text>
+                <Text className="text-white font-bold text-xs">Apply Filter</Text>
               </Button>
+            </View>
+          </ScrollView>
+        </Pressable>
+      </AppModal>
+
+      {/* Transaction Creation Modal */}
+      <AppModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        animationType="slide"
+      >
+        <Pressable
+          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]"
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View className="flex-row justify-between items-center mb-4">
+            <Text className="text-xl font-bold text-zinc-900">Record Transaction</Text>
+            <Pressable onPress={() => setModalVisible(false)} className="p-1">
+              <X size={20} color="#71717A" />
             </Pressable>
-          </Pressable>
-        </KeyboardAvoidingView>
-      </Modal>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-4">
+              <Pressable
+                onPress={() => setType('expense')}
+                className={`flex-1 py-2 rounded-xl items-center ${type === 'expense' ? 'bg-white' : ''}`}
+              >
+                <Text className={`font-semibold text-xs ${type === 'expense' ? 'text-rose-600' : 'text-zinc-500'}`}>Expense</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setType('income')}
+                className={`flex-1 py-2 rounded-xl items-center ${type === 'income' ? 'bg-white' : ''}`}
+              >
+                <Text className={`font-semibold text-xs ${type === 'income' ? 'text-emerald-600' : 'text-zinc-500'}`}>Income</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setType('transfer')}
+                className={`flex-1 py-2 rounded-xl items-center ${type === 'transfer' ? 'bg-white' : ''}`}
+              >
+                <Text className={`font-semibold text-xs ${type === 'transfer' ? 'text-indigo-600' : 'text-zinc-500'}`}>Transfer</Text>
+              </Pressable>
+            </View>
+
+            <Input
+              label="Description"
+              placeholder={currentPlaceholders.description}
+              value={description}
+              onChangeText={setDescription}
+            />
+
+            <Input
+              label="Amount (₹)"
+              placeholder={currentPlaceholders.amount}
+              keyboardType="numeric"
+              value={amount}
+              onChangeText={setAmount}
+            />
+
+            {type !== 'transfer' && (
+              <View className="mb-4">
+                <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Category</Text>
+                <Pressable
+                  onPress={() => setCategoryDropdownOpen(!categoryDropdownOpen)}
+                  className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
+                >
+                  <Text className={`text-sm ${selectedCatObj ? 'text-zinc-900 font-medium' : 'text-zinc-400'}`}>
+                    {selectedCatObj ? selectedCatObj.name : 'Select a Category'}
+                  </Text>
+                  <ChevronDown size={18} color="#71717A" />
+                </Pressable>
+
+                {categoryDropdownOpen && (
+                  <View className="mt-1 bg-white border border-zinc-200 rounded-xl max-h-48 overflow-hidden shadow-sm">
+                    <ScrollView nestedScrollEnabled className="p-1">
+                      {filteredCategories.map((cat) => (
+                        <Pressable
+                          key={cat.id}
+                          onPress={() => {
+                            setSelectedCategoryId(cat.id);
+                            setCategoryDropdownOpen(false);
+                          }}
+                          className={`flex-row justify-between items-center p-3 rounded-lg ${selectedCategoryId === cat.id ? 'bg-zinc-100' : ''}`}
+                        >
+                          <Text className={`text-sm ${selectedCategoryId === cat.id ? 'font-bold text-zinc-900' : 'text-zinc-700'}`}>{cat.name}</Text>
+                          {selectedCategoryId === cat.id && <Check size={16} color="#09090B" />}
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
+            )}
+
+            <View className="mb-4">
+              <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">
+                {type === 'transfer' ? 'From Account' : 'Account'}
+              </Text>
+              <Pressable
+                onPress={() => setAccountDropdownOpen(!accountDropdownOpen)}
+                className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
+              >
+                <Text className={`text-sm ${selectedAccObj ? 'text-zinc-900 font-medium' : 'text-zinc-400'}`}>
+                  {selectedAccObj ? selectedAccObj.name : 'Select Account'}
+                </Text>
+                <ChevronDown size={18} color="#71717A" />
+              </Pressable>
+
+              {accountDropdownOpen && (
+                <View className="mt-1 bg-white border border-zinc-200 rounded-xl max-h-48 overflow-hidden shadow-sm">
+                  <ScrollView nestedScrollEnabled className="p-1">
+                    {accounts.map((acc) => (
+                      <Pressable
+                        key={acc.id}
+                        onPress={() => {
+                          setSelectedAccountId(acc.id);
+                          setAccountDropdownOpen(false);
+                        }}
+                        className={`flex-row justify-between items-center p-3 rounded-lg ${selectedAccountId === acc.id ? 'bg-zinc-100' : ''}`}
+                      >
+                        <Text className={`text-sm ${selectedAccountId === acc.id ? 'font-bold text-zinc-900' : 'text-zinc-700'}`}>{acc.name}</Text>
+                        {selectedAccountId === acc.id && <Check size={16} color="#09090B" />}
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+
+            {type === 'transfer' && (
+              <View className="mb-4">
+                <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">To Account</Text>
+                <Pressable
+                  onPress={() => setDestAccountDropdownOpen(!destAccountDropdownOpen)}
+                  className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
+                >
+                  <Text className={`text-sm ${selectedDestAccObj ? 'text-zinc-900 font-medium' : 'text-zinc-400'}`}>
+                    {selectedDestAccObj ? selectedDestAccObj.name : 'Select Destination Account'}
+                  </Text>
+                  <ChevronDown size={18} color="#71717A" />
+                </Pressable>
+
+                {destAccountDropdownOpen && (
+                  <View className="mt-1 bg-white border border-zinc-200 rounded-xl max-h-48 overflow-hidden shadow-sm">
+                    <ScrollView nestedScrollEnabled className="p-1">
+                      {accounts.map((acc) => (
+                        <Pressable
+                          key={acc.id}
+                          onPress={() => {
+                            setSelectedDestAccountId(acc.id);
+                            setDestAccountDropdownOpen(false);
+                          }}
+                          className={`flex-row justify-between items-center p-3 rounded-lg ${selectedDestAccountId === acc.id ? 'bg-zinc-100' : ''}`}
+                        >
+                          <Text className={`text-sm ${selectedDestAccountId === acc.id ? 'font-bold text-zinc-900' : 'text-zinc-700'}`}>{acc.name}</Text>
+                          {selectedDestAccountId === acc.id && <Check size={16} color="#09090B" />}
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
+            )}
+
+            <Button
+              variant={type === 'income' ? 'income' : type === 'expense' ? 'destructive' : 'primary'}
+              size="lg"
+              loading={createTxMutation.isPending}
+              className="mt-2 mb-4"
+              onPress={() => createTxMutation.mutate()}
+            >
+              <Text className="text-white font-semibold">{type === 'income' ? 'Save INCOME' : type === 'expense' ? 'Save EXPENSE' : 'Save TRANSFER'}</Text>
+            </Button>
+          </ScrollView>
+        </Pressable>
+      </AppModal>
+
+      {/* Account Creation Modal */}
+      <AppModal
+        visible={accModalVisible}
+        onClose={() => setAccModalVisible(false)}
+        animationType="slide"
+      >
+        <Pressable
+          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200"
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View className="flex-row justify-between items-center mb-4">
+            <Text className="text-xl font-bold text-zinc-900">Create Account</Text>
+            <Pressable onPress={() => setAccModalVisible(false)} className="p-1">
+              <X size={20} color="#71717A" />
+            </Pressable>
+          </View>
+
+          <Input
+            label="Account Name"
+            placeholder="e.g. HDFC Savings, Cash Wallet"
+            value={accName}
+            onChangeText={setAccName}
+          />
+
+          <Input
+            label="Initial Balance (₹)"
+            placeholder="e.g. 10000.00"
+            keyboardType="numeric"
+            value={accBalance}
+            onChangeText={setAccBalance}
+          />
+
+          <Button
+            variant="primary"
+            size="lg"
+            loading={createAccountMutation.isPending}
+            className="mt-2 mb-4"
+            onPress={() => createAccountMutation.mutate()}
+          >
+            <Text className="text-white font-semibold">Save Account</Text>
+          </Button>
+        </Pressable>
+      </AppModal>
     </SafeAreaView>
   );
 }
