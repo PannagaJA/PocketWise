@@ -142,10 +142,14 @@ export function QuickExpenseModal() {
   return (
     <AppModal visible={visible} animationType="slide" onClose={closeModal}>
       <Pressable
-        className="bg-zinc-900 rounded-t-3xl p-6 border-t border-zinc-800 max-h-[85%]"
+        className="bg-zinc-900 rounded-t-3xl p-6 pb-2 border-t border-zinc-800 max-h-[85%]"
         onPress={(e) => e.stopPropagation()}
       >
-        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView 
+          showsVerticalScrollIndicator={false} 
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingBottom: 28 }}
+        >
           {/* Header */}
           <View className="flex-row justify-between items-center mb-4">
             <View className="flex-row items-center gap-2">

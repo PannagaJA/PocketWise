@@ -402,7 +402,7 @@ export default function GoalsScreen() {
         animationType="slide"
       >
         <Pressable
-          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]"
+          className="bg-white rounded-t-3xl p-6 pb-2 border-t border-zinc-200 max-h-[85%]"
           onPress={(e) => e.stopPropagation()}
         >
           <View className="flex-row justify-between items-center mb-4">
@@ -412,7 +412,11 @@ export default function GoalsScreen() {
             </Pressable>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <ScrollView 
+            showsVerticalScrollIndicator={false} 
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 28 }}
+          >
             <Input
               label="Goal Name"
               placeholder="e.g. New iPhone, Vacation, Emergency Fund"
@@ -440,7 +444,7 @@ export default function GoalsScreen() {
               variant="primary"
               size="lg"
               loading={createGoalMutation.isPending}
-              className="mt-2 mb-4"
+              className="mt-2"
               onPress={() => createGoalMutation.mutate()}
             >
               <Text className="text-white font-semibold">Save Goal</Text>
@@ -456,7 +460,7 @@ export default function GoalsScreen() {
         animationType="slide"
       >
         <Pressable
-          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]"
+          className="bg-white rounded-t-3xl p-6 pb-2 border-t border-zinc-200 max-h-[85%]"
           onPress={(e) => e.stopPropagation()}
         >
           <View className="flex-row justify-between items-center mb-4">
@@ -466,7 +470,11 @@ export default function GoalsScreen() {
             </Pressable>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <ScrollView 
+            showsVerticalScrollIndicator={false} 
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 28 }}
+          >
             <Input
               label="Contribution Amount (₹)"
               placeholder="1000.00"
@@ -479,7 +487,7 @@ export default function GoalsScreen() {
               variant="primary"
               size="lg"
               loading={contribMutation.isPending}
-              className="mt-2 mb-4"
+              className="mt-2"
               onPress={() => contribMutation.mutate()}
             >
               <Text className="text-white font-semibold">Add Contribution</Text>

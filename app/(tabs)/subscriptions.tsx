@@ -294,7 +294,7 @@ export default function SubscriptionsScreen() {
         animationType="slide"
       >
         <Pressable
-          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]"
+          className="bg-white rounded-t-3xl p-6 pb-2 border-t border-zinc-200 max-h-[85%]"
           onPress={(e) => e.stopPropagation()}
         >
           <View className="flex-row justify-between items-center mb-6">
@@ -304,7 +304,11 @@ export default function SubscriptionsScreen() {
             </Pressable>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <ScrollView 
+            showsVerticalScrollIndicator={false} 
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 28 }}
+          >
             <Input
               label="Service Name"
               placeholder="e.g. Netflix, Spotify, iCloud"

@@ -254,7 +254,7 @@ export default function BudgetsScreen() {
         animationType="slide"
       >
         <Pressable
-          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]"
+          className="bg-white rounded-t-3xl p-6 pb-2 border-t border-zinc-200 max-h-[85%]"
           onPress={(e) => e.stopPropagation()}
         >
           <View className="flex-row justify-between items-center mb-4">
@@ -264,7 +264,11 @@ export default function BudgetsScreen() {
             </Pressable>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <ScrollView 
+            showsVerticalScrollIndicator={false} 
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 28 }}
+          >
             {/* Category Dropdown */}
             <View className="mb-4">
               <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Category</Text>
@@ -314,7 +318,7 @@ export default function BudgetsScreen() {
               variant="primary"
               size="lg"
               loading={createBudgetMutation.isPending}
-              className="mt-2 mb-4"
+              className="mt-2"
               onPress={() => createBudgetMutation.mutate()}
             >
               <Text className="text-white font-semibold">Save Budget</Text>

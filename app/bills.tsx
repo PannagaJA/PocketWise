@@ -316,7 +316,7 @@ export default function BillsScreen() {
         animationType="slide"
       >
         <Pressable
-          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]"
+          className="bg-white rounded-t-3xl p-6 pb-2 border-t border-zinc-200 max-h-[85%]"
           onPress={(e) => e.stopPropagation()}
         >
           <View className="flex-row justify-between items-center mb-4">
@@ -326,7 +326,11 @@ export default function BillsScreen() {
             </Pressable>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <ScrollView 
+            showsVerticalScrollIndicator={false} 
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 28 }}
+          >
             <Input
               label="Bill Name"
               placeholder="e.g. Electricity Bill, Wifi"
@@ -382,7 +386,7 @@ export default function BillsScreen() {
               variant="primary"
               size="lg"
               loading={createBillMutation.isPending}
-              className="mt-2 mb-4"
+              className="mt-2"
               onPress={() => createBillMutation.mutate()}
             >
               <Text className="text-white font-semibold">Save Bill & Enable Reminder</Text>

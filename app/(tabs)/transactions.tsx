@@ -640,7 +640,7 @@ export default function TransactionsScreen() {
         animationType="slide"
       >
         <Pressable
-          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]"
+          className="bg-white rounded-t-3xl p-6 pb-2 border-t border-zinc-200 max-h-[85%]"
           onPress={(e) => e.stopPropagation()}
         >
           <View className="flex-row justify-between items-center mb-4">
@@ -650,7 +650,11 @@ export default function TransactionsScreen() {
             </Pressable>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <ScrollView 
+            showsVerticalScrollIndicator={false} 
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 28 }}
+          >
             <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-4">
               <Pressable
                 onPress={() => setType('expense')}
@@ -812,7 +816,7 @@ export default function TransactionsScreen() {
         animationType="slide"
       >
         <Pressable
-          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]"
+          className="bg-white rounded-t-3xl p-6 pb-2 border-t border-zinc-200 max-h-[85%]"
           onPress={(e) => e.stopPropagation()}
         >
           <View className="flex-row justify-between items-center mb-4">
@@ -822,7 +826,11 @@ export default function TransactionsScreen() {
             </Pressable>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <ScrollView 
+            showsVerticalScrollIndicator={false} 
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 28 }}
+          >
             <Input
               label="Account Name"
               placeholder="e.g. HDFC Savings, Cash Wallet"
@@ -842,7 +850,7 @@ export default function TransactionsScreen() {
               variant="primary"
               size="lg"
               loading={createAccountMutation.isPending}
-              className="mt-2 mb-4"
+              className="mt-2"
               onPress={() => createAccountMutation.mutate()}
             >
               <Text className="text-white font-semibold">Save Account</Text>

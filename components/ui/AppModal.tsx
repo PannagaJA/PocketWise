@@ -9,6 +9,7 @@ import {
   Dimensions,
   Platform,
   Keyboard,
+  KeyboardAvoidingView,
 } from 'react-native';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -37,34 +38,6 @@ export const AppModal: React.FC<AppModalProps> = ({
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const scaleAnim = useRef(new Animated.Value(0.92)).current;
-  const keyboardHeightAnim = useRef(new Animated.Value(0)).current;
-
-  // Active keyboard listener to dynamically push sheet above the soft keyboard on Android APK & iOS
-  useEffect(() => {
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-    const showSub = Keyboard.addListener(showEvent, (e) => {
-      Animated.timing(keyboardHeightAnim, {
-        toValue: e.endCoordinates.height,
-        duration: Platform.OS === 'ios' ? (e.duration || 250) : 180,
-        useNativeDriver: false,
-      }).start();
-    });
-
-    const hideSub = Keyboard.addListener(hideEvent, (e) => {
-      Animated.timing(keyboardHeightAnim, {
-        toValue: 0,
-        duration: Platform.OS === 'ios' ? (e.duration || 250) : 180,
-        useNativeDriver: false,
-      }).start();
-    });
-
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
 
   useEffect(() => {
     if (visible) {
@@ -78,8 +51,8 @@ export const AppModal: React.FC<AppModalProps> = ({
           }),
           Animated.spring(slideAnim, {
             toValue: 0,
-            damping: 26,
-            stiffness: 260,
+            damping: 28,
+            stiffness: 280,
             useNativeDriver: true,
           }),
         ]).start();
@@ -92,8 +65,8 @@ export const AppModal: React.FC<AppModalProps> = ({
           }),
           Animated.spring(scaleAnim, {
             toValue: 1,
-            damping: 22,
-            stiffness: 240,
+            damping: 24,
+            stiffness: 260,
             useNativeDriver: true,
           }),
         ]).start();
@@ -113,7 +86,7 @@ export const AppModal: React.FC<AppModalProps> = ({
           }),
           Animated.timing(slideAnim, {
             toValue: SCREEN_HEIGHT,
-            duration: 200,
+            duration: 180,
             useNativeDriver: true,
           }),
         ]).start(() => setRendered(false));
@@ -183,12 +156,12 @@ export const AppModal: React.FC<AppModalProps> = ({
           />
         </Animated.View>
 
-        {/* Dynamic Animated Keyboard Padding Container */}
-        <Animated.View
+        {/* Keyboard Avoiding Container - Perfectly flush with keyboard */}
+        <KeyboardAvoidingView
+          behavior="padding"
           style={[
             styles.container,
             isSlide ? styles.slideContainer : styles.fadeContainer,
-            { paddingBottom: keyboardHeightAnim },
           ]}
           pointerEvents="box-none"
         >
@@ -216,7 +189,7 @@ export const AppModal: React.FC<AppModalProps> = ({
               {children}
             </Animated.View>
           )}
-        </Animated.View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -250,4 +223,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
+
 
