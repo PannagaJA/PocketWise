@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  Modal,
   View,
   Pressable,
   Animated,
   BackHandler,
   StyleSheet,
   Dimensions,
-  KeyboardAvoidingView,
   Platform,
   Keyboard,
 } from 'react-native';
@@ -37,6 +37,34 @@ export const AppModal: React.FC<AppModalProps> = ({
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const scaleAnim = useRef(new Animated.Value(0.92)).current;
+  const keyboardHeightAnim = useRef(new Animated.Value(0)).current;
+
+  // Active keyboard listener to dynamically push sheet above the soft keyboard on Android APK & iOS
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      Animated.timing(keyboardHeightAnim, {
+        toValue: e.endCoordinates.height,
+        duration: Platform.OS === 'ios' ? (e.duration || 250) : 180,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    const hideSub = Keyboard.addListener(hideEvent, (e) => {
+      Animated.timing(keyboardHeightAnim, {
+        toValue: 0,
+        duration: Platform.OS === 'ios' ? (e.duration || 250) : 180,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (visible) {
@@ -75,6 +103,7 @@ export const AppModal: React.FC<AppModalProps> = ({
         scaleAnim.setValue(1);
       }
     } else if (rendered) {
+      Keyboard.dismiss();
       if (animationType === 'slide') {
         Animated.parallel([
           Animated.timing(fadeAnim, {
@@ -125,76 +154,84 @@ export const AppModal: React.FC<AppModalProps> = ({
   const isSlide = animationType === 'slide';
 
   return (
-    <View style={styles.overlay} pointerEvents="box-none">
-      {/* Backdrop */}
-      <Animated.View
-        style={[
-          StyleSheet.absoluteFillObject,
-          {
-            backgroundColor: 'rgba(0, 0, 0, 0.55)',
-            opacity: fadeAnim,
-          },
-        ]}
-      >
-        <Pressable
-          style={StyleSheet.absoluteFillObject}
-          onPress={() => {
-            if (dismissOnBackdrop && handleClose) {
-              Keyboard.dismiss();
-              handleClose();
-            }
-          }}
-        />
-      </Animated.View>
+    <Modal
+      visible={rendered}
+      transparent={true}
+      animationType="none"
+      statusBarTranslucent={true}
+      onRequestClose={handleClose}
+    >
+      <View style={styles.modalRoot} pointerEvents="box-none">
+        {/* Backdrop */}
+        <Animated.View
+          style={[
+            StyleSheet.absoluteFillObject,
+            {
+              backgroundColor: 'rgba(0, 0, 0, 0.55)',
+              opacity: fadeAnim,
+            },
+          ]}
+        >
+          <Pressable
+            style={StyleSheet.absoluteFillObject}
+            onPress={() => {
+              if (dismissOnBackdrop && handleClose) {
+                Keyboard.dismiss();
+                handleClose();
+              }
+            }}
+          />
+        </Animated.View>
 
-      {/* Content Container with Keyboard Avoidance inside Activity Window */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={[
-          styles.container,
-          isSlide ? styles.slideContainer : styles.fadeContainer,
-        ]}
-        pointerEvents="box-none"
-      >
-        {isSlide ? (
-          <Animated.View
-            style={[
-              styles.sheet,
-              {
-                transform: [{ translateY: slideAnim }],
-              },
-            ]}
-          >
-            {children}
-          </Animated.View>
-        ) : (
-          <Animated.View
-            style={[
-              styles.dialog,
-              {
-                opacity: fadeAnim,
-                transform: [{ scale: scaleAnim }],
-              },
-            ]}
-          >
-            {children}
-          </Animated.View>
-        )}
-      </KeyboardAvoidingView>
-    </View>
+        {/* Dynamic Animated Keyboard Padding Container */}
+        <Animated.View
+          style={[
+            styles.container,
+            isSlide ? styles.slideContainer : styles.fadeContainer,
+            { paddingBottom: keyboardHeightAnim },
+          ]}
+          pointerEvents="box-none"
+        >
+          {isSlide ? (
+            <Animated.View
+              style={[
+                styles.sheet,
+                {
+                  transform: [{ translateY: slideAnim }],
+                },
+              ]}
+            >
+              {children}
+            </Animated.View>
+          ) : (
+            <Animated.View
+              style={[
+                styles.dialog,
+                {
+                  opacity: fadeAnim,
+                  transform: [{ scale: scaleAnim }],
+                },
+              ]}
+            >
+              {children}
+            </Animated.View>
+          )}
+        </Animated.View>
+      </View>
+    </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 9999,
-    elevation: 9999,
+  modalRoot: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
   },
   container: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 10000,
-    elevation: 10000,
+    flex: 1,
+    width: '100%',
+    height: '100%',
   },
   slideContainer: {
     justifyContent: 'flex-end',
@@ -206,14 +243,11 @@ const styles = StyleSheet.create({
   },
   sheet: {
     width: '100%',
-    zIndex: 10001,
-    elevation: 10001,
   },
   dialog: {
     width: '100%',
     maxWidth: 420,
     alignItems: 'center',
-    zIndex: 10001,
-    elevation: 10001,
   },
 });
+

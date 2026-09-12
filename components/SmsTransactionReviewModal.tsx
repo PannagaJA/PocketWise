@@ -73,8 +73,8 @@ export function SmsTransactionReviewModal({
 
   return (
     <AppModal visible={visible} animationType="slide" onClose={onClose}>
-      <Pressable className="p-2 w-full max-w-lg" onPress={(e) => e.stopPropagation()}>
-        <Card className="bg-white rounded-3xl p-6 border border-zinc-200">
+      <Pressable className="p-2 w-full max-w-lg max-h-[85%]" onPress={(e) => e.stopPropagation()}>
+        <Card className="bg-white rounded-3xl p-6 border border-zinc-200 max-h-full">
           <View className="flex-row justify-between items-center mb-4">
             <View className="flex-row items-center gap-2">
               <View className="w-8 h-8 rounded-full bg-amber-50 items-center justify-center">

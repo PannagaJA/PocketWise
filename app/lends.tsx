@@ -588,7 +588,7 @@ export default function LendsScreen() {
         animationType="fade"
       >
         <Pressable
-          className="bg-white rounded-3xl p-5 w-full border border-zinc-200 shadow-xl"
+          className="bg-white rounded-3xl p-5 w-full border border-zinc-200 shadow-xl max-h-[85%]"
           onPress={(e) => e.stopPropagation()}
         >
           <Text className="text-lg font-black text-zinc-900 mb-1">Reschedule Collection</Text>

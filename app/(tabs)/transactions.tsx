@@ -812,7 +812,7 @@ export default function TransactionsScreen() {
         animationType="slide"
       >
         <Pressable
-          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200"
+          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]"
           onPress={(e) => e.stopPropagation()}
         >
           <View className="flex-row justify-between items-center mb-4">
@@ -822,30 +822,32 @@ export default function TransactionsScreen() {
             </Pressable>
           </View>
 
-          <Input
-            label="Account Name"
-            placeholder="e.g. HDFC Savings, Cash Wallet"
-            value={accName}
-            onChangeText={setAccName}
-          />
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <Input
+              label="Account Name"
+              placeholder="e.g. HDFC Savings, Cash Wallet"
+              value={accName}
+              onChangeText={setAccName}
+            />
 
-          <Input
-            label="Initial Balance (₹)"
-            placeholder="e.g. 10000.00"
-            keyboardType="numeric"
-            value={accBalance}
-            onChangeText={setAccBalance}
-          />
+            <Input
+              label="Initial Balance (₹)"
+              placeholder="e.g. 10000.00"
+              keyboardType="numeric"
+              value={accBalance}
+              onChangeText={setAccBalance}
+            />
 
-          <Button
-            variant="primary"
-            size="lg"
-            loading={createAccountMutation.isPending}
-            className="mt-2 mb-4"
-            onPress={() => createAccountMutation.mutate()}
-          >
-            <Text className="text-white font-semibold">Save Account</Text>
-          </Button>
+            <Button
+              variant="primary"
+              size="lg"
+              loading={createAccountMutation.isPending}
+              className="mt-2 mb-4"
+              onPress={() => createAccountMutation.mutate()}
+            >
+              <Text className="text-white font-semibold">Save Account</Text>
+            </Button>
+          </ScrollView>
         </Pressable>
       </AppModal>
     </SafeAreaView>
