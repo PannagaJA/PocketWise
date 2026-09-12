@@ -1,7 +1,9 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef } from 'react';
-import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query';
+import { QueryClient, QueryCache, MutationCache } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { AppLockGate } from '../components/AppLockGate';
@@ -14,13 +16,20 @@ import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import '../global.css';
 
+const asyncStoragePersister = createAsyncStoragePersister({
+  storage: AsyncStorage,
+  key: 'POCKETWISE_OFFLINE_CACHE_V1',
+  throttleTime: 1000,
+});
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 0,
-      refetchOnWindowFocus: true,
+      staleTime: 1000 * 60 * 5, // 5 minutes fresh in cache for instant tab switches
+      gcTime: 1000 * 60 * 60 * 24, // 24 hours garbage collection time
+      refetchOnWindowFocus: false, // Don't trigger refetch on every focus change
       refetchOnReconnect: true,
-      refetchOnMount: true,
+      refetchOnMount: false,     // Use in-memory / persistent cache immediately on mount
     },
   },
   queryCache: new QueryCache({
@@ -99,7 +108,16 @@ function GlobalRealtimeSync() {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{
+          persister: asyncStoragePersister,
+          maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days offline persistence
+          dehydrateOptions: {
+            shouldDehydrateQuery: (query) => query.state.status === 'success',
+          },
+        }}
+      >
         <AuthProvider>
           <AppLockGate>
             <GlobalRealtimeSync />
@@ -124,7 +142,7 @@ export default function RootLayout() {
             <QuickExpenseModal />
           </AppLockGate>
         </AuthProvider>
-      </QueryClientProvider>
+      </PersistQueryClientProvider>
     </SafeAreaProvider>
   );
 }

@@ -17,8 +17,16 @@ const TAB_NAMES = ['index', 'transactions', 'subscriptions', 'budgets', 'more'];
 export default function TabLayout() {
   const scrollViewRef = useRef<ScrollView>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [visitedIndices, setVisitedIndices] = useState<number[]>([0]);
   const [exitModalVisible, setExitModalVisible] = useState(false);
   const pathname = usePathname();
+
+  // Track visited tabs to lazily mount them on demand
+  useEffect(() => {
+    if (!visitedIndices.includes(activeIndex)) {
+      setVisitedIndices((prev) => [...prev, activeIndex]);
+    }
+  }, [activeIndex, visitedIndices]);
 
   // Sync route changes with active index if triggered externally within tab routes
   useEffect(() => {
@@ -91,7 +99,7 @@ export default function TabLayout() {
 
   return (
     <View style={styles.container}>
-      {/* Real-time WhatsApp-style Horizontal Page Slider */}
+      {/* Real-time Horizontal Page Slider with Lazy Screen Mounting */}
       <ScrollView
         ref={scrollViewRef}
         horizontal
@@ -106,16 +114,16 @@ export default function TabLayout() {
           <DashboardScreen />
         </View>
         <View style={{ width: SCREEN_WIDTH }} className="flex-1">
-          <TransactionsScreen />
+          {visitedIndices.includes(1) ? <TransactionsScreen /> : null}
         </View>
         <View style={{ width: SCREEN_WIDTH }} className="flex-1">
-          <SubscriptionsScreen />
+          {visitedIndices.includes(2) ? <SubscriptionsScreen /> : null}
         </View>
         <View style={{ width: SCREEN_WIDTH }} className="flex-1">
-          <BudgetsScreen />
+          {visitedIndices.includes(3) ? <BudgetsScreen /> : null}
         </View>
         <View style={{ width: SCREEN_WIDTH }} className="flex-1">
-          <MoreScreen />
+          {visitedIndices.includes(4) ? <MoreScreen /> : null}
         </View>
       </ScrollView>
 

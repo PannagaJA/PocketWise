@@ -156,26 +156,24 @@ export default function DashboardScreen() {
     enabled: !!user?.id,
   });
 
-  // Automatically refresh queries and sync accounts to native whenever returning to the Dashboard tab
+  // Evaluate monthly analytics whenever transactions change
+  useEffect(() => {
+    if (transactions.length > 0) {
+      const currentMonth = new Date().toISOString().substring(0, 7);
+      const currentMonthTxs = transactions.filter((t) => t.date && t.date.startsWith(currentMonth));
+      const prevMonth = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().substring(0, 7);
+      const prevMonthTxs = transactions.filter((t) => t.date && t.date.startsWith(prevMonth));
+      financialAnalyticsEngine.evaluateMonthlyAnalytics(currentMonthTxs, prevMonthTxs);
+    }
+  }, [transactions]);
+
+  // Sync user data to native module when returning to the Dashboard tab
   useFocusEffect(
     useCallback(() => {
       if (user?.id) {
-        refetchAcc();
-        refetchTx();
-        refetchBills();
-        refetchGoals();
-        refetchReminders();
         shakeService.syncUserDataToNative(user.id);
-
-        if (transactions.length > 0) {
-          const currentMonth = new Date().toISOString().substring(0, 7);
-          const currentMonthTxs = transactions.filter((t) => t.date && t.date.startsWith(currentMonth));
-          const prevMonth = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().substring(0, 7);
-          const prevMonthTxs = transactions.filter((t) => t.date && t.date.startsWith(prevMonth));
-          financialAnalyticsEngine.evaluateMonthlyAnalytics(currentMonthTxs, prevMonthTxs);
-        }
       }
-    }, [user?.id, refetchAcc, refetchTx, refetchBills, refetchGoals, refetchReminders, transactions])
+    }, [user?.id])
   );
 
   const upcomingBills = bills.filter((b) => !b.is_paid).slice(0, 3);
