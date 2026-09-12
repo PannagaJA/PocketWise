@@ -8,7 +8,7 @@ import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { useAuth } from '../../context/AuthContext';
 import { appLockService } from '../../lib/security/app-lock.service';
-import { Fingerprint, Bell, Database, LogOut, ChevronRight, Calendar, Target, Lock, PieChart, X, Smartphone, Zap } from 'lucide-react-native';
+import { Fingerprint, Bell, Database, LogOut, ChevronRight, Calendar, Target, Lock, PieChart, X, Smartphone, Zap, HandCoins } from 'lucide-react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as Haptics from 'expo-haptics';
 
@@ -178,6 +178,19 @@ export default function MoreScreen() {
             </View>
             <ChevronRight size={18} color="#A1A1AA" />
           </Pressable>
+
+          <Pressable onPress={() => router.push('/lends')} className="p-4 flex-row items-center justify-between">
+            <View className="flex-row items-center">
+              <View className="w-9 h-9 rounded-xl bg-violet-50 items-center justify-center mr-3">
+                <HandCoins size={20} color="#7C3AED" />
+              </View>
+              <View>
+                <Text className="text-sm font-bold text-zinc-900">Money Lends</Text>
+                <Text className="text-xs text-zinc-500">Track lent money & get reminded to collect</Text>
+              </View>
+            </View>
+            <ChevronRight size={18} color="#A1A1AA" />
+          </Pressable>
         </Card>
 
         {/* Security */}
@@ -273,9 +286,9 @@ export default function MoreScreen() {
       </ScrollView>
 
       {/* Set PIN Modal */}
-      <Modal visible={pinModalVisible} animationType="slide" transparent statusBarTranslucent>
+      <Modal visible={pinModalVisible} animationType="slide" transparent>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={{ flex: 1 }}
         >
           <Pressable

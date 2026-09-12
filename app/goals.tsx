@@ -395,9 +395,9 @@ export default function GoalsScreen() {
       </View>
 
       {/* Add Goal Modal */}
-      <Modal visible={modalVisible} animationType="slide" transparent statusBarTranslucent>
+      <Modal visible={modalVisible} animationType="slide" transparent>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={{ flex: 1 }}
         >
           <Pressable
@@ -452,9 +452,9 @@ export default function GoalsScreen() {
       </Modal>
 
       {/* Add Contribution Modal */}
-      <Modal visible={contribModalVisible} animationType="slide" transparent statusBarTranslucent>
+      <Modal visible={contribModalVisible} animationType="slide" transparent>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={{ flex: 1 }}
         >
           <Pressable

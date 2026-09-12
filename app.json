@@ -20,7 +20,7 @@
     },
     "android": {
       "package": "com.pocketwise.app",
-      "softwareKeyboardLayoutMode": "pan",
+      "softwareKeyboardLayoutMode": "resize",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#0A192F",

@@ -15,22 +15,25 @@ import { supabase } from '../supabase';
 
 const isExpoGo = Constants?.executionEnvironment === ExecutionEnvironment.StoreClient;
 
-// Always load expo-notifications — it works in dev builds and production APKs.
-// In Expo Go the scheduleNotificationAsync calls will simply fail gracefully.
+// Only load expo-notifications in real builds (dev-client or production APK).
+// In Expo Go, DevicePushTokenAutoRegistration.fx.js runs as a module-level side-effect
+// and crashes with "removed from SDK 53" — so we skip the entire require in Expo Go.
 let Notifications: any = null;
-try {
-  Notifications = require('expo-notifications');
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    }),
-  });
-} catch {
-  Notifications = null;
+if (!isExpoGo) {
+  try {
+    Notifications = require('expo-notifications');
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+  } catch {
+    Notifications = null;
+  }
 }
 
 export type NotificationCategory =
@@ -144,7 +147,7 @@ export const notificationService = {
   },
 
   async registerDeviceToken(userId: string): Promise<string | null> {
-    if (!Notifications) return null;
+    if (isExpoGo || !Notifications) return null;
 
     try {
       const hasPermission = await this.requestPermissions();
