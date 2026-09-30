@@ -489,17 +489,21 @@ export default function DashboardScreen() {
         animationType="slide"
       >
         <Pressable
-          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[80%]"
           onPress={(e) => e.stopPropagation()}
+          className="flex-col w-full"
         >
-          <View className="flex-row justify-between items-center mb-4">
-            <View className="flex-row items-center gap-2">
-              <View className="w-8 h-8 rounded-full bg-indigo-50 items-center justify-center">
-                <Bell size={18} color="#6366F1" />
+          {/* Subtle Drag Handle */}
+          <View className="w-12 h-1 bg-zinc-300 rounded-full self-center mt-3 mb-1" />
+
+          {/* Header */}
+          <View className="flex-row justify-between items-center p-5 pb-3 border-b border-zinc-100">
+            <View className="flex-row items-center gap-3">
+              <View className="w-10 h-10 rounded-2xl bg-indigo-50 items-center justify-center">
+                <Bell size={20} color="#6366F1" />
               </View>
               <View>
                 <Text className="text-xl font-extrabold text-zinc-900">Notifications</Text>
-                <Text className="text-xs text-zinc-500">Recent push alerts & reminders</Text>
+                <Text className="text-xs text-zinc-500 mt-0.5">Recent push alerts & reminders</Text>
               </View>
             </View>
 
@@ -526,7 +530,12 @@ export default function DashboardScreen() {
             </View>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} className="mb-4">
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            style={{ flexShrink: 1 }}
+            className="px-5 pt-3"
+            contentContainerStyle={{ paddingBottom: 24 }}
+          >
             {reminders.length === 0 ? (
               <View className="items-center py-10">
                 <View className="w-12 h-12 rounded-full bg-zinc-100 items-center justify-center mb-2">
@@ -548,15 +557,6 @@ export default function DashboardScreen() {
               ))
             )}
           </ScrollView>
-
-          <Button
-            variant="outline"
-            size="md"
-            className="border-zinc-200"
-            onPress={() => setNotifModalVisible(false)}
-          >
-            <Text className="text-zinc-800 font-bold text-xs">Close</Text>
-          </Button>
         </Pressable>
       </AppModal>
 
@@ -567,23 +567,41 @@ export default function DashboardScreen() {
         animationType="slide"
       >
         <Pressable
+          className="flex-col w-full"
           onPress={(e) => e.stopPropagation()}
-          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[75%]"
         >
-          <View className="flex-row justify-between items-center mb-4">
-            <View>
-              <Text className="text-lg font-extrabold text-zinc-900">Select Account</Text>
-              <Text className="text-xs text-zinc-500">Filter dashboard metrics, charts, & transactions</Text>
+          {/* Subtle Drag Indicator */}
+          <View className="w-12 h-1 bg-zinc-300 rounded-full self-center mt-3 mb-1" />
+
+          {/* Fixed Header */}
+          <View className="flex-row justify-between items-center px-5 py-3 border-b border-zinc-100">
+            <View className="flex-row items-center gap-3">
+              <View className="w-10 h-10 rounded-2xl bg-emerald-50 border border-emerald-100 items-center justify-center">
+                <Building2 size={20} color="#10B981" />
+              </View>
+              <View>
+                <Text className="text-xl font-extrabold text-zinc-900">Select Account</Text>
+                <Text className="text-xs text-zinc-500 mt-0.5">Filter dashboard metrics, charts, & transactions</Text>
+              </View>
             </View>
             <Pressable
-              onPress={() => setBankSelectModalVisible(false)}
-              className="w-8 h-8 rounded-full bg-zinc-100 items-center justify-center"
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                setBankSelectModalVisible(false);
+              }}
+              className="w-8 h-8 rounded-full bg-zinc-100 items-center justify-center active:bg-zinc-200"
             >
-              <X size={18} color="#71717A" />
+              <X size={16} color="#71717A" />
             </Pressable>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} className="mb-4">
+          {/* Scrollable Content */}
+          <ScrollView
+            className="px-5 pt-3"
+            style={{ flexShrink: 1 }}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 24 }}
+          >
             {/* All Accounts Option */}
             <TouchableOpacity
               activeOpacity={0.7}
@@ -592,14 +610,14 @@ export default function DashboardScreen() {
                 setSelectedBankId('all');
                 setBankSelectModalVisible(false);
               }}
-              className={`flex-row items-center justify-between p-3.5 mb-2.5 rounded-2xl border ${
+              className={`flex-row items-center justify-between p-4 mb-3 rounded-2xl border ${
                 selectedBankId === 'all'
                   ? 'bg-zinc-900 border-zinc-900 shadow-sm'
                   : 'bg-zinc-50 border-zinc-200'
               }`}
             >
               <View className="flex-row items-center gap-3">
-                <View className="w-9 h-9 rounded-xl bg-zinc-800 items-center justify-center">
+                <View className="w-10 h-10 rounded-xl bg-zinc-800 items-center justify-center">
                   <Wallet size={18} color="#10B981" />
                 </View>
                 <View>
@@ -607,7 +625,7 @@ export default function DashboardScreen() {
                     All Accounts
                   </Text>
                   <Text className={`text-xs ${selectedBankId === 'all' ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                    {accounts.length} linked bank{accounts.length > 1 ? 's' : ''} combined
+                    {accounts.length} linked bank{accounts.length !== 1 ? 's' : ''} combined
                   </Text>
                 </View>
               </View>
@@ -632,7 +650,7 @@ export default function DashboardScreen() {
                     setSelectedBankId(acc.id);
                     setBankSelectModalVisible(false);
                   }}
-                  className={`flex-row items-center justify-between p-3.5 mb-2.5 rounded-2xl border ${
+                  className={`flex-row items-center justify-between p-4 mb-3 rounded-2xl border ${
                     isSelected
                       ? 'bg-zinc-900 border-zinc-900 shadow-sm'
                       : 'bg-zinc-50 border-zinc-200'
@@ -641,7 +659,7 @@ export default function DashboardScreen() {
                   <View className="flex-row items-center gap-3 flex-1 mr-2">
                     <View
                       style={{ backgroundColor: acc.color || '#6366F1' }}
-                      className="w-9 h-9 rounded-xl items-center justify-center"
+                      className="w-10 h-10 rounded-xl items-center justify-center"
                     >
                       <Building2 size={18} color="#FFFFFF" />
                     </View>
@@ -665,15 +683,6 @@ export default function DashboardScreen() {
               );
             })}
           </ScrollView>
-
-          <Button
-            variant="outline"
-            size="md"
-            className="border-zinc-200"
-            onPress={() => setBankSelectModalVisible(false)}
-          >
-            <Text className="text-zinc-800 font-bold text-xs">Close</Text>
-          </Button>
         </Pressable>
       </AppModal>
 

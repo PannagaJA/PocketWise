@@ -94,7 +94,7 @@ export default function MoreScreen() {
   };
 
   const handleSignOut = () => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch { }
     Alert.alert(
       'Sign Out',
       'Are you sure you want to sign out of PocketWise?',
@@ -296,8 +296,8 @@ export default function MoreScreen() {
           className="bg-white rounded-t-3xl p-6 pb-6 border-t border-zinc-200 max-h-[90%]"
           onPress={(e) => e.stopPropagation()}
         >
-          <ScrollView 
-            keyboardShouldPersistTaps="handled" 
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 48 }}
           >

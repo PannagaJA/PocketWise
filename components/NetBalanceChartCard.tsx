@@ -436,7 +436,7 @@ export function NetBalanceChartCard({ accounts, transactions, selectedAccountId,
     lastHapticIdxRef.current = activeInterpolatedState.closestIdx;
     try {
       Haptics.selectionAsync();
-    } catch {}
+    } catch { }
   }
 
   // 6. Smooth Pan Gesture Handler with 1-second Dwell Hold on Touch Release
@@ -482,8 +482,8 @@ export function NetBalanceChartCard({ accounts, transactions, selectedAccountId,
             {activeInterpolatedState
               ? activeInterpolatedState.dateLabel
               : selectedAccount
-              ? `${selectedAccount.name || 'Bank'} Balance`
-              : 'Net Total Balance'}
+                ? `${selectedAccount.name || 'Bank'} Balance`
+                : 'Net Total Balance'}
           </Text>
 
           <View className="flex-row items-baseline gap-2 mt-1">
@@ -503,11 +503,10 @@ export function NetBalanceChartCard({ accounts, transactions, selectedAccountId,
 
         {/* Change Indicator / Trend Pill */}
         <View
-          className={`px-3 py-1.5 rounded-full flex-row items-center gap-1.5 border ${
-            (activeInterpolatedState ? activeInterpolatedState.delta >= 0 : isPositive)
+          className={`px-3 py-1.5 rounded-full flex-row items-center gap-1.5 border ${(activeInterpolatedState ? activeInterpolatedState.delta >= 0 : isPositive)
               ? 'bg-emerald-500/20 border-emerald-500/30'
               : 'bg-rose-500/20 border-rose-500/30'
-          }`}
+            }`}
         >
           {(activeInterpolatedState ? activeInterpolatedState.delta >= 0 : isPositive) ? (
             <TrendingUp size={13} color="#10B981" />
@@ -515,9 +514,8 @@ export function NetBalanceChartCard({ accounts, transactions, selectedAccountId,
             <TrendingDown size={13} color="#EF4444" />
           )}
           <Text
-            className={`text-xs font-extrabold ${
-              (activeInterpolatedState ? activeInterpolatedState.delta >= 0 : isPositive) ? 'text-emerald-400' : 'text-rose-400'
-            }`}
+            className={`text-xs font-extrabold ${(activeInterpolatedState ? activeInterpolatedState.delta >= 0 : isPositive) ? 'text-emerald-400' : 'text-rose-400'
+              }`}
           >
             {activeInterpolatedState
               ? `${activeInterpolatedState.delta >= 0 ? '+' : ''}${formatMoney(activeInterpolatedState.delta)}`
@@ -615,7 +613,7 @@ export function NetBalanceChartCard({ accounts, transactions, selectedAccountId,
                   clearReleaseTimer();
                   try {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  } catch {}
+                  } catch { }
                   setPeriod(p);
                   setActiveTouchPos(null);
                 }}
