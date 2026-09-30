@@ -43,29 +43,30 @@ export const AppModal: React.FC<AppModalProps> = ({
 
   const useDriver = Platform.OS !== 'web';
 
-  // Smoothly lift the modal sheet when the soft keyboard appears on iOS (Android handles resize natively via WindowManager)
+  // Smoothly lift the modal sheet when the soft keyboard appears (both Android & iOS)
   useEffect(() => {
-    if (Platform.OS !== 'ios') return;
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
 
     const onKeyboardShow = (e: any) => {
       const height = e?.endCoordinates?.height || 0;
       Animated.timing(keyboardHeightAnim, {
         toValue: height,
-        duration: e?.duration || 250,
+        duration: Platform.OS === 'ios' ? (e?.duration || 250) : 180,
         useNativeDriver: false,
       }).start();
     };
 
-    const onKeyboardHide = (e: any) => {
+    const onKeyboardHide = () => {
       Animated.timing(keyboardHeightAnim, {
         toValue: 0,
-        duration: e?.duration || 200,
+        duration: Platform.OS === 'ios' ? 200 : 150,
         useNativeDriver: false,
       }).start();
     };
 
-    const showSub = Keyboard.addListener('keyboardWillShow', onKeyboardShow);
-    const hideSub = Keyboard.addListener('keyboardWillHide', onKeyboardHide);
+    const showSub = Keyboard.addListener(showEvent, onKeyboardShow);
+    const hideSub = Keyboard.addListener(hideEvent, onKeyboardHide);
 
     return () => {
       showSub.remove();
@@ -111,6 +112,7 @@ export const AppModal: React.FC<AppModalProps> = ({
       }
     } else if (rendered) {
       Keyboard.dismiss();
+      keyboardHeightAnim.setValue(0);
       if (animationType === 'slide') {
         Animated.parallel([
           Animated.timing(fadeAnim, {
