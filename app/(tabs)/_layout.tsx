@@ -1,10 +1,12 @@
-import React, { useState, useCallback } from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import React, { useState, useCallback, useEffect } from 'react';
+import { StyleSheet, View, useWindowDimensions, InteractionManager } from 'react-native';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
+  withTiming,
   withSpring,
+  Easing,
   runOnJS,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -15,6 +17,10 @@ import SubscriptionsScreen from './subscriptions';
 import BudgetsScreen from './budgets';
 import MoreScreen from './more';
 import { CustomBottomTabBar } from '../../components/CustomBottomTabBar';
+
+const TabScreenContainer = React.memo(({ Component }: { Component: React.ComponentType }) => {
+  return <Component />;
+});
 
 const SCREENS = [
   { key: 'index', name: 'index', label: 'Dashboard', Component: DashboardScreen },
@@ -27,7 +33,9 @@ const SCREENS = [
 export default function TabLayout() {
   const { width: screenWidth } = useWindowDimensions();
   const [activeIndex, setActiveIndex] = useState(0);
-  const [visitedTabs, setVisitedTabs] = useState<Set<number>>(() => new Set([0, 1]));
+
+  // Pre-mount active tab, then mount remaining tabs immediately
+  const [mountedTabs, setMountedTabs] = useState<Set<number>>(() => new Set([0, 1, 2, 3, 4]));
 
   const translateX = useSharedValue(0);
   const startX = useSharedValue(0);
@@ -36,35 +44,29 @@ export default function TabLayout() {
   const onTabChanged = useCallback((index: number) => {
     setActiveIndex(index);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setVisitedTabs((prev) => {
-      const next = new Set(prev);
-      next.add(index);
-      if (index > 0) next.add(index - 1);
-      if (index < SCREENS.length - 1) next.add(index + 1);
-      return next;
-    });
   }, []);
 
   const goToTab = useCallback((index: number) => {
+    const prevIndex = activeIndexShared.value;
     activeIndexShared.value = index;
     setActiveIndex(index);
-    setVisitedTabs((prev) => {
-      const next = new Set(prev);
-      next.add(index);
-      if (index > 0) next.add(index - 1);
-      if (index < SCREENS.length - 1) next.add(index + 1);
-      return next;
-    });
-    translateX.value = withSpring(-index * screenWidth, {
-      damping: 24,
-      stiffness: 240,
-      mass: 0.6,
-      overshootClamping: false,
-    });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    const distance = Math.abs(index - prevIndex);
+    if (distance <= 1) {
+      // Adjacent tab: ultra-fast 140ms snappy slide
+      translateX.value = withTiming(-index * screenWidth, {
+        duration: 140,
+        easing: Easing.out(Easing.quad),
+      });
+    } else {
+      // Non-adjacent jump: instantaneous 0ms switch without sliding through entire app
+      translateX.value = -index * screenWidth;
+    }
   }, [screenWidth, activeIndexShared, translateX]);
 
   const panGesture = Gesture.Pan()
-    .activeOffsetX([-15, 15])
+    .activeOffsetX([-12, 12])
     .failOffsetY([-12, 12])
     .onStart(() => {
       'worklet';
@@ -91,10 +93,10 @@ export default function TabLayout() {
       const currentIndex = activeIndexShared.value;
       let targetIndex = Math.round(-offset / screenWidth);
 
-      // Fling velocity recognition for natural flick transitions
-      if (e.velocityX < -450 && targetIndex <= currentIndex) {
+      // Fast flick velocity detection
+      if (e.velocityX < -400 && targetIndex <= currentIndex) {
         targetIndex = Math.min(currentIndex + 1, SCREENS.length - 1);
-      } else if (e.velocityX > 450 && targetIndex >= currentIndex) {
+      } else if (e.velocityX > 400 && targetIndex >= currentIndex) {
         targetIndex = Math.max(currentIndex - 1, 0);
       }
 
@@ -102,9 +104,9 @@ export default function TabLayout() {
       activeIndexShared.value = targetIndex;
 
       translateX.value = withSpring(-targetIndex * screenWidth, {
-        damping: 24,
-        stiffness: 240,
-        mass: 0.6,
+        damping: 26,
+        stiffness: 280,
+        mass: 0.5,
         overshootClamping: false,
       });
 
@@ -142,13 +144,13 @@ export default function TabLayout() {
           ]}
         >
           {SCREENS.map((screen, index) => {
-            const isVisited = visitedTabs.has(index);
+            const isMounted = mountedTabs.has(index);
             const ScreenComponent = screen.Component;
 
             return (
               <View key={screen.key} style={[styles.screenWrapper, { width: screenWidth }]}>
-                {isVisited ? (
-                  <ScreenComponent />
+                {isMounted ? (
+                  <TabScreenContainer Component={ScreenComponent} />
                 ) : (
                   <View style={styles.screenPlaceholder} />
                 )}
