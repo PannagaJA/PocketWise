@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Switch, Pressable, Alert } from 'react-native';
+import { View, Text, ScrollView, Switch, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
-import { ChevronLeft, ShieldCheck, Smartphone, Building2, CheckCircle2, AlertTriangle, Sparkles, RefreshCw } from 'lucide-react-native';
+import { ChevronLeft, ShieldCheck, Smartphone, Building2, CheckCircle2, AlertTriangle } from 'lucide-react-native';
 import { smsStorage } from '../lib/sms/storage/smsStore';
 import { smsListenerService } from '../lib/sms/service/smsListenerService';
-import { notificationService } from '../lib/notifications/notification.service';
 import { AccountMapping, SmsTrackingSettings, ParsedSmsTransaction } from '../lib/sms/types';
 import { SmsTransactionReviewModal } from '../components/SmsTransactionReviewModal';
 
@@ -26,28 +24,6 @@ export default function SmsSettingsScreen() {
   const [pendingReviews, setPendingReviews] = useState<ParsedSmsTransaction[]>([]);
   const [selectedReviewTx, setSelectedReviewTx] = useState<ParsedSmsTransaction | null>(null);
   const [notificationListenerEnabled, setNotificationListenerEnabled] = useState(false);
-  const [simulationLoading, setSimulationLoading] = useState(false);
-  const [customSmsText, setCustomSmsText] = useState('');
-
-  const handleTestCustomSms = async () => {
-    if (!customSmsText.trim()) return;
-    setSimulationLoading(true);
-
-    const tx = await smsListenerService.simulateIncomingSms('BANK_NOTIFICATION', customSmsText.trim());
-    setSimulationLoading(false);
-
-    if (tx) {
-      await smsListenerService.saveTransactionToStore(tx);
-      Alert.alert(
-        'Real SMS Parsed & Added',
-        `Successfully extracted from your SMS:\n\nType: ${tx.type.toUpperCase()}\nAmount: ₹${tx.amount.toLocaleString('en-IN')}\nBank: ${tx.bankName}\nMerchant: ${tx.merchant}\nCategory: ${tx.category}`
-      );
-      setCustomSmsText('');
-      loadSmsSettings();
-    } else {
-      Alert.alert('Parser Result', 'SMS was recognized as non-financial, OTP, or duplicate.');
-    }
-  };
 
   useEffect(() => {
     loadSmsSettings();
@@ -78,40 +54,6 @@ export default function SmsSettingsScreen() {
     } else {
       await smsStorage.saveSettings({ autoTrackingEnabled: false });
       setSettings((prev) => ({ ...prev, autoTrackingEnabled: false }));
-    }
-  };
-
-  const handleRunSimulation = async (type: 'debit' | 'salary' | 'refund' | 'transfer') => {
-    setSimulationLoading(true);
-    let sender = 'HDFCBK';
-    let body = '';
-
-    if (type === 'debit') {
-      sender = 'HDFCBK';
-      body = 'HDFC Bank: Rs.450.00 debited from A/c XX1234 to SWIGGY via UPI Ref 4281901829. Bal: Rs.44,550.00';
-    } else if (type === 'salary') {
-      sender = 'SBIBNK';
-      body = 'SBI: INR 35000.00 credited to A/c XX9988 towards SALARY for July 2026. Ref: UTR990812';
-    } else if (type === 'refund') {
-      sender = 'ICICIB';
-      body = 'ICICI Bank: Rs.450.00 credited as refund from SWIGGY to A/c XX5678. Ref: REF99120';
-    } else if (type === 'transfer') {
-      sender = 'HDFCBK';
-      body = 'HDFC Bank: Rs.10000.00 transferred from HDFC to SBI A/c XX7788. Ref UTR554433';
-    }
-
-    const tx = await smsListenerService.simulateIncomingSms(sender, body);
-    setSimulationLoading(false);
-
-    if (tx) {
-      await smsListenerService.saveTransactionToStore(tx);
-      Alert.alert(
-        'Test SMS Processed & Saved',
-        `Successfully detected and added to your transactions!\n\nType: ${tx.type.toUpperCase()}\nAmount: ₹${tx.amount}\nBank: ${tx.bankName}\nMerchant: ${tx.merchant}\nCategory: ${tx.category}`
-      );
-      loadSmsSettings();
-    } else {
-      Alert.alert('Simulation Note', 'SMS was recognized as duplicate or non-financial.');
     }
   };
 
@@ -208,46 +150,6 @@ export default function SmsSettingsScreen() {
           </Button>
         </Card>
 
-        {/* System Notification Diagnostics */}
-        <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3 ml-1">System Notification Diagnostics</Text>
-        <Card className="mb-6 p-4 bg-white border border-zinc-200 gap-3">
-          <Text className="text-xs font-medium text-zinc-600 leading-5">
-            Test whether Android OS system notifications display on your phone tray and lock screen.
-          </Text>
-          <View className="flex-row gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1 border-indigo-200 bg-indigo-50/40"
-              onPress={async () => {
-                const ok = await notificationService.sendTestNotification();
-                if (ok) {
-                  Alert.alert('Immediate Test Sent', 'Check your Android notification shade / top banner.');
-                } else {
-                  Alert.alert('Test Failed', 'Notification permission may be denied or running in unsupported environment.');
-                }
-              }}
-            >
-              <Text className="text-xs font-bold text-indigo-700">Immediate Test Alert</Text>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1 border-zinc-200"
-              onPress={async () => {
-                const ok = await notificationService.scheduleTestNotification(60);
-                if (ok) {
-                  Alert.alert('Scheduled (60s)', 'Close PocketWise and lock your phone now. A system notification will arrive in 60 seconds.');
-                } else {
-                  Alert.alert('Test Failed', 'Could not schedule test notification.');
-                }
-              }}
-            >
-              <Text className="text-xs font-bold text-zinc-700">60s Background Test</Text>
-            </Button>
-          </View>
-        </Card>
-
         {/* Pending Reviews Queue Section */}
         {pendingReviews.length > 0 && (
           <>
@@ -308,78 +210,6 @@ export default function SmsSettingsScreen() {
               ))}
             </View>
           )}
-        </Card>
-
-        {/* Developer / Tester Tools */}
-        <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3 ml-1">SMS Simulation & Testing</Text>
-        <Card className="mb-6 p-4 bg-white border border-zinc-200">
-          <View className="flex-row items-center gap-2 mb-3">
-            <Sparkles size={18} color="#6366F1" />
-            <Text className="text-xs font-bold text-zinc-900">Simulate Real SMS Received</Text>
-          </View>
-
-          <View className="flex-row flex-wrap gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1 min-w-[45%]"
-              onPress={() => handleRunSimulation('debit')}
-              disabled={simulationLoading}
-            >
-              <Text className="text-xs font-bold text-zinc-800">Test Debit SMS</Text>
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1 min-w-[45%]"
-              onPress={() => handleRunSimulation('salary')}
-              disabled={simulationLoading}
-            >
-              <Text className="text-xs font-bold text-emerald-700">Test Salary Credit</Text>
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1 min-w-[45%]"
-              onPress={() => handleRunSimulation('refund')}
-              disabled={simulationLoading}
-            >
-              <Text className="text-xs font-bold text-indigo-700">Test Refund</Text>
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1 min-w-[45%]"
-              onPress={() => handleRunSimulation('transfer')}
-              disabled={simulationLoading}
-            >
-              <Text className="text-xs font-bold text-amber-700">Test Transfer</Text>
-            </Button>
-          </View>
-
-          {/* Custom SMS Paste & Test Input */}
-          <View className="mt-4 pt-3 border-t border-zinc-100">
-            <Text className="text-xs font-semibold text-zinc-600 mb-1.5">Paste Real SMS from Notification Bar:</Text>
-            <Input
-              placeholder="e.g. HDFC Bank: Rs.450.00 debited from A/c XX1234..."
-              value={customSmsText}
-              onChangeText={setCustomSmsText}
-              multiline
-              numberOfLines={3}
-            />
-            <Button
-              variant="primary"
-              size="md"
-              className="mt-2 bg-indigo-600"
-              onPress={handleTestCustomSms}
-              disabled={simulationLoading || !customSmsText.trim()}
-            >
-              <Text className="text-white font-bold text-xs">Parse & Test My Real SMS</Text>
-            </Button>
-          </View>
         </Card>
 
         {/* Privacy Note */}
