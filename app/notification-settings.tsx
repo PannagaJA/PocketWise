@@ -39,7 +39,7 @@ export default function NotificationSettingsScreen() {
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       {/* Header */}
       <View className="px-4 py-3 flex-row items-center border-b border-zinc-100 bg-white">
-        <Pressable onPress={() => router.back()} className="p-2 -ml-2 mr-2">
+        <Pressable onPress={() => { if (router.canGoBack()) { router.back(); } else { router.replace('/(tabs)/'); } }} className="p-2 -ml-2 mr-2">
           <ChevronLeft size={24} color="#09090B" />
         </Pressable>
         <View>

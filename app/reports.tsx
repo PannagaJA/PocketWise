@@ -97,7 +97,7 @@ export default function ReportsScreen() {
       <View className="px-4 pt-2 flex-1">
         {/* Header */}
         <View className="flex-row items-center mb-4">
-          <Pressable onPress={() => router.back()} className="p-2 -ml-2 mr-2 rounded-full active:bg-zinc-100">
+          <Pressable onPress={() => { if (router.canGoBack()) { router.back(); } else { router.replace('/(tabs)/'); } }} className="p-2 -ml-2 mr-2 rounded-full active:bg-zinc-100">
             <ArrowLeft size={20} color="#09090B" />
           </Pressable>
           <View>

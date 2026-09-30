@@ -137,7 +137,7 @@ export default function BudgetsScreen() {
             <View className="items-center justify-center">
               <View className="relative items-center justify-center">
                 <Svg width={size} height={size}>
-                  <G rotation="-90" origin={`${size / 2}, ${size / 2}`}>
+                  <G transform={`rotate(-90 ${size / 2} ${size / 2})`}>
                     {/* Background Circle */}
                     <Circle
                       cx={size / 2}

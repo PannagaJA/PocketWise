@@ -139,7 +139,7 @@ export default function BillsScreen() {
         {/* Header */}
         <View className="flex-row justify-between items-center mb-4">
           <View className="flex-row items-center">
-            <Pressable onPress={() => router.back()} className="mr-3 p-1">
+            <Pressable onPress={() => { if (router.canGoBack()) { router.back(); } else { router.replace('/(tabs)/'); } }} className="mr-3 p-1">
               <ArrowLeft size={22} color="#09090B" />
             </Pressable>
             <View>

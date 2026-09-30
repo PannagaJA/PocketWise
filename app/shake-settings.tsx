@@ -104,7 +104,7 @@ export default function ShakeSettingsScreen() {
       <View className="flex-row items-center justify-between px-5 py-3 border-b border-zinc-200 bg-white">
         <TouchableOpacity
           activeOpacity={0.7}
-          onPress={() => router.back()}
+          onPress={() => { if (router.canGoBack()) { router.back(); } else { router.replace('/(tabs)/'); } }}
           className="w-10 h-10 items-center justify-center rounded-full bg-zinc-100"
         >
           <ArrowLeft size={20} color="#18181B" />

@@ -46,7 +46,7 @@ export default function RegisterScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background justify-center px-6">
       <TouchableOpacity
-        onPress={() => router.back()}
+        onPress={() => { if (router.canGoBack()) { router.back(); } else { router.replace('/(auth)/login'); } }}
         className="mb-6 flex-row items-center space-x-1"
       >
         <ArrowLeft size={20} color="#09090B" />

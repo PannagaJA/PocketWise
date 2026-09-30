@@ -168,7 +168,7 @@ export default function GoalsScreen() {
         {/* Header */}
         <View className="flex-row justify-between items-center mb-4">
           <View className="flex-row items-center">
-            <Pressable onPress={() => router.back()} className="mr-3 p-1">
+            <Pressable onPress={() => { if (router.canGoBack()) { router.back(); } else { router.replace('/(tabs)/'); } }} className="mr-3 p-1">
               <ArrowLeft size={22} color="#09090B" />
             </Pressable>
             <View>
@@ -236,8 +236,7 @@ export default function GoalsScreen() {
                   strokeDasharray={circumference}
                   strokeDashoffset={strokeDashoffset}
                   strokeLinecap="round"
-                  rotation="-90"
-                  origin={`${donutSize / 2}, ${donutSize / 2}`}
+                  transform={`rotate(-90 ${donutSize / 2} ${donutSize / 2})`}
                 />
               </Svg>
               <View className="absolute items-center justify-center">
