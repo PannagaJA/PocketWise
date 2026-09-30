@@ -15,11 +15,10 @@ import { supabase } from '../supabase';
 
 const isExpoGo = Constants?.executionEnvironment === ExecutionEnvironment.StoreClient;
 
-// Only load expo-notifications in real builds (dev-client or production APK).
-// In Expo Go, DevicePushTokenAutoRegistration.fx.js runs as a module-level side-effect
-// and crashes with "removed from SDK 53" — so we skip the entire require in Expo Go.
+// Only load expo-notifications in real native builds (dev-client or production APK).
+// Skip on Web and Expo Go where native background notification services are not linked.
 let Notifications: any = null;
-if (!isExpoGo) {
+if (!isExpoGo && Platform.OS !== 'web') {
   try {
     Notifications = require('expo-notifications');
     Notifications.setNotificationHandler({

@@ -1,14 +1,27 @@
 import { router } from 'expo-router';
-import Constants from 'expo-constants';
 
 export type NotificationRouteType = 'subscription' | 'bill' | 'budget' | 'goal' | 'transaction';
 
-const isExpoGo = Constants?.executionEnvironment === 'storeClient';
+let Platform: any = { OS: 'android' };
+let Constants: any = null;
+let ExecutionEnvironment: any = { StoreClient: 'storeClient' };
+
+try {
+  Platform = require('react-native').Platform;
+  Constants = require('expo-constants').default || require('expo-constants');
+  ExecutionEnvironment = require('expo-constants').ExecutionEnvironment || ExecutionEnvironment;
+} catch {
+  Platform = { OS: 'android' };
+  Constants = { executionEnvironment: 'bare' };
+}
+
+const isExpoGo = Constants?.executionEnvironment === (ExecutionEnvironment?.StoreClient || 'storeClient');
 
 let pendingRoute: string | null = null;
 let isAppLockedState = false;
 
 function getNotificationsModule() {
+  if (isExpoGo || Platform?.OS === 'web') return null;
   try {
     return require('expo-notifications');
   } catch {

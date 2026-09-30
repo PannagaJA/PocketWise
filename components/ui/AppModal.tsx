@@ -39,6 +39,41 @@ export const AppModal: React.FC<AppModalProps> = ({
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const scaleAnim = useRef(new Animated.Value(0.92)).current;
 
+  const keyboardHeightAnim = useRef(new Animated.Value(0)).current;
+
+  const useDriver = Platform.OS !== 'web';
+
+  // Smoothly lift the modal sheet when the soft keyboard appears (Android APK, iOS, Expo)
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const onKeyboardShow = (e: any) => {
+      const height = e?.endCoordinates?.height || 0;
+      Animated.timing(keyboardHeightAnim, {
+        toValue: height,
+        duration: Platform.OS === 'ios' ? (e?.duration || 250) : 180,
+        useNativeDriver: false,
+      }).start();
+    };
+
+    const onKeyboardHide = (e: any) => {
+      Animated.timing(keyboardHeightAnim, {
+        toValue: 0,
+        duration: Platform.OS === 'ios' ? (e?.duration || 200) : 150,
+        useNativeDriver: false,
+      }).start();
+    };
+
+    const showSub = Keyboard.addListener(showEvent, onKeyboardShow);
+    const hideSub = Keyboard.addListener(hideEvent, onKeyboardHide);
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   useEffect(() => {
     if (visible) {
       setRendered(true);
@@ -47,13 +82,13 @@ export const AppModal: React.FC<AppModalProps> = ({
           Animated.timing(fadeAnim, {
             toValue: 1,
             duration: 200,
-            useNativeDriver: true,
+            useNativeDriver: useDriver,
           }),
           Animated.spring(slideAnim, {
             toValue: 0,
-            damping: 28,
+            damping: 26,
             stiffness: 280,
-            useNativeDriver: true,
+            useNativeDriver: useDriver,
           }),
         ]).start();
       } else if (animationType === 'fade') {
@@ -61,13 +96,13 @@ export const AppModal: React.FC<AppModalProps> = ({
           Animated.timing(fadeAnim, {
             toValue: 1,
             duration: 180,
-            useNativeDriver: true,
+            useNativeDriver: useDriver,
           }),
           Animated.spring(scaleAnim, {
             toValue: 1,
             damping: 24,
             stiffness: 260,
-            useNativeDriver: true,
+            useNativeDriver: useDriver,
           }),
         ]).start();
       } else {
@@ -82,12 +117,12 @@ export const AppModal: React.FC<AppModalProps> = ({
           Animated.timing(fadeAnim, {
             toValue: 0,
             duration: 150,
-            useNativeDriver: true,
+            useNativeDriver: useDriver,
           }),
           Animated.timing(slideAnim, {
             toValue: SCREEN_HEIGHT,
             duration: 180,
-            useNativeDriver: true,
+            useNativeDriver: useDriver,
           }),
         ]).start(() => setRendered(false));
       } else if (animationType === 'fade') {
@@ -95,12 +130,12 @@ export const AppModal: React.FC<AppModalProps> = ({
           Animated.timing(fadeAnim, {
             toValue: 0,
             duration: 150,
-            useNativeDriver: true,
+            useNativeDriver: useDriver,
           }),
           Animated.timing(scaleAnim, {
             toValue: 0.92,
             duration: 150,
-            useNativeDriver: true,
+            useNativeDriver: useDriver,
           }),
         ]).start(() => setRendered(false));
       } else {
@@ -156,12 +191,14 @@ export const AppModal: React.FC<AppModalProps> = ({
           />
         </Animated.View>
 
-        {/* Keyboard Avoiding Container - Perfectly flush with keyboard */}
-        <KeyboardAvoidingView
-          behavior="padding"
+        {/* Dynamic Keyboard-Avoiding Animated Container */}
+        <Animated.View
           style={[
             styles.container,
             isSlide ? styles.slideContainer : styles.fadeContainer,
+            {
+              paddingBottom: keyboardHeightAnim,
+            },
           ]}
           pointerEvents="box-none"
         >
@@ -173,6 +210,7 @@ export const AppModal: React.FC<AppModalProps> = ({
                   transform: [{ translateY: slideAnim }],
                 },
               ]}
+              pointerEvents="auto"
             >
               {children}
             </Animated.View>
@@ -185,11 +223,12 @@ export const AppModal: React.FC<AppModalProps> = ({
                   transform: [{ scale: scaleAnim }],
                 },
               ]}
+              pointerEvents="auto"
             >
               {children}
             </Animated.View>
           )}
-        </KeyboardAvoidingView>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -197,30 +236,48 @@ export const AppModal: React.FC<AppModalProps> = ({
 
 const styles = StyleSheet.create({
   modalRoot: {
+    ...StyleSheet.absoluteFillObject,
     flex: 1,
     width: '100%',
     height: '100%',
+    justifyContent: 'flex-end',
   },
   container: {
+    ...StyleSheet.absoluteFillObject,
     flex: 1,
     width: '100%',
     height: '100%',
   },
   slideContainer: {
     justifyContent: 'flex-end',
+    alignItems: 'center',
+    width: '100%',
+    height: '100%',
   },
   fadeContainer: {
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 16,
+    width: '100%',
+    height: '100%',
   },
   sheet: {
     width: '100%',
+    maxWidth: 560,
+    maxHeight: '92%',
+    alignSelf: 'center',
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: 'hidden',
   },
   dialog: {
     width: '100%',
-    maxWidth: 420,
-    alignItems: 'center',
+    maxWidth: 440,
+    maxHeight: '85%',
+    alignSelf: 'center',
+    borderRadius: 24,
+    overflow: 'hidden',
   },
 });
 

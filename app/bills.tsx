@@ -316,7 +316,7 @@ export default function BillsScreen() {
         animationType="slide"
       >
         <Pressable
-          className="bg-white rounded-t-3xl p-6 pb-2 border-t border-zinc-200 max-h-[85%]"
+          className="bg-white rounded-t-3xl p-6 pb-6 border-t border-zinc-200 max-h-[90%]"
           onPress={(e) => e.stopPropagation()}
         >
           <View className="flex-row justify-between items-center mb-4">
@@ -329,7 +329,7 @@ export default function BillsScreen() {
           <ScrollView 
             showsVerticalScrollIndicator={false} 
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 28 }}
+            contentContainerStyle={{ paddingBottom: 48 }}
           >
             <Input
               label="Bill Name"
