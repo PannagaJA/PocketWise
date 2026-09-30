@@ -80,59 +80,67 @@ export default function TransactionsScreen() {
 
 
 
-  // Apply search query, type filter, and custom date/month filter
-  const displayedTransactions = transactions.filter((t) => {
-    const matchesFilter = activeFilter === 'all' || t.type === activeFilter;
+  // Apply search query, type filter, and custom date/month filter (Memoized for high performance)
+  const displayedTransactions = useMemo(() => {
+    return transactions.filter((t) => {
+      const matchesFilter = activeFilter === 'all' || t.type === activeFilter;
 
-    // Date/Month Filtering
-    let matchesDate = true;
-    if (t.date && dateFilterMode !== 'all') {
-      const txDateStr = t.date.substring(0, 10);
-      const now = new Date();
-      const todayStr = now.toISOString().substring(0, 10);
-      const thisMonthStr = now.toISOString().substring(0, 7);
+      // Date/Month Filtering
+      let matchesDate = true;
+      if (t.date && dateFilterMode !== 'all') {
+        const txDateStr = t.date.substring(0, 10);
+        const now = new Date();
+        const todayStr = now.toISOString().substring(0, 10);
+        const thisMonthStr = now.toISOString().substring(0, 7);
 
-      if (dateFilterMode === 'today') {
-        matchesDate = txDateStr === todayStr;
-      } else if (dateFilterMode === 'this_month') {
-        matchesDate = txDateStr.startsWith(thisMonthStr);
-      } else if (dateFilterMode === 'last_month') {
-        const lastM = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        const lastMonthStr = `${lastM.getFullYear()}-${String(lastM.getMonth() + 1).padStart(2, '0')}`;
-        matchesDate = txDateStr.startsWith(lastMonthStr);
-      } else if (dateFilterMode === 'custom_month' && selectedCustomMonth) {
-        matchesDate = txDateStr.startsWith(selectedCustomMonth);
-      } else if (dateFilterMode === 'custom_range') {
-        if (customStartDate && txDateStr < customStartDate) matchesDate = false;
-        if (customEndDate && txDateStr > customEndDate) matchesDate = false;
+        if (dateFilterMode === 'today') {
+          matchesDate = txDateStr === todayStr;
+        } else if (dateFilterMode === 'this_month') {
+          matchesDate = txDateStr.startsWith(thisMonthStr);
+        } else if (dateFilterMode === 'last_month') {
+          const lastM = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          const lastMonthStr = `${lastM.getFullYear()}-${String(lastM.getMonth() + 1).padStart(2, '0')}`;
+          matchesDate = txDateStr.startsWith(lastMonthStr);
+        } else if (dateFilterMode === 'custom_month' && selectedCustomMonth) {
+          matchesDate = txDateStr.startsWith(selectedCustomMonth);
+        } else if (dateFilterMode === 'custom_range') {
+          if (customStartDate && txDateStr < customStartDate) matchesDate = false;
+          if (customEndDate && txDateStr > customEndDate) matchesDate = false;
+        }
       }
-    }
 
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return matchesFilter && matchesDate;
+      const q = searchQuery.toLowerCase().trim();
+      if (!q) return matchesFilter && matchesDate;
 
-    const matchesDesc = t.description.toLowerCase().includes(q);
-    const matchesCat = (t.category?.name || '').toLowerCase().includes(q);
-    const matchesAcc = (t.account?.name || '').toLowerCase().includes(q);
+      const matchesDesc = t.description.toLowerCase().includes(q);
+      const matchesCat = (t.category?.name || '').toLowerCase().includes(q);
+      const matchesAcc = (t.account?.name || '').toLowerCase().includes(q);
 
-    const rupeesAmount = (t.amount_minor / 100).toString();
-    const formattedMoneyStr = formatMoney(t.amount_minor).toLowerCase();
-    const matchesAmount = rupeesAmount.includes(q) || formattedMoneyStr.includes(q);
+      const rupeesAmount = (t.amount_minor / 100).toString();
+      const formattedMoneyStr = formatMoney(t.amount_minor).toLowerCase();
+      const matchesAmount = rupeesAmount.includes(q) || formattedMoneyStr.includes(q);
 
-    return matchesFilter && matchesDate && (matchesDesc || matchesCat || matchesAcc || matchesAmount);
-  });
+      return matchesFilter && matchesDate && (matchesDesc || matchesCat || matchesAcc || matchesAmount);
+    });
+  }, [transactions, activeFilter, dateFilterMode, selectedCustomMonth, customStartDate, customEndDate, searchQuery]);
 
-  const filteredCategories = categories.filter((c) => c.type === (type === 'transfer' ? 'expense' : type));
+  const filteredCategories = useMemo(
+    () => categories.filter((c) => c.type === (type === 'transfer' ? 'expense' : type)),
+    [categories, type]
+  );
   const selectedCatObj = categories.find((c) => c.id === selectedCategoryId);
   const selectedAccObj = accounts.find((a) => a.id === selectedAccountId);
   const selectedDestAccObj = accounts.find((a) => a.id === selectedDestAccountId);
 
-  // Calculate Breakdown for Unique Cashflow Bar Graph
-  const incomeTotal = displayedTransactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount_minor, 0);
-  const expenseTotal = displayedTransactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount_minor, 0);
-  const maxBar = Math.max(incomeTotal, expenseTotal, 1);
-  const incomeHeight = Math.max(12, Math.round((incomeTotal / maxBar) * 44));
-  const expenseHeight = Math.max(12, Math.round((expenseTotal / maxBar) * 44));
+  // Calculate Breakdown for Unique Cashflow Bar Graph (Memoized)
+  const { incomeTotal, expenseTotal, maxBar, incomeHeight, expenseHeight } = useMemo(() => {
+    const inc = displayedTransactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount_minor, 0);
+    const exp = displayedTransactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount_minor, 0);
+    const mb = Math.max(inc, exp, 1);
+    const ih = Math.max(12, Math.round((inc / mb) * 44));
+    const eh = Math.max(12, Math.round((exp / mb) * 44));
+    return { incomeTotal: inc, expenseTotal: exp, maxBar: mb, incomeHeight: ih, expenseHeight: eh };
+  }, [displayedTransactions]);
 
   const getPlaceholders = () => {
     switch (type) {

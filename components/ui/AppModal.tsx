@@ -43,16 +43,15 @@ export const AppModal: React.FC<AppModalProps> = ({
 
   const useDriver = Platform.OS !== 'web';
 
-  // Smoothly lift the modal sheet when the soft keyboard appears (Android APK, iOS, Expo)
+  // Smoothly lift the modal sheet when the soft keyboard appears on iOS (Android handles resize natively via WindowManager)
   useEffect(() => {
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    if (Platform.OS !== 'ios') return;
 
     const onKeyboardShow = (e: any) => {
       const height = e?.endCoordinates?.height || 0;
       Animated.timing(keyboardHeightAnim, {
         toValue: height,
-        duration: Platform.OS === 'ios' ? (e?.duration || 250) : 180,
+        duration: e?.duration || 250,
         useNativeDriver: false,
       }).start();
     };
@@ -60,13 +59,13 @@ export const AppModal: React.FC<AppModalProps> = ({
     const onKeyboardHide = (e: any) => {
       Animated.timing(keyboardHeightAnim, {
         toValue: 0,
-        duration: Platform.OS === 'ios' ? (e?.duration || 200) : 150,
+        duration: e?.duration || 200,
         useNativeDriver: false,
       }).start();
     };
 
-    const showSub = Keyboard.addListener(showEvent, onKeyboardShow);
-    const hideSub = Keyboard.addListener(hideEvent, onKeyboardHide);
+    const showSub = Keyboard.addListener('keyboardWillShow', onKeyboardShow);
+    const hideSub = Keyboard.addListener('keyboardWillHide', onKeyboardHide);
 
     return () => {
       showSub.remove();
@@ -173,7 +172,7 @@ export const AppModal: React.FC<AppModalProps> = ({
         {/* Backdrop */}
         <Animated.View
           style={[
-            StyleSheet.absoluteFillObject,
+            StyleSheet.absoluteFill,
             {
               backgroundColor: 'rgba(0, 0, 0, 0.55)',
               opacity: fadeAnim,
@@ -181,7 +180,7 @@ export const AppModal: React.FC<AppModalProps> = ({
           ]}
         >
           <Pressable
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
             onPress={() => {
               if (dismissOnBackdrop && handleClose) {
                 Keyboard.dismiss();
@@ -236,14 +235,14 @@ export const AppModal: React.FC<AppModalProps> = ({
 
 const styles = StyleSheet.create({
   modalRoot: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     flex: 1,
     width: '100%',
     height: '100%',
     justifyContent: 'flex-end',
   },
   container: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     flex: 1,
     width: '100%',
     height: '100%',

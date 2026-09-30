@@ -23,7 +23,6 @@ if (!isExpoGo && Platform.OS !== 'web') {
     Notifications = require('expo-notifications');
     Notifications.setNotificationHandler({
       handleNotification: async () => ({
-        shouldShowAlert: true,
         shouldPlaySound: true,
         shouldSetBadge: true,
         shouldShowBanner: true,
@@ -74,7 +73,6 @@ export const notificationService = {
           importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 250, 250, 250],
           lightColor: '#6366F1',
-          sound: 'default',
         });
 
         // Medium priority channel for summary updates & insights
@@ -84,7 +82,6 @@ export const notificationService = {
           importance: Notifications.AndroidImportance.DEFAULT,
           vibrationPattern: [0, 150],
           lightColor: '#10B981',
-          sound: 'default',
         });
       }
 
@@ -124,7 +121,6 @@ export const notificationService = {
           importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 250, 250, 250],
           lightColor: '#6366F1',
-          sound: 'default',
         });
       }
 
@@ -226,7 +222,7 @@ export const notificationService = {
         content: {
           title,
           body,
-          sound: 'default',
+          sound: true,
           channelId: 'pocketwise-reminders',
           data: {
             reminderId: id,
@@ -252,7 +248,7 @@ export const notificationService = {
           content: {
             title,
             body,
-            sound: 'default',
+            sound: true,
             channelId: 'pocketwise-reminders',
             data: { reminderId: id, type: type, reference_id: id },
           },
@@ -301,7 +297,7 @@ export const notificationService = {
         content: {
           title: params.title,
           body: params.body,
-          sound: 'default',
+          sound: true,
           channelId: channel,
           data: {
             ...params.data,
@@ -330,7 +326,7 @@ export const notificationService = {
         content: {
           title: 'PocketWise System Test',
           body: 'Local Android notifications are fully working!',
-          sound: 'default',
+          sound: true,
           channelId: 'pocketwise-reminders',
           data: { type: 'test' },
         },
@@ -355,7 +351,7 @@ export const notificationService = {
         content: {
           title: 'PocketWise Scheduled Test',
           body: `This scheduled notification fired after ${delaySeconds} seconds.`,
-          sound: 'default',
+          sound: true,
           channelId: 'pocketwise-reminders',
           data: { type: 'test' },
         },

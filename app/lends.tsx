@@ -20,6 +20,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { AppModal } from '../components/ui/AppModal';
+import { DatePickerButton } from '../components/ui/DatePickerModal';
 import { useAuth } from '../context/AuthContext';
 import { lendService, LendRecord } from '../lib/services/lend.service';
 import { formatMoney, formatDate, parseMoneyToMinor } from '../lib/finance/core';
@@ -488,100 +489,129 @@ export default function LendsScreen() {
         animationType="slide"
       >
         <Pressable
-          className="bg-white rounded-t-3xl p-6 pb-6 border-t border-zinc-200 max-h-[90%]"
+          className="bg-white rounded-t-3xl border-t border-zinc-200 flex-col"
+          style={{ maxHeight: '100%' }}
           onPress={(e) => e.stopPropagation()}
         >
-          <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-xl font-bold text-zinc-900">Record a Lend</Text>
-            <Pressable onPress={() => setShowAdd(false)} className="p-1">
-              <X size={20} color="#71717A" />
+          {/* Fixed Header */}
+          <View className="flex-row justify-between items-center p-5 pb-3 border-b border-zinc-100">
+            <View className="flex-row items-center gap-3">
+              <View className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 items-center justify-center">
+                <HandCoins size={20} color="#6366F1" />
+              </View>
+              <View>
+                <Text className="text-xl font-extrabold text-zinc-900">Record a Lend</Text>
+                <Text className="text-xs text-zinc-500 mt-0.5">Track money lent and schedule reminders</Text>
+              </View>
+            </View>
+            <Pressable
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                setShowAdd(false);
+              }}
+              className="w-8 h-8 rounded-full bg-zinc-100 items-center justify-center"
+            >
+              <X size={16} color="#71717A" />
             </Pressable>
           </View>
 
+          {/* Scrollable Form Content */}
           <ScrollView 
+            className="px-5 pt-3"
+            style={{ flexShrink: 1 }}
             showsVerticalScrollIndicator={false} 
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 48 }}
+            contentContainerStyle={{ paddingBottom: 16 }}
           >
             <Input
               label="Person's Name"
-              placeholder="e.g. Rahul, Priya, Amit..."
+              placeholder="e.g. Rahul Sharma, Priya, Amit..."
               value={personName}
               onChangeText={setPersonName}
             />
 
             <Input
               label="Amount Lent (₹)"
-              placeholder="500.00"
+              placeholder="e.g. 2,500.00"
               keyboardType="numeric"
               value={amount}
               onChangeText={setAmount}
             />
 
-            <Input
-              label="Date Lent (YYYY-MM-DD)"
-              placeholder="YYYY-MM-DD"
+            <DatePickerButton
+              label="Date Lent"
               value={lentDate}
-              onChangeText={setLentDate}
+              onSelectDate={(d) => setLentDate(d || getTodayISO())}
+              placeholder="Select date lent"
             />
 
-            <Input
-              label="Collect Back By (YYYY-MM-DD)"
-              placeholder="YYYY-MM-DD"
+            <DatePickerButton
+              label="Collect Back By (Due Date)"
               value={dueDate}
-              onChangeText={setDueDate}
+              onSelectDate={(d) => setDueDate(d || addDays(getTodayISO(), 7))}
+              placeholder="Select expected return date"
             />
 
-            {/* Preset Pills */}
-            <View className="flex-row gap-2 mb-4 flex-wrap">
-              {DATE_PRESETS.map((p) => {
-                const target = addDays(lentDate || getTodayISO(), p.days);
-                const isSelected = dueDate === target;
-                return (
-                  <Pressable
-                    key={p.label}
-                    onPress={() => {
-                      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                      setDueDate(target);
-                    }}
-                    className={`px-3 py-1.5 rounded-full border ${
-                      isSelected ? 'bg-indigo-600 border-indigo-600' : 'bg-zinc-50 border-zinc-200'
-                    }`}
-                  >
-                    <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-zinc-600'}`}>
-                      {p.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+            {/* Quick Preset Duration Pills */}
+            <View className="mb-4">
+              <Text className="text-xs font-semibold text-zinc-700 mb-2 uppercase tracking-wide">Quick Return Duration</Text>
+              <View className="flex-row gap-2 flex-wrap">
+                {DATE_PRESETS.map((p) => {
+                  const target = addDays(lentDate || getTodayISO(), p.days);
+                  const isSelected = dueDate === target;
+                  return (
+                    <Pressable
+                      key={p.label}
+                      onPress={() => {
+                        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                        setDueDate(target);
+                      }}
+                      className={`px-3.5 py-2 rounded-2xl border ${
+                        isSelected ? 'bg-indigo-600 border-indigo-600 shadow-sm' : 'bg-zinc-50 border-zinc-200 active:bg-zinc-100'
+                      }`}
+                    >
+                      <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-zinc-700'}`}>
+                        +{p.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
 
             <Input
               label="Notes (Optional)"
-              placeholder="e.g. Rent share, trip expenses..."
+              placeholder="e.g. Dinner bill split, trip advance, rent share..."
               value={notes}
               onChangeText={setNotes}
             />
 
-            <View className="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3 mb-4 flex-row gap-2 items-start">
-              <Text className="text-base">🔔</Text>
-              <Text className="text-xs text-indigo-700 flex-1 leading-relaxed">
-                A reminder notification will be sent at{' '}
-                <Text className="font-bold">9:00 AM on {dueDate ? formatDate(dueDate) : 'due date'}</Text>{' '}
-                to collect your money.
-              </Text>
+            {/* Reminder Chime Alert Box */}
+            <View className="bg-indigo-50 border border-indigo-200 rounded-2xl p-3.5 mb-2 flex-row gap-3 items-center">
+              <View className="w-8 h-8 rounded-xl bg-indigo-100 items-center justify-center">
+                <Text className="text-sm">🔔</Text>
+              </View>
+              <View className="flex-1">
+                <Text className="text-xs font-bold text-indigo-950">Automatic Push Reminder</Text>
+                <Text className="text-[11px] text-indigo-700 mt-0.5 leading-relaxed">
+                  PocketWise will notify you at <Text className="font-extrabold">9:00 AM on {dueDate ? formatDate(dueDate) : 'due date'}</Text> to follow up and collect.
+                </Text>
+              </View>
             </View>
+          </ScrollView>
 
+          {/* Fixed Bottom Action Bar */}
+          <View className="p-5 pt-3 pb-8 border-t border-zinc-100 bg-white">
             <Button
               variant="primary"
               size="lg"
               loading={createLendMutation.isPending}
-              className="mt-2"
+              className="bg-indigo-600 active:bg-indigo-700 shadow-sm"
               onPress={() => createLendMutation.mutate()}
             >
-              <Text className="text-white font-semibold">Save & Set Reminder</Text>
+              <Text className="text-white font-bold text-sm">Save & Set Reminder</Text>
             </Button>
-          </ScrollView>
+          </View>
         </Pressable>
       </AppModal>
 
@@ -592,21 +622,36 @@ export default function LendsScreen() {
         animationType="fade"
       >
         <Pressable
-          className="bg-white rounded-3xl p-5 w-full border border-zinc-200 shadow-xl max-h-[85%]"
+          className="bg-white rounded-3xl p-6 w-full border border-zinc-200 shadow-2xl max-h-[85%]"
           onPress={(e) => e.stopPropagation()}
         >
-          <Text className="text-lg font-black text-zinc-900 mb-1">Reschedule Collection</Text>
+          <View className="flex-row justify-between items-center mb-4">
+            <View className="flex-row items-center gap-2.5">
+              <View className="w-8 h-8 rounded-full bg-indigo-50 items-center justify-center border border-indigo-100">
+                <RefreshCw size={16} color="#6366F1" />
+              </View>
+              <Text className="text-lg font-black text-zinc-900">Reschedule Collection</Text>
+            </View>
+            <Pressable
+              onPress={() => setShowReschedule(false)}
+              className="w-7 h-7 rounded-full bg-zinc-100 items-center justify-center"
+            >
+              <X size={14} color="#71717A" />
+            </Pressable>
+          </View>
+
           {rescheduleTarget && (
-            <Text className="text-xs text-zinc-500 mb-4">
-              {rescheduleTarget.personName} · {formatMoney(rescheduleTarget.amountMinor)}
-            </Text>
+            <View className="bg-zinc-50 border border-zinc-200 rounded-2xl p-3 mb-4 flex-row items-center justify-between">
+              <Text className="text-xs font-bold text-zinc-800">{rescheduleTarget.personName}</Text>
+              <Text className="text-xs font-extrabold text-indigo-600">{formatMoney(rescheduleTarget.amountMinor)}</Text>
+            </View>
           )}
 
-          <Input
-            label="New Collection Date (YYYY-MM-DD)"
+          <DatePickerButton
+            label="New Collection Date"
             value={newDueDate}
-            onChangeText={setNewDueDate}
-            placeholder="YYYY-MM-DD"
+            onSelectDate={(d) => setNewDueDate(d || getTodayISO())}
+            placeholder="Select new return date"
           />
 
           <View className="flex-row gap-2 mb-5 flex-wrap">
@@ -621,11 +666,11 @@ export default function LendsScreen() {
                     setNewDueDate(target);
                   }}
                   className={`px-3 py-1.5 rounded-full border ${
-                    isSelected ? 'bg-indigo-600 border-indigo-600' : 'bg-zinc-50 border-zinc-200'
+                    isSelected ? 'bg-indigo-600 border-indigo-600' : 'bg-zinc-50 border-zinc-200 active:bg-zinc-100'
                   }`}
                 >
                   <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-zinc-600'}`}>
-                    {p.label}
+                    +{p.label}
                   </Text>
                 </Pressable>
               );
@@ -645,7 +690,7 @@ export default function LendsScreen() {
             <Button
               variant="primary"
               size="md"
-              className="flex-1"
+              className="flex-1 bg-indigo-600 active:bg-indigo-700"
               loading={rescheduleMutation.isPending}
               onPress={() => rescheduleMutation.mutate()}
             >

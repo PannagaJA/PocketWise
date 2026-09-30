@@ -17,7 +17,7 @@ import { goalService } from '../../lib/services/goal.service';
 import { reminderService, Reminder } from '../../lib/services/reminder.service';
 import { financialAnalyticsEngine } from '../../lib/finance/analyticsEngine';
 import { formatMoney, formatDate, formatDateTime } from '../../lib/finance/core';
-import { Plus, ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight, ChevronDown, Check, Building2, ShieldCheck, TrendingUp, TrendingDown, ArrowRightLeft, X, Clock, Trash2 } from 'lucide-react-native';
+import { Plus, ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight, ChevronDown, Check, Building2, ShieldCheck, TrendingUp, TrendingDown, ArrowRightLeft, X, Clock, Trash2, LogOut } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 import { SmsOnboardingModal } from '../../components/SmsOnboardingCard';
@@ -106,6 +106,21 @@ export default function DashboardScreen() {
   const [smsOnboardingVisible, setSmsOnboardingVisible] = useState(false);
   const [pendingReviews, setPendingReviews] = useState<ParsedSmsTransaction[]>([]);
   const [selectedReviewTx, setSelectedReviewTx] = useState<ParsedSmsTransaction | null>(null);
+  const [exitModalVisible, setExitModalVisible] = useState(false);
+
+  // Hardware Back Button Navigation Handler on Dashboard Tab
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+        setExitModalVisible(true);
+        return true; // Handled
+      };
+
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => subscription.remove();
+    }, [])
+  );
 
   const checkSmsOnboarding = async () => {
     if (!user?.id || isLocked) return;
@@ -680,6 +695,54 @@ export default function DashboardScreen() {
           refetchTx();
         }}
       />
+
+      {/* Beautiful Bottom-Sheet Exit App Confirmation Modal */}
+      <AppModal
+        visible={exitModalVisible}
+        onClose={() => setExitModalVisible(false)}
+        animationType="slide"
+      >
+        <Pressable
+          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 shadow-2xl"
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View className="items-center my-2">
+            <View className="w-14 h-14 rounded-full bg-rose-50 items-center justify-center mb-3.5 border border-rose-100">
+              <LogOut size={26} color="#EF4444" />
+            </View>
+            <Text className="text-xl font-black text-zinc-900 text-center">Exit PocketWise?</Text>
+            <Text className="text-xs text-zinc-500 mt-1.5 text-center px-4 leading-relaxed">
+              Are you sure you want to close the application? All your financial transactions and goals are safely saved.
+            </Text>
+          </View>
+
+          <View className="flex-row gap-3 mt-6 mb-2">
+            <Button
+              variant="outline"
+              size="lg"
+              className="flex-1 border-zinc-200 bg-zinc-50"
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                setExitModalVisible(false);
+              }}
+            >
+              <Text className="text-zinc-800 font-bold text-sm">Stay in App</Text>
+            </Button>
+
+            <Button
+              variant="destructive"
+              size="lg"
+              className="flex-1 bg-rose-600 active:bg-rose-700 shadow-sm"
+              onPress={() => {
+                try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); } catch {}
+                BackHandler.exitApp();
+              }}
+            >
+              <Text className="text-white font-bold text-sm">Exit App</Text>
+            </Button>
+          </View>
+        </Pressable>
+      </AppModal>
     </SafeAreaView>
   );
 }

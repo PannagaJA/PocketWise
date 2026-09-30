@@ -121,7 +121,7 @@ export default function RootLayout() {
         <AuthProvider>
           <AppLockGate>
             <GlobalRealtimeSync />
-            <StatusBar style="dark" translucent={true} backgroundColor="transparent" />
+            <StatusBar style="dark" />
             <Stack
               screenOptions={{
                 headerShown: false,

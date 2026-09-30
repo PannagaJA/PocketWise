@@ -1,10 +1,26 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
-import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { LayoutDashboard, ArrowLeftRight, CreditCard, PieChart, User } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
-export function CustomBottomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+export interface CustomBottomTabBarProps {
+  state: {
+    index: number;
+    routes: Array<{
+      key: string;
+      name: string;
+      params?: any;
+    }>;
+  };
+  descriptors?: any;
+  navigation: {
+    emit: (event: any) => any;
+    navigate: (name: string, params?: any) => void;
+  };
+  insets?: any;
+}
+
+export function CustomBottomTabBar({ state, navigation }: CustomBottomTabBarProps) {
   const icons: { [key: string]: any } = {
     index: LayoutDashboard,
     transactions: ArrowLeftRight,
