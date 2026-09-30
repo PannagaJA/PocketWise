@@ -14,6 +14,7 @@ import { smsListenerService } from '../lib/sms/service/smsListenerService';
 import { QuickExpenseModal } from '../components/QuickExpenseModal';
 import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import '../global.css';
 
 const asyncStoragePersister = createAsyncStoragePersister({
@@ -107,42 +108,44 @@ function GlobalRealtimeSync() {
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <PersistQueryClientProvider
-        client={queryClient}
-        persistOptions={{
-          persister: asyncStoragePersister,
-          maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days offline persistence
-          dehydrateOptions: {
-            shouldDehydrateQuery: (query) => query.state.status === 'success',
-          },
-        }}
-      >
-        <AuthProvider>
-          <AppLockGate>
-            <GlobalRealtimeSync />
-            <StatusBar style="dark" />
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: '#FAFAFA' },
-                animation: 'none',
-              }}
-            >
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="shake-settings" />
-              <Stack.Screen name="sms-settings" />
-              <Stack.Screen name="notification-settings" />
-              <Stack.Screen name="bills" />
-              <Stack.Screen name="goals" />
-              <Stack.Screen name="reports" />
-              <Stack.Screen name="lends" />
-            </Stack>
-            {/* QuickExpenseModal is a screen-agnostic overlay — rendered after Stack so it floats above all screens */}
-            <QuickExpenseModal />
-          </AppLockGate>
-        </AuthProvider>
-      </PersistQueryClientProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <PersistQueryClientProvider
+          client={queryClient}
+          persistOptions={{
+            persister: asyncStoragePersister,
+            maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days offline persistence
+            dehydrateOptions: {
+              shouldDehydrateQuery: (query) => query.state.status === 'success',
+            },
+          }}
+        >
+          <AuthProvider>
+            <AppLockGate>
+              <GlobalRealtimeSync />
+              <StatusBar style="dark" />
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  contentStyle: { backgroundColor: '#FAFAFA' },
+                  animation: 'none',
+                }}
+              >
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="shake-settings" />
+                <Stack.Screen name="sms-settings" />
+                <Stack.Screen name="notification-settings" />
+                <Stack.Screen name="bills" />
+                <Stack.Screen name="goals" />
+                <Stack.Screen name="reports" />
+                <Stack.Screen name="lends" />
+              </Stack>
+              {/* QuickExpenseModal is a screen-agnostic overlay — rendered after Stack so it floats above all screens */}
+              <QuickExpenseModal />
+            </AppLockGate>
+          </AuthProvider>
+        </PersistQueryClientProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
