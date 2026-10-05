@@ -31,11 +31,14 @@ jest.mock('expo-notifications', () => ({
 
 import { financialAnalyticsEngine } from '../lib/finance/analyticsEngine';
 import { notificationEngine } from '../lib/notifications/notification.engine';
+import { notificationService } from '../lib/notifications/notification.service';
+const mockNotifications = require('expo-notifications');
 
 describe('PocketWise Analytics & Unusual Spending System', () => {
   beforeEach(async () => {
     // Reset preferences and deduplication engine state before test run
     await notificationEngine.init();
+    jest.clearAllMocks();
   });
 
   test('1. Detects unusual spending when transaction is 2.5x higher than average', async () => {
@@ -116,5 +119,49 @@ describe('PocketWise Analytics & Unusual Spending System', () => {
     });
 
     expect(summaryResult).toBeNull();
+  });
+
+  test('5. Schedules specific date/time due date reminder on Android with epoch timestamp trigger', async () => {
+    const futureDate = new Date(Date.now() + 86400000); // 1 day in future
+    const notifId = await notificationService.scheduleDueDateReminder(
+      'bill_electricity_101',
+      'Electricity Bill Due',
+      'Payment of ₹1,450 is due tomorrow.',
+      futureDate,
+      'bill'
+    );
+
+    expect(notifId).toBe('bill_electricity_101');
+    expect(mockNotifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith('bill_electricity_101');
+    expect(mockNotifications.scheduleNotificationAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        identifier: 'bill_electricity_101',
+        content: expect.objectContaining({
+          title: 'Electricity Bill Due',
+          channelId: 'pocketwise-reminders',
+        }),
+        trigger: expect.objectContaining({
+          type: 'date',
+          date: futureDate.getTime(),
+        }),
+      })
+    );
+  });
+
+  test('6. Normalizes past dates safely when scheduling reminders', async () => {
+    const pastDate = new Date(Date.now() - 50000); // 50s in past
+    const notifId = await notificationService.scheduleDueDateReminder(
+      'bill_overdue_202',
+      'Overdue Reminder',
+      'Bill was due recently.',
+      pastDate,
+      'bill'
+    );
+
+    expect(notifId).toBe('bill_overdue_202');
+    expect(mockNotifications.scheduleNotificationAsync).toHaveBeenCalled();
+    const scheduledCall = mockNotifications.scheduleNotificationAsync.mock.calls[0][0];
+    // Trigger timestamp must be in the future (>= current time)
+    expect(scheduledCall.trigger.date).toBeGreaterThanOrEqual(Date.now() - 1000);
   });
 });
