@@ -131,6 +131,8 @@ export default function RootLayout() {
                   animation: 'none',
                 }}
               >
+                <Stack.Screen name="index" />
+                <Stack.Screen name="(auth)" />
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="shake-settings" />
                 <Stack.Screen name="sms-settings" />
