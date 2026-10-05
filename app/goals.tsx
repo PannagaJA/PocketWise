@@ -1,8 +1,8 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, ScrollView, Modal, Alert, ActivityIndicator, Pressable, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, Alert, ActivityIndicator, Pressable, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -38,14 +38,12 @@ export default function GoalsScreen() {
     enabled: !!user?.id,
   });
 
-  // Automatically refresh goals whenever screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      if (user?.id) {
-        refetchGoals();
-      }
-    }, [user?.id, refetchGoals])
-  );
+  // Automatically refresh goals on mount or user change
+  useEffect(() => {
+    if (user?.id) {
+      refetchGoals();
+    }
+  }, [user?.id, refetchGoals]);
 
   // Summary Metrics for Dynamic Donut Overview
   const totalTargetMinor = goals.reduce((sum, g) => sum + (g.target_amount_minor || 0), 0);

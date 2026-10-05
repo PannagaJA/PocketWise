@@ -436,12 +436,12 @@ describe('Android Bank SMS Transaction Auto-Detection Parser Pipeline', () => {
     await smsListenerService.saveTransactionToStore(kotakTx);
 
     const storeState = useAppStore.getState();
-    const createdAccount = storeState.accounts.find((a) => a.name.includes('Kotak'));
+    const createdAccount = storeState.accounts.find((a: any) => a.name.includes('Kotak'));
     expect(createdAccount).toBeDefined();
     expect(createdAccount?.name).toBe('Kotak Mahindra Bank (XX3344)');
     expect(createdAccount?.type).toBe('bank');
 
-    const recordedTx = storeState.transactions.find((t) => t.account_id === createdAccount?.id);
+    const recordedTx = storeState.transactions.find((t: any) => t.account_id === createdAccount?.id);
     expect(recordedTx).toBeDefined();
     expect(recordedTx?.amount).toBe(120000);
     expect(recordedTx?.account_name).toBe('Kotak Mahindra Bank (XX3344)');
