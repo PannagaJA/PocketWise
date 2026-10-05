@@ -236,11 +236,11 @@ class SmsListenerService {
     // Update statistics count
     await smsStorage.incrementDetectedCount();
 
-    // High/Medium confidence & identified bank -> Auto save directly into App Store & Supabase
-    if (parsedTx.bankId !== 'unknown') {
-      await this.saveTransactionToStore(parsedTx);
-    } else {
-      // Unknown bank -> Add to pending review queue for user selection
+    // Auto-save transaction directly into App Store & Supabase so it records immediately
+    await this.saveTransactionToStore(parsedTx);
+
+    // If it needs review, also add to pending reviews queue for user confirmation
+    if (parsedTx.needsReview) {
       await smsStorage.addPendingReview(parsedTx);
     }
 
@@ -252,18 +252,44 @@ class SmsListenerService {
 
   /**
    * Automatically convert parsed transaction into Supabase & Zustand store transaction & account format.
+   * If the bank account does not exist, automatically creates it in both the Zustand store and Supabase DB.
    */
   async saveTransactionToStore(parsedTx: ParsedSmsTransaction) {
-    // 1. Update Zustand store (in-memory)
+    const bankDisplayName = parsedTx.bankName && parsedTx.bankName !== 'Unknown Bank'
+      ? parsedTx.bankName
+      : (parsedTx.maskedAccount ? `Bank (${parsedTx.maskedAccount})` : 'Bank Account');
+
+    const formattedAccountName = parsedTx.maskedAccount
+      ? `${bankDisplayName} (${parsedTx.maskedAccount})`
+      : bankDisplayName;
+
+    const bankColor = parsedTx.type === 'income' ? '#10B981' : '#3B82F6';
+    const deltaAmount = parsedTx.type === 'income' ? parsedTx.amountMinor : -parsedTx.amountMinor;
+    const accountLookupName = bankDisplayName.toLowerCase();
+    const cleanLastDigits = parsedTx.maskedAccount ? parsedTx.maskedAccount.replace(/\D/g, '') : '';
+
+    // 1. Resolve or Auto-Add Account in Zustand store (in-memory)
     const store = useAppStore.getState();
     let localAccount = store.accounts.find(
       (acc) =>
-        acc.name.toLowerCase().includes(parsedTx.bankName.toLowerCase()) ||
-        (parsedTx.maskedAccount && acc.name.includes(parsedTx.maskedAccount.slice(-4)))
+        (bankDisplayName !== 'Bank Account' && acc.name.toLowerCase().includes(accountLookupName)) ||
+        (cleanLastDigits.length >= 3 && acc.name.includes(cleanLastDigits))
     );
 
     if (!localAccount) {
-      localAccount = store.accounts[0]; // fallback to primary account
+      const newAccountId = `acc_auto_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+      localAccount = {
+        id: newAccountId,
+        name: formattedAccountName,
+        type: 'bank',
+        balance: deltaAmount,
+        currency: parsedTx.currency || 'INR',
+        color: bankColor,
+      };
+      store.addAccount(localAccount);
+    } else {
+      const newBalance = (localAccount.balance || 0) + deltaAmount;
+      store.updateAccountBalance(localAccount.id, newBalance);
     }
 
     // Clean merchant/payee formatting: Avoid 'Bank Transaction (Unknown)' label
@@ -277,8 +303,8 @@ class SmsListenerService {
 
     store.addTransaction({
       id: parsedTx.sourceMessageId || `tx_${Date.now()}`,
-      account_id: localAccount?.id || 'acc_1',
-      account_name: localAccount?.name || `${parsedTx.bankName} ${parsedTx.maskedAccount || ''}`,
+      account_id: localAccount.id,
+      account_name: localAccount.name,
       type: parsedTx.type === 'income' ? 'income' : 'expense',
       amount: parsedTx.amountMinor,
       currency: parsedTx.currency,
@@ -287,6 +313,16 @@ class SmsListenerService {
       description: cleanDescription,
       date: parsedTx.transactionDate.split('T')[0],
     });
+
+    // Auto-save account mapping for persistent linking
+    if (parsedTx.maskedAccount && parsedTx.bankId && parsedTx.bankId !== 'unknown') {
+      await smsStorage.saveAccountMapping({
+        maskedAccount: parsedTx.maskedAccount,
+        bankId: parsedTx.bankId,
+        bankName: parsedTx.bankName,
+        updatedAt: new Date().toISOString(),
+      }).catch(() => {});
+    }
 
     // 2. Persist to Supabase Database for logged-in user
     try {
@@ -297,22 +333,22 @@ class SmsListenerService {
         const userAccounts = await accountService.getAccounts(userId);
         let targetAccount = userAccounts.find(
           (acc) =>
-            acc.name.toLowerCase().includes(parsedTx.bankName.toLowerCase()) ||
-            (parsedTx.maskedAccount && acc.name.includes(parsedTx.maskedAccount.slice(-4)))
+            (bankDisplayName !== 'Bank Account' && acc.name.toLowerCase().includes(accountLookupName)) ||
+            (cleanLastDigits.length >= 3 && acc.name.includes(cleanLastDigits))
         );
-
-        if (!targetAccount && userAccounts.length > 0) {
-          targetAccount = userAccounts[0];
-        }
 
         if (!targetAccount) {
           targetAccount = await accountService.createAccount({
             user_id: userId,
-            name: `${parsedTx.bankName} ${parsedTx.maskedAccount ? `(${parsedTx.maskedAccount})` : ''}`.trim(),
+            name: formattedAccountName,
             type: 'bank',
-            balance: 0,
+            balance: parsedTx.type === 'income' ? parsedTx.amountMinor : 0,
             currency: 'INR',
+            color: bankColor,
           });
+        } else {
+          const updatedBal = (targetAccount.balance || 0) + deltaAmount;
+          await accountService.updateAccountBalance(targetAccount.id, updatedBal).catch(() => {});
         }
 
         await transactionService.createTransaction({

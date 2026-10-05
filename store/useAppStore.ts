@@ -57,6 +57,9 @@ interface AppStore {
   subscriptions: Subscription[];
   budgets: Budget[];
   setAccounts: (accounts: Account[]) => void;
+  addAccount: (account: Account) => void;
+  updateAccount: (account: Account) => void;
+  updateAccountBalance: (accountId: string, newBalance: number) => void;
   addTransaction: (tx: Transaction) => void;
   addSubscription: (sub: Subscription) => void;
   fetchMockData: () => void;
@@ -92,6 +95,20 @@ export const useAppStore = create<AppStore>((set) => ({
     { id: 'b_3', category_name: 'Subscriptions', amount_limit: 500000, amount_spent: 299700, period: 'monthly' },
   ],
   setAccounts: (accounts) => set({ accounts }),
+  addAccount: (account) =>
+    set((state) => {
+      const exists = state.accounts.some((a) => a.id === account.id || a.name.toLowerCase() === account.name.toLowerCase());
+      if (exists) return state;
+      return { accounts: [...state.accounts, account] };
+    }),
+  updateAccount: (account) =>
+    set((state) => ({
+      accounts: state.accounts.map((a) => (a.id === account.id ? account : a)),
+    })),
+  updateAccountBalance: (accountId, newBalance) =>
+    set((state) => ({
+      accounts: state.accounts.map((a) => (a.id === accountId ? { ...a, balance: newBalance } : a)),
+    })),
   addTransaction: (tx) => set((state) => ({ transactions: [tx, ...state.transactions] })),
   addSubscription: (sub) => set((state) => ({ subscriptions: [...state.subscriptions, sub] })),
   fetchMockData: () => {},

@@ -7,6 +7,7 @@ import { detectPaymentMethod } from './paymentMethodParser';
 import { extractMerchantAndCategory } from './merchantParser';
 import { classifyTransaction } from './transactionClassifier';
 import { calculateConfidenceScore } from './confidenceScorer';
+import { extractTransactionDate } from './dateParser';
 
 /**
  * Main SMS parsing orchestrator pipeline:
@@ -54,8 +55,8 @@ export function parseBankSms(
     isFinancial: true,
   });
 
-  // Calculate Date ISO string
-  const txDate = sms.timestamp ? new Date(sms.timestamp).toISOString() : new Date().toISOString();
+  // Calculate Date ISO string (from body text if present or fallback to timestamp)
+  const txDate = extractTransactionDate(sms.body, sms.timestamp);
 
   // Category resolution: Salary -> Refund -> Learned/Extracted
   let finalCategory = merchantResult.category;

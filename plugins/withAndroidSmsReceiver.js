@@ -521,7 +521,7 @@ class PocketWiseNotificationListenerService : NotificationListenerService() {
 
         // Filter out non-financial noise
         val noiseKeywords = listOf("otp", "one time password", "verification code", "secret code", "welcome to", "kyc", "cheque book", "statement is ready", "promotions", "marketing")
-        if (noiseKeywords.some { combined.contains(it) }) {
+        if (noiseKeywords.any { combined.contains(it) }) {
             return false
         }
 

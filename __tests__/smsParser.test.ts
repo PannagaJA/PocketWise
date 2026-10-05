@@ -1,3 +1,34 @@
+jest.mock('react-native', () => ({
+  Platform: { OS: 'android' },
+  PermissionsAndroid: {
+    PERMISSIONS: { RECEIVE_SMS: 'android.permission.RECEIVE_SMS', READ_SMS: 'android.permission.READ_SMS' },
+    RESULTS: { GRANTED: 'granted' },
+    requestMultiple: jest.fn(async () => ({ 'android.permission.RECEIVE_SMS': 'granted', 'android.permission.READ_SMS': 'granted' })),
+    check: jest.fn(async () => true),
+  },
+  Alert: { alert: jest.fn() },
+  NativeModules: {},
+  DeviceEventEmitter: { addListener: jest.fn(() => ({ remove: jest.fn() })) },
+}));
+
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn(async () => null),
+  setItem: jest.fn(async () => {}),
+}));
+
+jest.mock('../lib/supabase', () => ({
+  supabase: {
+    auth: { getUser: jest.fn(async () => ({ data: { user: null } })) },
+    from: jest.fn(() => ({
+      select: jest.fn(() => ({
+        eq: jest.fn(() => ({
+          single: jest.fn(() => ({ data: null, error: null })),
+        })),
+      })),
+    })),
+  },
+}));
+
 import { parseBankSms } from '../lib/sms/parser';
 import { extractAmount } from '../lib/sms/parser/amountParser';
 import { identifyBank } from '../lib/sms/parser/bankDetector';
@@ -309,5 +340,112 @@ describe('Android Bank SMS Transaction Auto-Detection Parser Pipeline', () => {
 
     expect(isDuplicateTransaction(duplicateIncoming, existing)).toBe(true);
   });
+
+  // Test 17: User's exact HDFC Bank SMS (VM-HDFCBK-T) with date and merchant
+  test('17. Parses user exact HDFC Bank SMS with VM-HDFCBK-T header correctly', () => {
+    const sms: RawSMS = {
+      sender: 'VM-HDFCBK-T',
+      body: 'Sent Rs.30.00\nFrom HDFC Bank A/C *5472\nTo Nandikeshwara condiments\nOn 23/09/26\nRef 626686069936\nNot You?\nCall 18002586161/SMS BLOCK UPI to 7308080808',
+      timestamp: Date.now(),
+    };
+
+    const parsed = parseBankSms(sms);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.amount).toBe(30.00);
+    expect(parsed?.amountMinor).toBe(3000);
+    expect(parsed?.type).toBe('expense');
+    expect(parsed?.bankId).toBe('hdfc');
+    expect(parsed?.bankName).toBe('HDFC Bank');
+    expect(parsed?.maskedAccount).toBe('XX5472');
+    expect(parsed?.merchant).toBe('Nandikeshwara Condiments');
+    expect(parsed?.referenceNumber).toBe('626686069936');
+    expect(parsed?.transactionDate).toContain('2026-09-23');
+  });
+
+  // Test 18: User's second exact HDFC Bank SMS (Innovative Retail Concept)
+  test('18. Parses second user exact HDFC Bank SMS correctly', () => {
+    const sms: RawSMS = {
+      sender: 'VM-HDFCBK-T',
+      body: 'Sent Rs.16.00\nFrom HDFC Bank A/C *5472\nTo INNOVATIVE RETAIL CONCEPT\nOn 04/10/26\nRef 005574872094\nNot You?\nCall 18002586161/SMS BLOCK UPI to 7308080808',
+      timestamp: Date.now(),
+    };
+
+    const parsed = parseBankSms(sms);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.amount).toBe(16.00);
+    expect(parsed?.amountMinor).toBe(1600);
+    expect(parsed?.type).toBe('expense');
+    expect(parsed?.bankId).toBe('hdfc');
+    expect(parsed?.bankName).toBe('HDFC Bank');
+    expect(parsed?.maskedAccount).toBe('XX5472');
+    expect(parsed?.merchant).toBe('Innovative Retail Concept');
+    expect(parsed?.referenceNumber).toBe('005574872094');
+    expect(parsed?.transactionDate).toContain('2026-10-04');
+  });
+
+  // Test 19: Unlisted Bank SMS dynamic detection
+  test('19. Identifies dynamic unlisted bank from message body and auto adds without failure', () => {
+    const sms: RawSMS = {
+      sender: 'VM-SARASWAT-T',
+      body: 'Rs. 2500.00 debited from Saraswat Bank A/C *9876 to Amazon Pay on 05/10/26 ref 998877665544',
+      timestamp: Date.now(),
+    };
+
+    const parsed = parseBankSms(sms);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.amount).toBe(2500.00);
+    expect(parsed?.type).toBe('expense');
+    expect(parsed?.bankName).toContain('Saraswat');
+    expect(parsed?.maskedAccount).toBe('XX9876');
+  });
+
+  // Test 20: Auto-adds bank account to store when bank does not exist
+  test('20. Auto-adds bank account to store when a transaction for new bank arrives', async () => {
+    const { useAppStore } = require('../store/useAppStore');
+    const { smsListenerService } = require('../lib/sms/service/smsListenerService');
+
+    // Reset accounts to an empty state or custom list without Kotak
+    useAppStore.setState({
+      accounts: [
+        { id: 'acc_1', name: 'Cash Wallet', type: 'cash', balance: 10000, currency: 'INR' },
+      ],
+      transactions: [],
+    });
+
+    const kotakTx: ParsedSmsTransaction = {
+      smsSender: 'VM-KOTAKB-T',
+      type: 'expense',
+      amount: 1200,
+      amountMinor: 120000,
+      currency: 'INR',
+      bankId: 'kotak',
+      bankName: 'Kotak Mahindra Bank',
+      maskedAccount: 'XX3344',
+      merchant: 'Swiggy',
+      paymentMethod: 'UPI',
+      category: 'Food & Dining',
+      transactionDate: '2026-10-05T10:00:00.000Z',
+      confidenceScore: 95,
+      isSalary: false,
+      isRefund: false,
+      isTransfer: false,
+      isAutoDetected: true,
+      needsReview: false,
+    };
+
+    await smsListenerService.saveTransactionToStore(kotakTx);
+
+    const storeState = useAppStore.getState();
+    const createdAccount = storeState.accounts.find((a) => a.name.includes('Kotak'));
+    expect(createdAccount).toBeDefined();
+    expect(createdAccount?.name).toBe('Kotak Mahindra Bank (XX3344)');
+    expect(createdAccount?.type).toBe('bank');
+
+    const recordedTx = storeState.transactions.find((t) => t.account_id === createdAccount?.id);
+    expect(recordedTx).toBeDefined();
+    expect(recordedTx?.amount).toBe(120000);
+    expect(recordedTx?.account_name).toBe('Kotak Mahindra Bank (XX3344)');
+  });
 });
+
 
