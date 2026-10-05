@@ -342,13 +342,10 @@ class SmsListenerService {
             user_id: userId,
             name: formattedAccountName,
             type: 'bank',
-            balance: parsedTx.type === 'income' ? parsedTx.amountMinor : 0,
+            balance: 0,
             currency: 'INR',
             color: bankColor,
           });
-        } else {
-          const updatedBal = (targetAccount.balance || 0) + deltaAmount;
-          await accountService.updateAccountBalance(targetAccount.id, updatedBal).catch(() => {});
         }
 
         await transactionService.createTransaction({
