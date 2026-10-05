@@ -41,60 +41,64 @@ export function SmsOnboardingModal({ visible, onClose, onEnabled }: SmsOnboardin
 
   return (
     <AppModal visible={visible} animationType="slide" onClose={onClose}>
-      <Pressable className="p-2 w-full max-w-lg" onPress={(e) => e.stopPropagation()}>
-        <Card className="bg-white rounded-3xl p-6 border border-zinc-200">
-          <View className="flex-row justify-between items-center mb-4">
-            <View className="w-12 h-12 rounded-2xl bg-indigo-50 items-center justify-center">
-              <Smartphone size={24} color="#6366F1" />
-            </View>
-            <Pressable onPress={onClose} className="p-2">
-              <X size={20} color="#71717A" />
-            </Pressable>
+      <Pressable className="flex-col w-full px-6 pt-3 pb-4" onPress={(e) => e.stopPropagation()}>
+        {/* Subtle Drag Handle */}
+        <View className="w-12 h-1 bg-zinc-300 rounded-full self-center mb-3" />
+
+        <View className="flex-row justify-between items-center mb-4">
+          <View className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 items-center justify-center">
+            <Smartphone size={24} color="#6366F1" />
           </View>
+          <Pressable
+            onPress={onClose}
+            className="w-8 h-8 rounded-full bg-zinc-100 items-center justify-center active:bg-zinc-200"
+          >
+            <X size={18} color="#71717A" />
+          </Pressable>
+        </View>
 
-          <Text className="text-2xl font-extrabold text-zinc-900 mb-2">
-            Automatically track bank transactions?
-          </Text>
+        <Text className="text-2xl font-extrabold text-zinc-900 mb-2">
+          Automatically track bank transactions?
+        </Text>
 
-          <Text className="text-sm text-zinc-600 leading-6 mb-6">
-            PocketWise can read incoming bank SMS messages on this device and automatically log eligible expenses, income, refunds, and transfers into your financial history.
-          </Text>
+        <Text className="text-sm text-zinc-600 leading-6 mb-6">
+          PocketWise can read incoming bank SMS messages on this device and automatically log eligible expenses, income, refunds, and transfers into your financial history.
+        </Text>
 
-          {/* Privacy Guarantee Box */}
-          <View className="bg-emerald-50 rounded-2xl p-4 border border-emerald-200 mb-6">
-            <View className="flex-row items-center gap-2 mb-2">
-              <ShieldCheck size={20} color="#10B981" />
-              <Text className="text-xs font-bold text-emerald-900 uppercase tracking-wider">
-                100% On-Device Privacy Guaranteed
-              </Text>
-            </View>
-            <Text className="text-xs text-emerald-800 leading-5">
-              All SMS processing is performed locally on your device. PocketWise NEVER uploads raw SMS content, full bank messages, account numbers, or personal text messages to any cloud server.
+        {/* Privacy Guarantee Box */}
+        <View className="bg-emerald-50 rounded-2xl p-4 border border-emerald-200 mb-6">
+          <View className="flex-row items-center gap-2 mb-2">
+            <ShieldCheck size={20} color="#10B981" />
+            <Text className="text-xs font-bold text-emerald-900 uppercase tracking-wider">
+              100% On-Device Privacy Guaranteed
             </Text>
           </View>
+          <Text className="text-xs text-emerald-800 leading-5">
+            All SMS processing is performed locally on your device. PocketWise NEVER uploads raw SMS content, full bank messages, account numbers, or personal text messages to any cloud server.
+          </Text>
+        </View>
 
-          <View className="gap-2.5">
-            <Button
-              variant="primary"
-              size="lg"
-              onPress={handleEnableTracking}
-              disabled={loading}
-              className="bg-indigo-600 active:bg-indigo-700 flex-row items-center justify-center gap-2.5"
-            >
-              <CheckCircle size={18} color="#FFFFFF" style={{ marginRight: 10 }} />
-              <Text className="text-white font-bold text-base">Enable Automatic Tracking</Text>
-            </Button>
+        <View className="gap-3">
+          <Button
+            variant="primary"
+            size="lg"
+            onPress={handleEnableTracking}
+            disabled={loading}
+            className="bg-indigo-600 active:bg-indigo-700 flex-row items-center justify-center gap-2.5 shadow-sm"
+          >
+            <CheckCircle size={18} color="#FFFFFF" />
+            <Text className="text-white font-bold text-base">Enable Automatic Tracking</Text>
+          </Button>
 
-            <Button
-              variant="outline"
-              size="lg"
-              onPress={handleMaybeLater}
-              className="border-zinc-200"
-            >
-              <Text className="text-zinc-700 font-semibold text-base">Maybe Later</Text>
-            </Button>
-          </View>
-        </Card>
+          <Button
+            variant="outline"
+            size="lg"
+            onPress={handleMaybeLater}
+            className="border-zinc-200 bg-zinc-50"
+          >
+            <Text className="text-zinc-700 font-bold text-base">Maybe Later</Text>
+          </Button>
+        </View>
       </Pressable>
     </AppModal>
   );
