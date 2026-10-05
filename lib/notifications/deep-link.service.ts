@@ -80,11 +80,13 @@ export const deepLinkService = {
   dispatchRoute(route: string) {
     setTimeout(() => {
       try {
-        router.push(route as any);
+        if (typeof router?.push === 'function') {
+          router.push(route as any);
+        }
       } catch (err) {
         console.warn('Could not dispatch notification route:', err);
       }
-    }, 100);
+    }, 500);
   },
 
   async checkColdStartNotification() {
