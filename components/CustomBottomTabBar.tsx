@@ -2,9 +2,11 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { LayoutDashboard, ArrowLeftRight, CreditCard, PieChart, User } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { useModalStore } from '../lib/stores/modalStore';
+import { useTabStore } from '../lib/stores/tabStore';
 
 export interface CustomBottomTabBarProps {
-  state: {
+  state?: {
     index: number;
     routes: Array<{
       key: string;
@@ -13,54 +15,67 @@ export interface CustomBottomTabBarProps {
     }>;
   };
   descriptors?: any;
-  navigation: {
+  navigation?: {
     emit: (event: any) => any;
     navigate: (name: string, params?: any) => void;
   };
   insets?: any;
 }
 
-export function CustomBottomTabBar({ state, navigation }: CustomBottomTabBarProps) {
-  const icons: { [key: string]: any } = {
-    index: LayoutDashboard,
-    transactions: ArrowLeftRight,
-    subscriptions: CreditCard,
-    budgets: PieChart,
-    more: User,
-  };
+const TABS = [
+  { name: 'index', label: 'Dashboard', icon: LayoutDashboard },
+  { name: 'transactions', label: 'Transactions', icon: ArrowLeftRight },
+  { name: 'subscriptions', label: 'Subscriptions', icon: CreditCard },
+  { name: 'budgets', label: 'Budgets', icon: PieChart },
+  { name: 'more', label: 'More', icon: User },
+];
 
-  const labels: { [key: string]: string } = {
-    index: 'Dashboard',
-    transactions: 'Transactions',
-    subscriptions: 'Subscriptions',
-    budgets: 'Budgets',
-    more: 'More',
-  };
+export function CustomBottomTabBar({ state, navigation }: CustomBottomTabBarProps = {}) {
+  const isModalOpen = useModalStore((s) => s.activeModalCount > 0);
+  const activeTabIndex = useTabStore((s) => s.activeTabIndex);
+  const setActiveTabIndex = useTabStore((s) => s.setActiveTabIndex);
+  const requestScrollToTab = useTabStore((s) => s.requestScrollToTab);
+
+  if (isModalOpen) {
+    return null;
+  }
+
+  const currentIndex = state ? state.index : activeTabIndex;
 
   return (
     <View style={styles.container}>
       <View style={styles.bar}>
-        {state.routes.map((route, index) => {
-          const isFocused = state.index === index;
-          const Icon = icons[route.name] || LayoutDashboard;
-          const label = labels[route.name] || route.name;
+        {TABS.map((tab, index) => {
+          const isFocused = currentIndex === index;
+          const Icon = tab.icon;
 
           const onPress = () => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            const event = navigation.emit({
-              type: 'tabPress',
-              target: route.key,
-              canPreventDefault: true,
-            });
+            try {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            } catch {}
 
-            if (!isFocused && !event.defaultPrevented) {
-              navigation.navigate(route.name);
+            // INSTANTLY update active state for 0ms latency UI highlight
+            setActiveTabIndex(index);
+            requestScrollToTab(index);
+
+            if (navigation && state) {
+              const route = state.routes[index];
+              if (route) {
+                const event = navigation.emit({
+                  type: 'tabPress',
+                  target: route.key,
+                  canPreventDefault: true,
+                });
+                if (!isFocused && !event.defaultPrevented) {
+                  navigation.navigate(route.name);
+                }
+              }
             }
           };
 
           return (
             <TouchableOpacity
-              key={route.key}
+              key={tab.name}
               onPress={onPress}
               activeOpacity={0.7}
               style={styles.tabItem}
@@ -74,7 +89,7 @@ export function CustomBottomTabBar({ state, navigation }: CustomBottomTabBarProp
               </View>
 
               <Text style={[styles.tabLabel, isFocused ? styles.activeTabLabel : styles.inactiveTabLabel]}>
-                {label}
+                {tab.label}
               </Text>
             </TouchableOpacity>
           );

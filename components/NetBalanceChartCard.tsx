@@ -282,7 +282,7 @@ export function NetBalanceChartCard({ accounts, transactions, selectedAccountId,
         spentY: Math.round(spentY * 100) / 100,
       };
     });
-  }, [accounts, transactions, totalBalance, period]);
+  }, [accounts, transactions, totalBalance, period, selectedAccountId, activeTransactions]);
 
   // 3. Total Spent in Current Period
   const totalSpentPeriod = useMemo(() => {
