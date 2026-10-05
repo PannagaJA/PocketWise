@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, Modal, Alert, ActivityIndicator, Pressable, RefreshControl, TextInput, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
+import { View, Text, ScrollView, Alert, ActivityIndicator, Pressable, RefreshControl, TextInput, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Svg, { Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
@@ -13,7 +13,7 @@ import { accountService } from '../../lib/services/account.service';
 import { categoryService } from '../../lib/services/category.service';
 import { formatMoney, formatDate, parseMoneyToMinor } from '../../lib/finance/core';
 import { DatePickerButton } from '../../components/ui/DatePickerModal';
-import { Plus, ArrowUpRight, ArrowDownLeft, X, ArrowRightLeft, ChevronDown, Check, Wallet, BarChart2, Filter, Search, Calendar } from 'lucide-react-native';
+import { Plus, ArrowUpRight, ArrowDownLeft, X, ArrowRightLeft, ChevronDown, Check, Wallet, BarChart2, Filter, Search, Calendar, SlidersHorizontal } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 export type DateFilterMode = 'all' | 'today' | 'this_month' | 'last_month' | 'custom_month' | 'custom_range';
@@ -30,9 +30,10 @@ export default function TransactionsScreen() {
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
   const [destAccountDropdownOpen, setDestAccountDropdownOpen] = useState(false);
 
-  // Search & Type Filter state
+  // Search, Type, & Bank Filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'all' | 'income' | 'expense' | 'transfer'>('all');
+  const [selectedAccountFilterId, setSelectedAccountFilterId] = useState<string>('all');
 
   // Custom Date / Month Filter State
   const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>('all');
@@ -54,8 +55,8 @@ export default function TransactionsScreen() {
 
   // Data Queries
   const { data: transactions = [], isLoading: loadingTx, refetch: refetchTx } = useQuery({
-    queryKey: ['transactions', user?.id],
-    queryFn: () => transactionService.getTransactions(user?.id || '', 500),
+    queryKey: ['transactions', user?.id, selectedAccountFilterId],
+    queryFn: () => transactionService.getTransactions(user?.id || '', 500, selectedAccountFilterId),
     enabled: !!user?.id,
   });
 
@@ -80,10 +81,11 @@ export default function TransactionsScreen() {
 
 
 
-  // Apply search query, type filter, and custom date/month filter (Memoized for high performance)
+  // Apply search query, type filter, bank filter, and custom date/month filter (Memoized for high performance)
   const displayedTransactions = useMemo(() => {
     return transactions.filter((t) => {
       const matchesFilter = activeFilter === 'all' || t.type === activeFilter;
+      const matchesAccountFilter = selectedAccountFilterId === 'all' || t.account_id === selectedAccountFilterId;
 
       // Date/Month Filtering
       let matchesDate = true;
@@ -110,19 +112,25 @@ export default function TransactionsScreen() {
       }
 
       const q = searchQuery.toLowerCase().trim();
-      if (!q) return matchesFilter && matchesDate;
+      if (!q) return matchesFilter && matchesDate && matchesAccountFilter;
 
       const matchesDesc = t.description.toLowerCase().includes(q);
-      const matchesCat = (t.category?.name || '').toLowerCase().includes(q);
-      const matchesAcc = (t.account?.name || '').toLowerCase().includes(q);
+      const categoryName = t.category?.name || (Array.isArray(t.category) && (t.category as any)[0]?.name) || '';
+      const matchesCat = categoryName.toLowerCase().includes(q);
+      const accountName =
+        t.account?.name ||
+        (Array.isArray(t.account) && (t.account as any)[0]?.name) ||
+        accounts.find((a) => a.id === t.account_id)?.name ||
+        '';
+      const matchesAcc = accountName.toLowerCase().includes(q);
 
       const rupeesAmount = (t.amount_minor / 100).toString();
       const formattedMoneyStr = formatMoney(t.amount_minor).toLowerCase();
       const matchesAmount = rupeesAmount.includes(q) || formattedMoneyStr.includes(q);
 
-      return matchesFilter && matchesDate && (matchesDesc || matchesCat || matchesAcc || matchesAmount);
+      return matchesFilter && matchesDate && matchesAccountFilter && (matchesDesc || matchesCat || matchesAcc || matchesAmount);
     });
-  }, [transactions, activeFilter, dateFilterMode, selectedCustomMonth, customStartDate, customEndDate, searchQuery]);
+  }, [transactions, activeFilter, selectedAccountFilterId, dateFilterMode, selectedCustomMonth, customStartDate, customEndDate, searchQuery, accounts]);
 
   const filteredCategories = useMemo(
     () => categories.filter((c) => c.type === (type === 'transfer' ? 'expense' : type)),
@@ -164,7 +172,9 @@ export default function TransactionsScreen() {
 
   const currentPlaceholders = getPlaceholders();
 
-  // Label Helper for Date Filter Button
+  // Label Helper for Filter Button
+  const isFilterActive = dateFilterMode !== 'all' || selectedAccountFilterId !== 'all';
+
   const getDateFilterLabel = () => {
     switch (dateFilterMode) {
       case 'today':
@@ -178,6 +188,19 @@ export default function TransactionsScreen() {
       default:
         return 'Date Filter';
     }
+  };
+
+  const getFilterButtonLabel = () => {
+    const selectedAcc = accounts.find((a) => a.id === selectedAccountFilterId);
+    const dateLabel = dateFilterMode !== 'all' ? getDateFilterLabel() : null;
+    const accLabel = selectedAccountFilterId !== 'all' ? (selectedAcc ? selectedAcc.name : 'Bank') : null;
+
+    if (dateLabel && accLabel) {
+      return `${dateLabel} • ${accLabel}`;
+    }
+    if (dateLabel) return dateLabel;
+    if (accLabel) return accLabel;
+    return 'Filter';
   };
 
   // Mutations
@@ -344,27 +367,33 @@ export default function TransactionsScreen() {
               ) : null}
             </View>
 
-            {/* Custom Date/Month Filter Button */}
+            {/* Custom Filter Button */}
             <Pressable
               onPress={() => {
                 try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                 setDateFilterModalVisible(true);
               }}
+              style={{ maxWidth: 140 }}
               className={`flex-row items-center gap-1.5 py-2.5 px-3 rounded-2xl border ${
-                dateFilterMode !== 'all'
+                isFilterActive
                   ? 'bg-indigo-600 border-indigo-600'
                   : 'bg-white border-zinc-200 shadow-sm'
               }`}
             >
-              <Calendar size={17} color={dateFilterMode !== 'all' ? '#FFF' : '#09090B'} />
-              <Text className={`text-xs font-bold ${dateFilterMode !== 'all' ? 'text-white' : 'text-zinc-900'}`}>
-                {getDateFilterLabel()}
+              <SlidersHorizontal size={16} color={isFilterActive ? '#FFF' : '#09090B'} />
+              <Text
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                className={`text-xs font-bold shrink ${isFilterActive ? 'text-white' : 'text-zinc-900'}`}
+              >
+                {getFilterButtonLabel()}
               </Text>
-              {dateFilterMode !== 'all' ? (
+              {isFilterActive ? (
                 <Pressable
                   onPress={(e) => {
                     e.stopPropagation();
                     setDateFilterMode('all');
+                    setSelectedAccountFilterId('all');
                   }}
                   className="ml-0.5"
                 >
@@ -465,19 +494,19 @@ export default function TransactionsScreen() {
                 <Filter size={20} color="#71717A" />
               </View>
               <Text className="text-sm font-bold text-zinc-800">
-                {searchQuery || dateFilterMode !== 'all' ? 'No matching transactions' : `No ${activeFilter === 'all' ? '' : activeFilter} transactions found`}
+                {searchQuery || isFilterActive ? 'No matching transactions' : `No ${activeFilter === 'all' ? '' : activeFilter} transactions found`}
               </Text>
               <Text className="text-xs text-zinc-400 mt-0.5 mb-4 text-center">
                 {searchQuery
                   ? `No transactions matched "${searchQuery}".`
-                  : dateFilterMode !== 'all'
-                  ? `No transactions match the selected ${getDateFilterLabel()} period.`
+                  : isFilterActive
+                  ? `No transactions match the selected filter criteria.`
                   : activeFilter === 'all'
                   ? 'Record your first transaction to get started!'
                   : `No transactions matched the "${activeFilter}" filter.`}
               </Text>
-              {searchQuery || activeFilter !== 'all' || dateFilterMode !== 'all' ? (
-                <Button size="sm" variant="outline" onPress={() => { setSearchQuery(''); setActiveFilter('all'); setDateFilterMode('all'); }}>
+              {searchQuery || activeFilter !== 'all' || isFilterActive ? (
+                <Button size="sm" variant="outline" onPress={() => { setSearchQuery(''); setActiveFilter('all'); setDateFilterMode('all'); setSelectedAccountFilterId('all'); }}>
                   <Text className="text-zinc-900 font-semibold text-xs">Clear Search & Filters</Text>
                 </Button>
               ) : (
@@ -505,7 +534,7 @@ export default function TransactionsScreen() {
                     <View className="flex-1">
                       <Text className="text-base font-bold text-zinc-900" numberOfLines={1}>{tx.description}</Text>
                       <Text className="text-xs text-zinc-500 mt-0.5">
-                        {tx.category?.name || 'General'} • {tx.account?.name || 'Account'}
+                        {tx.category?.name || (Array.isArray(tx.category) && (tx.category as any)[0]?.name) || 'General'} • {tx.account?.name || (Array.isArray(tx.account) && (tx.account as any)[0]?.name) || accounts.find((a) => a.id === tx.account_id)?.name || 'Account'}
                       </Text>
                     </View>
                   </View>
@@ -525,32 +554,32 @@ export default function TransactionsScreen() {
         </ScrollView>
       </View>
 
-      {/* Custom Date / Month Filter Modal */}
+      {/* Custom Date / Month / Bank Filter Modal */}
       <AppModal
         visible={dateFilterModalVisible}
         onClose={() => setDateFilterModalVisible(false)}
         animationType="slide"
       >
         <Pressable
-          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%]"
+          style={{ width: '100%', padding: 24, paddingBottom: 12 }}
           onPress={(e) => e.stopPropagation()}
         >
           <View className="flex-row justify-between items-center mb-4">
             <View className="flex-row items-center gap-2">
               <View className="w-8 h-8 rounded-full bg-indigo-50 items-center justify-center">
-                <Calendar size={18} color="#6366F1" />
+                <SlidersHorizontal size={18} color="#6366F1" />
               </View>
-              <Text className="text-xl font-bold text-zinc-900">Date & Month Filter</Text>
+              <Text className="text-xl font-bold text-zinc-900">Filter Transactions</Text>
             </View>
             <Pressable onPress={() => setDateFilterModalVisible(false)} className="p-1">
               <X size={20} color="#71717A" />
             </Pressable>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 380 }}>
             {/* Presets Section */}
             <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5">Quick Presets</Text>
-            <View className="flex-row flex-wrap gap-2 mb-5">
+            <View className="flex-row flex-wrap gap-2 mb-4">
               {[
                 { mode: 'all', label: 'All Time' },
                 { mode: 'today', label: 'Today' },
@@ -562,8 +591,8 @@ export default function TransactionsScreen() {
                   <Pressable
                     key={item.mode}
                     onPress={() => {
+                      try { Haptics.selectionAsync(); } catch {}
                       setDateFilterMode(item.mode as DateFilterMode);
-                      setDateFilterModalVisible(false);
                     }}
                     className={`px-4 py-2.5 rounded-xl border ${
                       isSelected
@@ -606,38 +635,77 @@ export default function TransactionsScreen() {
               </View>
             </View>
 
-            {/* Modal Actions */}
-            <View className="flex-row gap-3 mt-2 mb-4">
-              <Button
-                variant="outline"
-                size="md"
-                className="flex-1 border-zinc-200"
+            {/* Bank / Account Filter Section */}
+            <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5">Bank / Account</Text>
+            <View className="flex-row flex-wrap gap-2 mb-4">
+              <Pressable
                 onPress={() => {
-                  setDateFilterMode('all');
-                  setSelectedCustomMonth('');
-                  setCustomStartDate('');
-                  setCustomEndDate('');
-                  setDateFilterModalVisible(false);
+                  try { Haptics.selectionAsync(); } catch {}
+                  setSelectedAccountFilterId('all');
                 }}
+                className={`px-4 py-2.5 rounded-xl border ${
+                  selectedAccountFilterId === 'all'
+                    ? 'bg-zinc-900 border-zinc-900'
+                    : 'bg-zinc-50 border-zinc-200 active:bg-zinc-100'
+                }`}
               >
-                <Text className="text-zinc-800 font-bold text-xs">Reset All</Text>
-              </Button>
-
-              <Button
-                variant="primary"
-                size="md"
-                className="flex-1"
-                onPress={() => {
-                  if (customStartDate || customEndDate) {
-                    setDateFilterMode('custom_range');
-                  }
-                  setDateFilterModalVisible(false);
-                }}
-              >
-                <Text className="text-white font-bold text-xs">Apply Filter</Text>
-              </Button>
+                <Text className={`text-xs font-bold ${selectedAccountFilterId === 'all' ? 'text-white' : 'text-zinc-800'}`}>
+                  All Accounts
+                </Text>
+              </Pressable>
+              {accounts.map((acc) => {
+                const isSelected = selectedAccountFilterId === acc.id;
+                return (
+                  <Pressable
+                    key={acc.id}
+                    onPress={() => {
+                      try { Haptics.selectionAsync(); } catch {}
+                      setSelectedAccountFilterId(acc.id);
+                    }}
+                    className={`px-4 py-2.5 rounded-xl border ${
+                      isSelected
+                        ? 'bg-zinc-900 border-zinc-900'
+                        : 'bg-zinc-50 border-zinc-200 active:bg-zinc-100'
+                    }`}
+                  >
+                    <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-zinc-800'}`}>
+                      {acc.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
           </ScrollView>
+
+          {/* Modal Actions */}
+          <View className="flex-row gap-3 mt-3">
+            <Button
+              variant="outline"
+              size="md"
+              className="flex-1 border-zinc-200"
+              onPress={() => {
+                setDateFilterMode('all');
+                setSelectedCustomMonth('');
+                setCustomStartDate('');
+                setCustomEndDate('');
+                setSelectedAccountFilterId('all');
+                setDateFilterModalVisible(false);
+              }}
+            >
+              <Text className="text-zinc-800 font-bold text-xs">Reset All</Text>
+            </Button>
+
+            <Button
+              variant="primary"
+              size="md"
+              className="flex-1"
+              onPress={() => {
+                setDateFilterModalVisible(false);
+              }}
+            >
+              <Text className="text-white font-bold text-xs">Apply Filter</Text>
+            </Button>
+          </View>
         </Pressable>
       </AppModal>
 
@@ -648,7 +716,7 @@ export default function TransactionsScreen() {
         animationType="slide"
       >
         <Pressable
-          className="bg-white rounded-t-3xl p-6 pb-6 border-t border-zinc-200 max-h-[90%]"
+          style={{ width: '100%', padding: 24, paddingBottom: 12 }}
           onPress={(e) => e.stopPropagation()}
         >
           <View className="flex-row justify-between items-center mb-4">
@@ -824,7 +892,7 @@ export default function TransactionsScreen() {
         animationType="slide"
       >
         <Pressable
-          className="bg-white rounded-t-3xl p-6 pb-6 border-t border-zinc-200 max-h-[90%]"
+          style={{ width: '100%', padding: 24, paddingBottom: 12 }}
           onPress={(e) => e.stopPropagation()}
         >
           <View className="flex-row justify-between items-center mb-4">

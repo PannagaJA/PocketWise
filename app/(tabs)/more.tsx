@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Switch, Alert, Pressable, Modal, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
+import { View, Text, ScrollView, Switch, Alert, Pressable, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { router } from 'expo-router';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -15,7 +15,6 @@ import * as Haptics from 'expo-haptics';
 
 export default function MoreScreen() {
   const { user, signOut } = useAuth();
-  const router = useRouter();
 
   const [appLockEnabled, setAppLockEnabled] = useState(false);
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
