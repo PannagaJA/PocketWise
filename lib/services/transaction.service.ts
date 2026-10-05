@@ -18,15 +18,34 @@ export interface Transaction {
 }
 
 export const transactionService = {
-  async getTransactions(userId: string, limit: number = 50): Promise<Transaction[]> {
-    const { data, error } = await supabase
+  async getTransactions(userId: string, limit: number = 50, accountId?: string): Promise<Transaction[]> {
+    let query = supabase
       .from('transactions')
       .select('*, category:categories(name, color), account:accounts(name)')
       .eq('user_id', userId)
-      .is('deleted_at', null)
+      .is('deleted_at', null);
+
+    if (accountId && accountId !== 'all') {
+      query = query.eq('account_id', accountId);
+    }
+
+    const { data, error } = await query
       .order('date', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(limit);
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async getAccountTransactions(accountId: string): Promise<Transaction[]> {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*, category:categories(name, color), account:accounts(name)')
+      .eq('account_id', accountId)
+      .is('deleted_at', null)
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false });
 
     if (error) throw error;
     return data || [];
