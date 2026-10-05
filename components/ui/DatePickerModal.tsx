@@ -110,7 +110,7 @@ export function DatePickerButton({ label, value, onSelectDate, placeholder = 'Pi
         animationType="fade"
       >
         <Pressable
-          className="bg-white rounded-3xl p-6 border border-zinc-200 w-full max-w-sm shadow-2xl"
+          style={{ width: '100%', padding: 20 }}
           onPress={(e) => e.stopPropagation()}
         >
           {/* Header */}
