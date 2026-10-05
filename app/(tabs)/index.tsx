@@ -1,23 +1,24 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Pressable, Modal, BackHandler, Alert, Dimensions, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, Pressable, BackHandler, Alert, Dimensions, useWindowDimensions, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import Svg, { Path, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { AppModal } from '../../components/ui/AppModal';
 import { useAuth } from '../../context/AuthContext';
 import { useAppLock } from '../../components/AppLockGate';
-import { accountService } from '../../lib/services/account.service';
+import { accountService, Account } from '../../lib/services/account.service';
 import { transactionService } from '../../lib/services/transaction.service';
 import { billService } from '../../lib/services/bill.service';
 import { goalService } from '../../lib/services/goal.service';
 import { reminderService, Reminder } from '../../lib/services/reminder.service';
 import { financialAnalyticsEngine } from '../../lib/finance/analyticsEngine';
-import { formatMoney, formatDate, formatDateTime } from '../../lib/finance/core';
-import { Plus, ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight, ChevronDown, Check, Building2, ShieldCheck, TrendingUp, TrendingDown, ArrowRightLeft, X, Clock, Trash2, LogOut } from 'lucide-react-native';
+import { formatMoney, formatDate, formatDateTime, parseSignedMoneyToMinor } from '../../lib/finance/core';
+import { Plus, ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight, ChevronDown, Check, Building2, ShieldCheck, TrendingUp, TrendingDown, ArrowRightLeft, X, Clock, Trash2, LogOut, Pencil, RotateCcw } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 import { SmsOnboardingModal } from '../../components/SmsOnboardingCard';
@@ -28,6 +29,12 @@ import { ParsedSmsTransaction } from '../../lib/sms/types';
 import { NetBalanceChartCard } from '../../components/NetBalanceChartCard';
 
 import { shakeService } from '../../lib/shake/shakeService';
+import { useTabStore } from '../../lib/stores/tabStore';
+import { CustomBottomTabBar } from '../../components/CustomBottomTabBar';
+import TransactionsScreen from './transactions';
+import SubscriptionsScreen from './subscriptions';
+import BudgetsScreen from './budgets';
+import MoreScreen from './more';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -94,10 +101,9 @@ function SwipeableNotificationItem({
   );
 }
 
-export default function DashboardScreen() {
+export function DashboardScreen() {
   const { user } = useAuth();
   const { isLocked } = useAppLock();
-  const router = useRouter();
   const queryClient = useQueryClient();
 
   const [selectedBankId, setSelectedBankId] = useState<string>('all');
@@ -108,13 +114,22 @@ export default function DashboardScreen() {
   const [selectedReviewTx, setSelectedReviewTx] = useState<ParsedSmsTransaction | null>(null);
   const [exitModalVisible, setExitModalVisible] = useState(false);
 
-  // Hardware Back Button Navigation Handler on Dashboard Tab
+  // Edit / Adjust Account state
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+  const [editAccName, setEditAccName] = useState('');
+  const [editAccBalance, setEditAccBalance] = useState('');
+  const [isSavingAccount, setIsSavingAccount] = useState(false);
+
+  // Focus-scoped Hardware Back Button Navigation Handler on Dashboard Tab
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
+        if (useTabStore.getState().activeTabIndex !== 0) {
+          return false; // Preserve normal Back behavior on other tabs
+        }
         try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
         setExitModalVisible(true);
-        return true; // Handled
+        return true; // Handled exit dialog
       };
 
       const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
@@ -183,14 +198,12 @@ export default function DashboardScreen() {
     }
   }, [transactions]);
 
-  // Sync user data to native module when returning to the Dashboard tab
-  useFocusEffect(
-    useCallback(() => {
-      if (user?.id) {
-        shakeService.syncUserDataToNative(user.id);
-      }
-    }, [user?.id])
-  );
+  // Sync user data to native module when Dashboard mounts or user changes
+  useEffect(() => {
+    if (user?.id) {
+      shakeService.syncUserDataToNative(user.id);
+    }
+  }, [user?.id]);
 
   const upcomingBills = bills.filter((b) => !b.is_paid).slice(0, 3);
   const activeGoals = goals.slice(0, 2);
@@ -204,6 +217,90 @@ export default function DashboardScreen() {
     .filter((t) => t.type === 'expense')
     .reduce((sum, t) => sum + t.amount_minor, 0);
 
+  const handleOpenEditAccount = (acc: Account, e?: any) => {
+    e?.stopPropagation?.();
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    setEditingAccount(acc);
+    setEditAccName(acc.name);
+    setEditAccBalance((acc.balance / 100).toString());
+  };
+
+  const handleRecalculateBalance = async () => {
+    if (!editingAccount) return;
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    try {
+      const accountTxs = await transactionService.getAccountTransactions(editingAccount.id);
+      const openingBalance = (editingAccount as any).opening_balance || 0;
+      const calculatedMinor = accountTxs.reduce((sum, t) => {
+        if (t.type === 'income') return sum + t.amount_minor;
+        if (t.type === 'expense') return sum - t.amount_minor;
+        if (t.type === 'transfer') {
+          if (t.description?.startsWith('Transfer from')) return sum + t.amount_minor;
+          return sum - t.amount_minor;
+        }
+        return sum;
+      }, openingBalance);
+
+      setEditAccBalance((calculatedMinor / 100).toString());
+      Alert.alert(
+        'Balance Calculated',
+        `Calculated from opening balance (₹${(openingBalance / 100).toFixed(2)}) and ${accountTxs.length} transaction(s): ₹${(calculatedMinor / 100).toFixed(2)}. Tap "Save Changes" to apply.`
+      );
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to recalculate balance');
+    }
+  };
+
+  const handleSaveAccount = async () => {
+    if (!editingAccount) return;
+    if (!editAccName.trim()) {
+      Alert.alert('Validation Error', 'Account name cannot be empty.');
+      return;
+    }
+    setIsSavingAccount(true);
+    try {
+      const minorBalance = parseSignedMoneyToMinor(editAccBalance);
+      await accountService.updateAccount(editingAccount.id, {
+        name: editAccName.trim(),
+        balance: minorBalance,
+      });
+      await queryClient.invalidateQueries();
+      try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+      setEditingAccount(null);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to update account');
+    } finally {
+      setIsSavingAccount(false);
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    if (!editingAccount) return;
+    Alert.alert(
+      'Archive Account',
+      `Are you sure you want to archive "${editingAccount.name}"? Transactions linked to this account will remain.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Archive',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await accountService.deleteAccount(editingAccount.id);
+              if (selectedBankId === editingAccount.id) {
+                setSelectedBankId('all');
+              }
+              await queryClient.invalidateQueries();
+              setEditingAccount(null);
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Failed to archive account');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       <ScrollView className="flex-1 px-4 pt-2" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 110 }}>
@@ -215,18 +312,18 @@ export default function DashboardScreen() {
               {user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'User'} 👋
             </Text>
           </View>
-          <TouchableOpacity
+          <Pressable
             onPress={() => {
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
               setNotifModalVisible(true);
             }}
-            className="w-10 h-10 bg-white border border-zinc-200 rounded-full items-center justify-center shadow-sm relative"
+            className="w-10 h-10 bg-white border border-zinc-200 rounded-full items-center justify-center shadow-sm relative active:bg-zinc-50"
           >
             <Bell size={18} color="#09090B" />
             {reminders.length > 0 && (
               <View className="w-2.5 h-2.5 bg-indigo-600 rounded-full absolute top-1.5 right-1.5 border border-white" />
             )}
-          </TouchableOpacity>
+          </Pressable>
         </View>
 
         {/* Bank Account Dropdown Selector */}
@@ -234,13 +331,12 @@ export default function DashboardScreen() {
           const selectedAccount = accounts.find((a) => a.id === selectedBankId);
           return (
             <View className="mb-4">
-              <TouchableOpacity
-                activeOpacity={0.7}
+              <Pressable
                 onPress={() => {
                   try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                   setBankSelectModalVisible(true);
                 }}
-                className="flex-row items-center justify-between p-3.5 bg-white border border-zinc-200 rounded-2xl shadow-sm"
+                className="flex-row items-center justify-between p-3.5 bg-white border border-zinc-200 rounded-2xl shadow-sm active:bg-zinc-50"
               >
                 <View className="flex-row items-center gap-3 flex-1 mr-2">
                   <View
@@ -262,14 +358,26 @@ export default function DashboardScreen() {
                 </View>
 
                 <View className="flex-row items-center gap-2">
-                  <View className="px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded-xl">
-                    <Text className="text-xs font-black text-emerald-700">
+                  <View
+                    className={`px-2.5 py-1 ${
+                      (selectedBankId === 'all' ? totalBalance : (selectedAccount?.balance || 0)) < 0
+                        ? 'bg-rose-50 border border-rose-200'
+                        : 'bg-emerald-50 border border-emerald-200'
+                    } rounded-xl`}
+                  >
+                    <Text
+                      className={`text-xs font-black ${
+                        (selectedBankId === 'all' ? totalBalance : (selectedAccount?.balance || 0)) < 0
+                          ? 'text-rose-700'
+                          : 'text-emerald-700'
+                      }`}
+                    >
                       {formatMoney(selectedBankId === 'all' ? totalBalance : (selectedAccount?.balance || 0))}
                     </Text>
                   </View>
                   <ChevronDown size={18} color="#71717A" />
                 </View>
-              </TouchableOpacity>
+              </Pressable>
             </View>
           );
         })()}
@@ -323,7 +431,7 @@ export default function DashboardScreen() {
             variant="primary"
             size="md"
             className="flex-1 flex-row items-center justify-center gap-2"
-            onPress={() => router.push('/(tabs)/transactions' as any)}
+            onPress={() => useTabStore.getState().requestScrollToTab(1)}
           >
             <Plus size={18} color="#FFF" />
             <Text className="text-white font-bold text-xs">Add Transaction</Text>
@@ -343,7 +451,7 @@ export default function DashboardScreen() {
                 </View>
               )}
             </View>
-            <Pressable onPress={() => router.push('/(tabs)/transactions' as any)}>
+            <Pressable onPress={() => useTabStore.getState().requestScrollToTab(1)}>
               <Text className="text-xs font-bold text-indigo-600">See All</Text>
             </Pressable>
           </View>
@@ -362,47 +470,59 @@ export default function DashboardScreen() {
                       ? 'Your latest financial activities will show here.'
                       : `No transactions recorded for ${accounts.find((a) => a.id === selectedBankId)?.name || 'this bank'}.`}
                   </Text>
-                  <Button size="sm" variant="primary" onPress={() => router.push('/(tabs)/transactions' as any)}>
+                  <Button size="sm" variant="primary" onPress={() => useTabStore.getState().requestScrollToTab(1)}>
                     <Text className="text-white font-semibold text-xs">Add Transaction</Text>
                   </Button>
                 </Card>
               );
             }
 
-            return filteredTxs.slice(0, 5).map((tx) => (
-              <Card key={tx.id} className="mb-2.5 p-3.5 bg-white border border-zinc-200 rounded-2xl">
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-row items-center flex-1 pr-3">
-                    <View className={`w-10 h-10 rounded-xl items-center justify-center mr-3 ${
-                      tx.type === 'income' ? 'bg-emerald-50' : tx.type === 'expense' ? 'bg-rose-50' : 'bg-indigo-50'
-                    }`}>
-                      {tx.type === 'income' ? (
-                        <ArrowDownLeft size={18} color="#10B981" />
-                      ) : tx.type === 'expense' ? (
-                        <ArrowUpRight size={18} color="#EF4444" />
-                      ) : (
-                        <ArrowRightLeft size={18} color="#6366F1" />
-                      )}
-                    </View>
-                    <View className="flex-1">
-                      <Text className="text-sm font-bold text-zinc-900" numberOfLines={1}>{tx.description}</Text>
-                      <Text className="text-[11px] text-zinc-500 mt-0.5">
-                        {tx.category?.name || 'General'} • {tx.account?.name || 'Account'}
-                      </Text>
-                    </View>
-                  </View>
+            return filteredTxs.slice(0, 5).map((tx) => {
+              const accountName =
+                tx.account?.name ||
+                (Array.isArray(tx.account) && (tx.account as any)[0]?.name) ||
+                accounts.find((a) => a.id === tx.account_id)?.name ||
+                'Account';
+              const categoryName =
+                tx.category?.name ||
+                (Array.isArray(tx.category) && (tx.category as any)[0]?.name) ||
+                'General';
 
-                  <View className="items-end">
-                    <Text className={`text-sm font-extrabold ${
-                      tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-zinc-900' : 'text-indigo-600'
-                    }`}>
-                      {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{formatMoney(tx.amount_minor)}
-                    </Text>
-                    <Text className="text-[10px] text-zinc-400 mt-0.5">{formatDate(tx.date)}</Text>
+              return (
+                <Card key={tx.id} className="mb-2.5 p-3.5 bg-white border border-zinc-200 rounded-2xl">
+                  <View className="flex-row items-center justify-between">
+                    <View className="flex-row items-center flex-1 pr-3">
+                      <View className={`w-10 h-10 rounded-xl items-center justify-center mr-3 ${
+                        tx.type === 'income' ? 'bg-emerald-50' : tx.type === 'expense' ? 'bg-rose-50' : 'bg-indigo-50'
+                      }`}>
+                        {tx.type === 'income' ? (
+                          <ArrowDownLeft size={18} color="#10B981" />
+                        ) : tx.type === 'expense' ? (
+                          <ArrowUpRight size={18} color="#EF4444" />
+                        ) : (
+                          <ArrowRightLeft size={18} color="#6366F1" />
+                        )}
+                      </View>
+                      <View className="flex-1">
+                        <Text className="text-sm font-bold text-zinc-900" numberOfLines={1}>{tx.description}</Text>
+                        <Text className="text-[11px] text-zinc-500 mt-0.5">
+                          {categoryName} • {accountName}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View className="items-end">
+                      <Text className={`text-sm font-extrabold ${
+                        tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-zinc-900' : 'text-indigo-600'
+                      }`}>
+                        {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{formatMoney(tx.amount_minor)}
+                      </Text>
+                      <Text className="text-[10px] text-zinc-400 mt-0.5">{formatDate(tx.date)}</Text>
+                    </View>
                   </View>
-                </View>
-              </Card>
-            ));
+                </Card>
+              );
+            });
           })()}
         </View>
 
@@ -509,21 +629,21 @@ export default function DashboardScreen() {
 
             <View className="flex-row items-center gap-2">
               {reminders.length > 0 && (
-                <TouchableOpacity
+                <Pressable
                   onPress={async () => {
                     if (user?.id) {
                       await reminderService.clearAllReminders(user.id);
                       refetchReminders();
                     }
                   }}
-                  className="px-2.5 py-1 rounded-full bg-rose-50 border border-rose-200"
+                  className="px-2.5 py-1 rounded-full bg-rose-50 border border-rose-200 active:bg-rose-100"
                 >
                   <Text className="text-xs font-bold text-rose-600">Clear All</Text>
-                </TouchableOpacity>
+                </Pressable>
               )}
               <Pressable
                 onPress={() => setNotifModalVisible(false)}
-                className="w-8 h-8 rounded-full bg-zinc-100 items-center justify-center"
+                className="w-8 h-8 rounded-full bg-zinc-100 items-center justify-center active:bg-zinc-200"
               >
                 <X size={18} color="#71717A" />
               </Pressable>
@@ -603,86 +723,237 @@ export default function DashboardScreen() {
             contentContainerStyle={{ paddingBottom: 24 }}
           >
             {/* All Accounts Option */}
-            <TouchableOpacity
-              activeOpacity={0.7}
+            <Pressable
               onPress={() => {
                 try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                 setSelectedBankId('all');
                 setBankSelectModalVisible(false);
               }}
-              className={`flex-row items-center justify-between p-4 mb-3 rounded-2xl border ${
-                selectedBankId === 'all'
-                  ? 'bg-zinc-900 border-zinc-900 shadow-sm'
-                  : 'bg-zinc-50 border-zinc-200'
-              }`}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: 16,
+                marginBottom: 12,
+                borderRadius: 16,
+                borderWidth: 1,
+                backgroundColor: selectedBankId === 'all' ? '#18181b' : '#fafafa',
+                borderColor: selectedBankId === 'all' ? '#18181b' : '#e4e4e7',
+              }}
             >
-              <View className="flex-row items-center gap-3">
-                <View className="w-10 h-10 rounded-xl bg-zinc-800 items-center justify-center">
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, marginRight: 8 }}>
+                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#27272a', alignItems: 'center', justifyContent: 'center' }}>
                   <Wallet size={18} color="#10B981" />
                 </View>
-                <View>
-                  <Text className={`text-sm font-bold ${selectedBankId === 'all' ? 'text-white' : 'text-zinc-900'}`}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: selectedBankId === 'all' ? '#ffffff' : '#09090b' }}>
                     All Accounts
                   </Text>
-                  <Text className={`text-xs ${selectedBankId === 'all' ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                  <Text style={{ fontSize: 12, marginTop: 2, color: selectedBankId === 'all' ? '#a1a1aa' : '#71717a' }}>
                     {accounts.length} linked bank{accounts.length !== 1 ? 's' : ''} combined
                   </Text>
                 </View>
               </View>
 
-              <View className="flex-row items-center gap-2">
-                <Text className={`text-sm font-black ${selectedBankId === 'all' ? 'text-emerald-400' : 'text-zinc-900'}`}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: '900',
+                    color: selectedBankId === 'all'
+                      ? (totalBalance < 0 ? '#f87171' : '#34d399')
+                      : (totalBalance < 0 ? '#ef4444' : '#09090b'),
+                  }}
+                >
                   {formatMoney(totalBalance)}
                 </Text>
                 {selectedBankId === 'all' && <Check size={18} color="#10B981" />}
               </View>
-            </TouchableOpacity>
+            </Pressable>
 
             {/* Individual Banks */}
             {accounts.map((acc) => {
               const isSelected = selectedBankId === acc.id;
+              const isAccNeg = (acc.balance || 0) < 0;
               return (
-                <TouchableOpacity
+                <Pressable
                   key={acc.id}
-                  activeOpacity={0.7}
                   onPress={() => {
                     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                     setSelectedBankId(acc.id);
                     setBankSelectModalVisible(false);
                   }}
-                  className={`flex-row items-center justify-between p-4 mb-3 rounded-2xl border ${
-                    isSelected
-                      ? 'bg-zinc-900 border-zinc-900 shadow-sm'
-                      : 'bg-zinc-50 border-zinc-200'
-                  }`}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: 16,
+                    marginBottom: 12,
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    backgroundColor: isSelected ? '#18181b' : '#fafafa',
+                    borderColor: isSelected ? '#18181b' : '#e4e4e7',
+                  }}
                 >
-                  <View className="flex-row items-center gap-3 flex-1 mr-2">
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, marginRight: 8 }}>
                     <View
-                      style={{ backgroundColor: acc.color || '#6366F1' }}
-                      className="w-10 h-10 rounded-xl items-center justify-center"
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 12,
+                        backgroundColor: acc.color || '#6366F1',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
                     >
                       <Building2 size={18} color="#FFFFFF" />
                     </View>
-                    <View className="flex-1">
-                      <Text className={`text-sm font-bold ${isSelected ? 'text-white' : 'text-zinc-900'}`} numberOfLines={1}>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{ fontSize: 14, fontWeight: '700', color: isSelected ? '#ffffff' : '#09090b' }}
+                        numberOfLines={1}
+                      >
                         {acc.name}
                       </Text>
-                      <Text className={`text-xs ${isSelected ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                      <Text style={{ fontSize: 12, marginTop: 2, color: isSelected ? '#a1a1aa' : '#71717a' }}>
                         {acc.type ? acc.type.toUpperCase() : 'BANK'}
                       </Text>
                     </View>
                   </View>
 
-                  <View className="flex-row items-center gap-2">
-                    <Text className={`text-sm font-black ${isSelected ? 'text-emerald-400' : 'text-zinc-900'}`}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontWeight: '900',
+                        color: isSelected
+                          ? (isAccNeg ? '#f87171' : '#34d399')
+                          : (isAccNeg ? '#ef4444' : '#09090b'),
+                      }}
+                    >
                       {formatMoney(acc.balance || 0)}
                     </Text>
                     {isSelected && <Check size={18} color="#10B981" />}
+                    <Pressable
+                      onPress={(e) => handleOpenEditAccount(acc, e)}
+                      hitSlop={8}
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: 8,
+                        backgroundColor: isSelected ? '#27272a' : '#f4f4f5',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginLeft: 4,
+                      }}
+                    >
+                      <Pencil size={13} color={isSelected ? '#ffffff' : '#71717a'} />
+                    </Pressable>
                   </View>
-                </TouchableOpacity>
+                </Pressable>
               );
             })}
           </ScrollView>
+        </Pressable>
+      </AppModal>
+
+      {/* Edit / Adjust Account Modal */}
+      <AppModal
+        visible={!!editingAccount}
+        onClose={() => setEditingAccount(null)}
+        animationType="fade"
+      >
+        <Pressable
+          style={{
+            backgroundColor: '#ffffff',
+            borderRadius: 24,
+            padding: 24,
+            borderWidth: 1,
+            borderColor: '#e4e4e7',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 10 },
+            shadowOpacity: 0.15,
+            shadowRadius: 20,
+            elevation: 10,
+          }}
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#f4f4f5', alignItems: 'center', justifyContent: 'center' }}>
+                <Building2 size={20} color="#09090b" />
+              </View>
+              <View>
+                <Text style={{ fontSize: 16, fontWeight: '800', color: '#09090b' }}>Edit Account</Text>
+                <Text style={{ fontSize: 12, color: '#71717a' }}>Adjust balance or account name</Text>
+              </View>
+            </View>
+            <Pressable
+              onPress={() => setEditingAccount(null)}
+              style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#f4f4f5', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <X size={16} color="#71717a" />
+            </Pressable>
+          </View>
+
+          <Input
+            label="Account Name"
+            value={editAccName}
+            onChangeText={setEditAccName}
+            placeholder="e.g. Bank of Baroda"
+          />
+
+          <Input
+            label="Current Balance (₹)"
+            value={editAccBalance}
+            onChangeText={setEditAccBalance}
+            placeholder="e.g. 10000 or -200"
+            keyboardType="numbers-and-punctuation"
+          />
+
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 2, marginBottom: 16 }}>
+            <Pressable
+              onPress={handleRecalculateBalance}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 10,
+                backgroundColor: '#f4f4f5',
+                borderWidth: 1,
+                borderColor: '#e4e4e7',
+              }}
+            >
+              <RotateCcw size={13} color="#4f46e5" />
+              <Text style={{ fontSize: 11, fontWeight: '700', color: '#4f46e5' }}>Calculate from Transactions</Text>
+            </Pressable>
+          </View>
+
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Button
+                variant="outline"
+                size="md"
+                onPress={handleDeleteAccount}
+              >
+                <Trash2 size={16} color="#ef4444" />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#ef4444', marginLeft: 4 }}>Archive</Text>
+              </Button>
+            </View>
+
+            <View style={{ flex: 2 }}>
+              <Button
+                variant="primary"
+                size="md"
+                loading={isSavingAccount}
+                onPress={handleSaveAccount}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#ffffff' }}>Save Changes</Text>
+              </Button>
+            </View>
+          </View>
         </Pressable>
       </AppModal>
 
@@ -753,5 +1024,85 @@ export default function DashboardScreen() {
         </Pressable>
       </AppModal>
     </SafeAreaView>
+  );
+}
+
+export default function MainTabsPagerScreen() {
+  const { width: SCREEN_WIDTH } = useWindowDimensions();
+  const activeTabIndex = useTabStore((s) => s.activeTabIndex);
+  const setActiveTabIndex = useTabStore((s) => s.setActiveTabIndex);
+  const tabScrollRequested = useTabStore((s) => s.tabScrollRequested);
+  const clearScrollRequest = useTabStore((s) => s.clearScrollRequest);
+  const pagerRef = useRef<ScrollView>(null);
+  const currentPageRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (tabScrollRequested !== null) {
+      const fromIndex = currentPageRef.current;
+      const toIndex = tabScrollRequested;
+      const isAdjacent = Math.abs(toIndex - fromIndex) <= 1;
+
+      pagerRef.current?.scrollTo({
+        x: toIndex * SCREEN_WIDTH,
+        animated: isAdjacent,
+      });
+      currentPageRef.current = toIndex;
+      clearScrollRequest();
+    }
+  }, [tabScrollRequested, SCREEN_WIDTH, clearScrollRequest]);
+
+  const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const offsetX = e.nativeEvent.contentOffset.x;
+    const pageIndex = Math.round(offsetX / SCREEN_WIDTH);
+    if (pageIndex !== activeTabIndex && pageIndex >= 0 && pageIndex <= 4) {
+      currentPageRef.current = pageIndex;
+      setActiveTabIndex(pageIndex);
+    }
+  };
+
+  const handleMomentumScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const pageIndex = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+    if (pageIndex >= 0 && pageIndex <= 4) {
+      currentPageRef.current = pageIndex;
+      if (pageIndex !== activeTabIndex) {
+        setActiveTabIndex(pageIndex);
+        try {
+          Haptics.selectionAsync();
+        } catch {}
+      }
+    }
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+      <ScrollView
+        ref={pagerRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        bounces={false}
+        onScroll={handleScroll}
+        onMomentumScrollEnd={handleMomentumScrollEnd}
+        scrollEventThrottle={16}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ width: SCREEN_WIDTH * 5 }}
+      >
+        <View style={{ width: SCREEN_WIDTH, height: '100%' }}>
+          <DashboardScreen />
+        </View>
+        <View style={{ width: SCREEN_WIDTH, height: '100%' }}>
+          <TransactionsScreen />
+        </View>
+        <View style={{ width: SCREEN_WIDTH, height: '100%' }}>
+          <SubscriptionsScreen />
+        </View>
+        <View style={{ width: SCREEN_WIDTH, height: '100%' }}>
+          <BudgetsScreen />
+        </View>
+        <View style={{ width: SCREEN_WIDTH, height: '100%' }}>
+          <MoreScreen />
+        </View>
+      </ScrollView>
+    </View>
   );
 }
