@@ -22,6 +22,16 @@ export function parseMoneyToMinor(amountString: string): number {
   return Math.round(parsed * 100);
 }
 
+export function parseSignedMoneyToMinor(amountString: string): number {
+  if (!amountString) return 0;
+  const isNegative = amountString.trim().startsWith('-');
+  const cleanString = amountString.replace(/[^0-9.]/g, '');
+  const parsed = parseFloat(cleanString);
+  if (isNaN(parsed)) return 0;
+  const minor = Math.round(parsed * 100);
+  return isNegative ? -minor : minor;
+}
+
 export function addMoney(a: number, b: number): number {
   return a + b;
 }
