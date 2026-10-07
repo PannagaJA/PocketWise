@@ -26,38 +26,70 @@ export const budgetService = {
       .order('created_at', { ascending: false });
 
     if (bErr) throw bErr;
-    if (!budgets) return [];
+    if (!budgets || budgets.length === 0) return [];
 
-    // Calculate actual spending per budget from transactions
-    const enrichedBudgets = await Promise.all(
-      budgets.map(async (b) => {
-        const { data: txs, error: tErr } = await supabase
-          .from('transactions')
-          .select('amount_minor')
-          .eq('user_id', userId)
-          .eq('category_id', b.category_id)
-          .eq('type', 'expense')
-          .gte('date', b.start_date)
-          .lte('date', b.end_date)
-          .is('deleted_at', null);
+    const minDate = budgets.reduce((min, b) => (b.start_date < min ? b.start_date : min), budgets[0].start_date);
+    const maxDate = budgets.reduce((max, b) => (b.end_date > max ? b.end_date : max), budgets[0].end_date);
 
-        if (tErr) throw tErr;
+    // Paginate through all matching rows within the date window so row limits cannot truncate amount_spent
+    const pageSize = 1000;
+    let page = 0;
+    let allTxs: Array<{ category_id: string; amount_minor: number; date: string }> = [];
+    let hasMore = true;
 
-        const amount_spent = (txs || []).reduce((sum, t) => sum + Number(t.amount_minor), 0);
-        const category_name = b.categories?.name || 'Category';
-        const category_color = b.categories?.color || '#6366F1';
+    while (hasMore) {
+      const from = page * pageSize;
+      const to = from + pageSize - 1;
 
-        // Check & create threshold reminders (80% and 100%) deterministically
+      const { data: txBatch, error: tErr } = await supabase
+        .from('transactions')
+        .select('id, category_id, amount_minor, date')
+        .eq('user_id', userId)
+        .eq('type', 'expense')
+        .gte('date', minDate)
+        .lte('date', maxDate)
+        .is('deleted_at', null)
+        .order('date', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to);
+
+      if (tErr) throw tErr;
+
+      if (txBatch && txBatch.length > 0) {
+        allTxs = allTxs.concat(txBatch);
+        if (txBatch.length < pageSize) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      } else {
+        hasMore = false;
+      }
+    }
+
+    const enrichedBudgets: Budget[] = [];
+
+    for (const b of budgets) {
+      const amount_spent = allTxs
+        .filter((t) => t.category_id === b.category_id && t.date >= b.start_date && t.date <= b.end_date)
+        .reduce((sum, t) => sum + Number(t.amount_minor), 0);
+
+      const category_name = b.categories?.name || 'Category';
+      const category_color = b.categories?.color || '#6366F1';
+
+      try {
         await this.checkThresholdReminders(userId, b.id, category_name, b.amount_minor, amount_spent, b.start_date);
+      } catch (remErr) {
+        console.warn(`[BudgetService] Reminder check failed for budget ${b.id}:`, remErr);
+      }
 
-        return {
-          ...b,
-          category_name,
-          category_color,
-          amount_spent,
-        };
-      })
-    );
+      enrichedBudgets.push({
+        ...b,
+        category_name,
+        category_color,
+        amount_spent,
+      });
+    }
 
     return enrichedBudgets;
   },
