@@ -76,7 +76,32 @@ export const smsStorage = {
   async getPendingReviews(): Promise<ParsedSmsTransaction[]> {
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.PENDING_REVIEWS);
-      if (data) return JSON.parse(data);
+      if (data) {
+        const list: ParsedSmsTransaction[] = JSON.parse(data);
+        return list.filter((tx) => {
+          const sender = (tx.smsSender || '').toLowerCase();
+          if (sender.endsWith('-p') || sender.endsWith('_p')) {
+            return false;
+          }
+          if (tx.rawText) {
+            const raw = tx.rawText.toLowerCase();
+            const promoPatterns = [
+              'good news! get',
+              'good news get',
+              'get up to rs',
+              'get up to inr',
+              'get upto rs',
+              'cashback on recharge',
+              'cashback on next',
+              'cashback on your next',
+            ];
+            if (promoPatterns.some((pattern) => raw.includes(pattern))) {
+              return false;
+            }
+          }
+          return true;
+        });
+      }
     } catch {
       // Ignore
     }
@@ -84,15 +109,29 @@ export const smsStorage = {
   },
 
   async addPendingReview(tx: ParsedSmsTransaction): Promise<void> {
-    const current = await this.getPendingReviews();
-    current.unshift(tx);
-    await AsyncStorage.setItem(STORAGE_KEYS.PENDING_REVIEWS, JSON.stringify(current));
+    const sender = (tx.smsSender || '').toLowerCase();
+    if (sender.endsWith('-p') || sender.endsWith('_p')) {
+      return; // Do not enqueue promotional SMS
+    }
+
+    try {
+      const current = await this.getPendingReviews();
+      const filtered = current.filter((t) => t.sourceMessageId !== tx.sourceMessageId);
+      filtered.unshift(tx);
+      await AsyncStorage.setItem(STORAGE_KEYS.PENDING_REVIEWS, JSON.stringify(filtered));
+    } catch {
+      // Ignore
+    }
   },
 
   async removePendingReview(sourceMessageId: string): Promise<void> {
-    const current = await this.getPendingReviews();
-    const filtered = current.filter((t) => t.sourceMessageId !== sourceMessageId);
-    await AsyncStorage.setItem(STORAGE_KEYS.PENDING_REVIEWS, JSON.stringify(filtered));
+    try {
+      const current = await this.getPendingReviews();
+      const filtered = current.filter((t) => t.sourceMessageId !== sourceMessageId);
+      await AsyncStorage.setItem(STORAGE_KEYS.PENDING_REVIEWS, JSON.stringify(filtered));
+    } catch {
+      // Ignore
+    }
   },
 
   // Increment Detected Count
