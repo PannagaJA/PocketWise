@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { cleanTransactionDescription } from '../lib/services/transaction.service';
 
 export interface Profile {
   id: string;
@@ -109,7 +110,16 @@ export const useAppStore = create<AppStore>((set) => ({
     set((state) => ({
       accounts: state.accounts.map((a) => (a.id === accountId ? { ...a, balance: newBalance } : a)),
     })),
-  addTransaction: (tx) => set((state) => ({ transactions: [tx, ...state.transactions] })),
+  addTransaction: (tx) =>
+    set((state) => ({
+      transactions: [
+        {
+          ...tx,
+          description: cleanTransactionDescription(tx.description, tx.category_name, tx.type),
+        },
+        ...state.transactions,
+      ],
+    })),
   addSubscription: (sub) => set((state) => ({ subscriptions: [...state.subscriptions, sub] })),
   fetchMockData: () => {},
 }));
