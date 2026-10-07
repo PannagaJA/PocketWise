@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from './ui/Button';
@@ -16,7 +16,7 @@ interface ReviewModalProps {
   transaction: ParsedSmsTransaction | null;
   visible: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm?: () => void;
 }
 
 export function SmsTransactionReviewModal({
@@ -25,22 +25,32 @@ export function SmsTransactionReviewModal({
   onClose,
   onConfirm,
 }: ReviewModalProps) {
-  if (!transaction) return null;
-
   const { user } = useAuth();
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounts', user?.id],
     queryFn: () => accountService.getAccounts(user?.id || ''),
-    enabled: !!user?.id,
+    enabled: !!user?.id && visible,
   });
 
-  const [selectedBankId, setSelectedBankId] = useState<string>(transaction.bankId);
-  const [selectedBankName, setSelectedBankName] = useState<string>(
-    transaction.bankName !== 'Unknown Bank' ? transaction.bankName : ''
-  );
-  const [merchant, setMerchant] = useState<string>(transaction.merchant || '');
-  const [category, setCategory] = useState<string>(transaction.category || 'Other');
+  const [selectedBankId, setSelectedBankId] = useState<string>('');
+  const [selectedBankName, setSelectedBankName] = useState<string>('');
+  const [merchant, setMerchant] = useState<string>('');
+  const [category, setCategory] = useState<string>('Other');
   const [step, setStep] = useState<'review' | 'select_bank'>('review');
+
+  useEffect(() => {
+    if (transaction) {
+      setSelectedBankId(transaction.bankId || '');
+      setSelectedBankName(
+        transaction.bankName && transaction.bankName !== 'Unknown Bank' ? transaction.bankName : ''
+      );
+      setMerchant(transaction.merchant || '');
+      setCategory(transaction.category || 'Other');
+      setStep('review');
+    }
+  }, [transaction]);
+
+  if (!transaction || !visible) return null;
 
   const handleConfirm = async () => {
     const selectedAccount = accounts.find((a) => a.id === selectedBankId || a.name === selectedBankName);
@@ -75,7 +85,7 @@ export function SmsTransactionReviewModal({
     await smsStorage.removePendingReview(transaction.sourceMessageId || '');
     await smsListenerService.saveTransactionToStore(finalTx);
 
-    onConfirm();
+    if (onConfirm) onConfirm();
     onClose();
   };
 
@@ -98,7 +108,7 @@ export function SmsTransactionReviewModal({
             </View>
             <View>
               <Text className="text-xl font-extrabold text-zinc-900">Transaction Review</Text>
-              <Text className="text-xs text-zinc-500">Auto-detected SMS transaction</Text>
+              <Text className="text-xs text-zinc-500">SMS transaction details</Text>
             </View>
           </View>
           <Pressable
