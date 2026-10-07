@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Pressable, BackHandler, Alert, Dimensions, useWindowDimensions, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, Pressable, TouchableOpacity, BackHandler, Alert, Dimensions, useWindowDimensions, NativeSyntheticEvent, NativeScrollEvent, GestureResponderEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useFocusEffect } from 'expo-router';
@@ -198,8 +198,8 @@ export default function DashboardScreen() {
     }
   }, [user?.id]);
 
-  const upcomingBills = bills.filter((b) => !b.is_paid).slice(0, 3);
-  const activeGoals = goals.slice(0, 2);
+  const upcomingBills = useMemo(() => bills.filter((b) => !b.is_paid).slice(0, 3), [bills]);
+  const activeGoals = useMemo(() => goals.slice(0, 2), [goals]);
 
   // Calculate Net Totals & Realtime Cashflow Trend (Memoized for high performance)
   const totalBalance = useMemo(() => accounts.reduce((sum, a) => sum + (a.balance || 0), 0), [accounts]);
@@ -211,6 +211,30 @@ export default function DashboardScreen() {
     () => transactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount_minor, 0),
     [transactions]
   );
+
+  const selectedAccount = useMemo(
+    () => accounts.find((a) => a.id === selectedBankId),
+    [accounts, selectedBankId]
+  );
+
+  const activeFilteredBalance = useMemo(
+    () => (selectedBankId === 'all' ? totalBalance : (selectedAccount?.balance || 0)),
+    [selectedBankId, totalBalance, selectedAccount]
+  );
+
+  const filteredRecentTxs = useMemo(() => {
+    const list =
+      selectedBankId === 'all'
+        ? transactions
+        : transactions.filter((t) => t.account_id === selectedBankId);
+    return list.slice(0, 5);
+  }, [transactions, selectedBankId]);
+
+  const handleSelectBank = useCallback((bankId: string) => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    setSelectedBankId(bankId);
+    setBankSelectModalVisible(false);
+  }, []);
 
   const handleOpenEditAccount = (acc: Account, e?: any) => {
     e?.stopPropagation?.();
@@ -322,60 +346,57 @@ export default function DashboardScreen() {
         </View>
 
         {/* Bank Account Dropdown Selector */}
-        {accounts.length > 0 && (() => {
-          const selectedAccount = accounts.find((a) => a.id === selectedBankId);
-          return (
-            <View className="mb-4">
-              <Pressable
-                onPress={() => {
-                  try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                  setBankSelectModalVisible(true);
-                }}
-                className="flex-row items-center justify-between p-3.5 bg-white border border-zinc-200 rounded-2xl shadow-sm active:bg-zinc-50"
-              >
-                <View className="flex-row items-center gap-3 flex-1 mr-2">
-                  <View
-                    style={{ backgroundColor: selectedBankId === 'all' ? '#09090B' : (selectedAccount?.color || '#6366F1') }}
-                    className="w-9 h-9 rounded-xl items-center justify-center shadow-sm"
-                  >
-                    {selectedBankId === 'all' ? (
-                      <Wallet size={16} color="#10B981" />
-                    ) : (
-                      <Building2 size={16} color="#FFFFFF" />
-                    )}
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Active Account Filter</Text>
-                    <Text className="text-sm font-extrabold text-zinc-900" numberOfLines={1}>
-                      {selectedBankId === 'all' ? 'All Accounts Combined' : selectedAccount?.name || 'Selected Bank'}
-                    </Text>
-                  </View>
+        {accounts.length > 0 && (
+          <View className="mb-4">
+            <Pressable
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                setBankSelectModalVisible(true);
+              }}
+              className="flex-row items-center justify-between p-3.5 bg-white border border-zinc-200 rounded-2xl shadow-sm active:bg-zinc-50"
+            >
+              <View className="flex-row items-center gap-3 flex-1 mr-2">
+                <View
+                  style={{ backgroundColor: selectedBankId === 'all' ? '#09090B' : (selectedAccount?.color || '#6366F1') }}
+                  className="w-9 h-9 rounded-xl items-center justify-center shadow-sm"
+                >
+                  {selectedBankId === 'all' ? (
+                    <Wallet size={16} color="#10B981" />
+                  ) : (
+                    <Building2 size={16} color="#FFFFFF" />
+                  )}
                 </View>
+                <View className="flex-1">
+                  <Text className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Active Account Filter</Text>
+                  <Text className="text-sm font-extrabold text-zinc-900" numberOfLines={1}>
+                    {selectedBankId === 'all' ? 'All Accounts Combined' : selectedAccount?.name || 'Selected Bank'}
+                  </Text>
+                </View>
+              </View>
 
-                <View className="flex-row items-center gap-2">
-                  <View
-                    className={`px-2.5 py-1 ${
-                      (selectedBankId === 'all' ? totalBalance : (selectedAccount?.balance || 0)) < 0
-                        ? 'bg-rose-50 border border-rose-200'
-                        : 'bg-emerald-50 border border-emerald-200'
-                    } rounded-xl`}
+              <View className="flex-row items-center gap-2">
+                <View
+                  className={`px-2.5 py-1 ${
+                    activeFilteredBalance < 0
+                      ? 'bg-rose-50 border border-rose-200'
+                      : 'bg-emerald-50 border border-emerald-200'
+                  } rounded-xl`}
+                >
+                  <Text
+                    className={`text-xs font-black ${
+                      activeFilteredBalance < 0
+                        ? 'text-rose-700'
+                        : 'text-emerald-700'
+                    }`}
                   >
-                    <Text
-                      className={`text-xs font-black ${
-                        (selectedBankId === 'all' ? totalBalance : (selectedAccount?.balance || 0)) < 0
-                          ? 'text-rose-700'
-                          : 'text-emerald-700'
-                      }`}
-                    >
-                      {formatMoney(selectedBankId === 'all' ? totalBalance : (selectedAccount?.balance || 0))}
-                    </Text>
-                  </View>
-                  <ChevronDown size={18} color="#71717A" />
+                    {formatMoney(activeFilteredBalance)}
+                  </Text>
                 </View>
-              </Pressable>
-            </View>
-          );
-        })()}
+                <ChevronDown size={18} color="#71717A" />
+              </View>
+            </Pressable>
+          </View>
+        )}
 
         {/* Net Total Balance Interactive Live Growth Chart Card */}
         <NetBalanceChartCard
@@ -453,36 +474,27 @@ export default function DashboardScreen() {
               <Text className="text-xs font-bold text-indigo-600">See All</Text>
             </Pressable>
           </View>
-          {(() => {
-            const filteredTxs =
-              selectedBankId === 'all'
-                ? transactions
-                : transactions.filter((t) => t.account_id === selectedBankId);
-
-            if (filteredTxs.length === 0) {
-              return (
-                <Card className="p-6 bg-white border border-zinc-200 items-center rounded-2xl">
-                  <Text className="text-sm font-semibold text-zinc-700">No transactions found</Text>
-                  <Text className="text-xs text-zinc-400 mt-0.5 mb-3 text-center">
-                    {selectedBankId === 'all'
-                      ? 'Your latest financial activities will show here.'
-                      : `No transactions recorded for ${accounts.find((a) => a.id === selectedBankId)?.name || 'this bank'}.`}
-                  </Text>
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    onPress={() => {
-                      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
-                      setRecordTxModalVisible(true);
-                    }}
-                  >
-                    <Text className="text-white font-semibold text-xs">Add Transaction</Text>
-                  </Button>
-                </Card>
-              );
-            }
-
-            return filteredTxs.slice(0, 5).map((tx) => {
+          {filteredRecentTxs.length === 0 ? (
+            <Card className="p-6 bg-white border border-zinc-200 items-center rounded-2xl">
+              <Text className="text-sm font-semibold text-zinc-700">No transactions found</Text>
+              <Text className="text-xs text-zinc-400 mt-0.5 mb-3 text-center">
+                {selectedBankId === 'all'
+                  ? 'Your latest financial activities will show here.'
+                  : `No transactions recorded for ${selectedAccount?.name || 'this bank'}.`}
+              </Text>
+              <Button
+                size="sm"
+                variant="primary"
+                onPress={() => {
+                  try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+                  setRecordTxModalVisible(true);
+                }}
+              >
+                <Text className="text-white font-semibold text-xs">Add Transaction</Text>
+              </Button>
+            </Card>
+          ) : (
+            filteredRecentTxs.map((tx) => {
               const accountName =
                 tx.account?.name ||
                 (Array.isArray(tx.account) && (tx.account as any)[0]?.name) ||
@@ -529,8 +541,8 @@ export default function DashboardScreen() {
                   </View>
                 </Card>
               );
-            });
-          })()}
+            })
+          )}
         </View>
 
         {/* Upcoming Bills Widget */}
@@ -693,10 +705,7 @@ export default function DashboardScreen() {
         onClose={() => setBankSelectModalVisible(false)}
         animationType="slide"
       >
-        <Pressable
-          className="flex-col w-full"
-          onPress={(e) => e.stopPropagation()}
-        >
+        <View className="flex-col w-full">
           {/* Subtle Drag Indicator */}
           <View className="w-12 h-1 bg-zinc-300 rounded-full self-center mt-3 mb-1" />
 
@@ -711,15 +720,16 @@ export default function DashboardScreen() {
                 <Text className="text-xs text-zinc-500 mt-0.5">Filter dashboard metrics, charts, & transactions</Text>
               </View>
             </View>
-            <Pressable
+            <TouchableOpacity
               onPress={() => {
                 try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                 setBankSelectModalVisible(false);
               }}
-              className="w-8 h-8 rounded-full bg-zinc-100 items-center justify-center active:bg-zinc-200"
+              activeOpacity={0.7}
+              className="w-8 h-8 rounded-full bg-zinc-100 items-center justify-center"
             >
               <X size={16} color="#71717A" />
-            </Pressable>
+            </TouchableOpacity>
           </View>
 
           {/* Scrollable Content */}
@@ -727,15 +737,13 @@ export default function DashboardScreen() {
             className="px-5 pt-3"
             style={{ flexShrink: 1 }}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="always"
             contentContainerStyle={{ paddingBottom: 24 }}
           >
             {/* All Accounts Option */}
-            <Pressable
-              onPress={() => {
-                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                setSelectedBankId('all');
-                setBankSelectModalVisible(false);
-              }}
+            <TouchableOpacity
+              onPress={() => handleSelectBank('all')}
+              activeOpacity={0.7}
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -776,20 +784,17 @@ export default function DashboardScreen() {
                 </Text>
                 {selectedBankId === 'all' && <Check size={18} color="#10B981" />}
               </View>
-            </Pressable>
+            </TouchableOpacity>
 
             {/* Individual Banks */}
             {accounts.map((acc) => {
               const isSelected = selectedBankId === acc.id;
               const isAccNeg = (acc.balance || 0) < 0;
               return (
-                <Pressable
+                <TouchableOpacity
                   key={acc.id}
-                  onPress={() => {
-                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                    setSelectedBankId(acc.id);
-                    setBankSelectModalVisible(false);
-                  }}
+                  onPress={() => handleSelectBank(acc.id)}
+                  activeOpacity={0.7}
                   style={{
                     flexDirection: 'row',
                     alignItems: 'center',
@@ -841,9 +846,10 @@ export default function DashboardScreen() {
                       {formatMoney(acc.balance || 0)}
                     </Text>
                     {isSelected && <Check size={18} color="#10B981" />}
-                    <Pressable
-                      onPress={(e) => handleOpenEditAccount(acc, e)}
-                      hitSlop={8}
+                    <TouchableOpacity
+                      onPress={(e: GestureResponderEvent) => handleOpenEditAccount(acc, e)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      activeOpacity={0.7}
                       style={{
                         width: 30,
                         height: 30,
@@ -855,13 +861,13 @@ export default function DashboardScreen() {
                       }}
                     >
                       <Pencil size={13} color={isSelected ? '#ffffff' : '#71717a'} />
-                    </Pressable>
+                    </TouchableOpacity>
                   </View>
-                </Pressable>
+                </TouchableOpacity>
               );
             })}
           </ScrollView>
-        </Pressable>
+        </View>
       </AppModal>
 
       {/* Edit / Adjust Account Modal */}

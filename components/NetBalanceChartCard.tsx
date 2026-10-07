@@ -1,11 +1,11 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect, memo } from 'react';
 import { View, Text, TouchableOpacity, PanResponder, GestureResponderEvent, PanResponderGestureState } from 'react-native';
 import Svg, { Path, Defs, LinearGradient, Stop, Line, Circle } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { Card } from './ui/Card';
 import { formatMoney, formatDateTime } from '../lib/finance/core';
 import { Transaction } from '../lib/services/transaction.service';
-import { TrendingUp, TrendingDown, ArrowUpRight } from 'lucide-react-native';
+import { TrendingUp, TrendingDown } from 'lucide-react-native';
 
 export type TimePeriod = 'Day' | 'Month' | 'Year';
 
@@ -28,7 +28,11 @@ const PADDING_Y = 14;
 const PADDING_X = 12;
 const DWELL_HOLD_MS = 1000; // Hold readout for 1 second on touch release
 
-export function NetBalanceChartCard({ accounts, transactions, selectedAccountId, isLoading }: NetBalanceChartCardProps) {
+export const NetBalanceChartCard = memo(function NetBalanceChartCard({
+  accounts,
+  transactions,
+  selectedAccountId,
+}: NetBalanceChartCardProps) {
   const [period, setPeriod] = useState<TimePeriod>('Month');
   const [activeTouchPos, setActiveTouchPos] = useState<number | null>(null);
   const chartLayoutWidthRef = useRef<number>(SVG_WIDTH);
@@ -57,36 +61,37 @@ export function NetBalanceChartCard({ accounts, transactions, selectedAccountId,
     return accounts.reduce((sum, a) => sum + (a.balance || 0), 0);
   }, [accounts, selectedAccount]);
 
-  // Filter transactions for selected account
-  const activeTransactions = useMemo(() => {
-    if (selectedAccountId && selectedAccountId !== 'all') {
-      return transactions.filter((t) => t.account_id === selectedAccountId);
-    }
-    return transactions;
+  // Filter transactions for selected account and precompute timestamps once
+  const sortedTxs = useMemo(() => {
+    const list = selectedAccountId && selectedAccountId !== 'all'
+      ? transactions.filter((t) => t.account_id === selectedAccountId)
+      : transactions;
+
+    return list
+      .map((t) => ({
+        ...t,
+        time: t.date ? new Date(t.date).getTime() : NaN,
+      }))
+      .filter((t) => !isNaN(t.time))
+      .sort((a, b) => a.time - b.time);
   }, [transactions, selectedAccountId]);
 
   // 2. Build Time Series Data Points (Net Balance + Red Spent Graph)
   const chartPoints = useMemo(() => {
     const now = new Date();
+    const nowTime = now.getTime();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth();
     const currentDate = now.getDate();
 
     let rawPoints: { timestamp: number; dateLabel: string; subLabel: string; balance: number; spent: number; delta: number }[] = [];
 
-    // Clean and sort valid transactions chronologically
-    const sortedTxs = [...activeTransactions]
-      .filter((t) => t.date && !isNaN(new Date(t.date).getTime()))
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
     if (period === 'Day') {
       const startOfDay = new Date(currentYear, currentMonth, currentDate, 0, 0, 0, 0);
-      const endOfDay = new Date(currentYear, currentMonth, currentDate, 23, 59, 59, 999);
+      const startOfDayTime = startOfDay.getTime();
+      const endOfDayTime = new Date(currentYear, currentMonth, currentDate, 23, 59, 59, 999).getTime();
 
-      const todayTxs = sortedTxs.filter((t) => {
-        const d = new Date(t.date);
-        return d >= startOfDay && d <= endOfDay;
-      });
+      const todayTxs = sortedTxs.filter((t) => t.time >= startOfDayTime && t.time <= endOfDayTime);
 
       const netToday = todayTxs.reduce((sum, t) => {
         if (t.type === 'income') return sum + t.amount_minor;
@@ -99,7 +104,7 @@ export function NetBalanceChartCard({ accounts, transactions, selectedAccountId,
       let runningSpent = 0;
 
       rawPoints.push({
-        timestamp: startOfDay.getTime(),
+        timestamp: startOfDayTime,
         dateLabel: `${startOfDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, 12:00 AM`,
         subLabel: 'Start of Day',
         balance: startBalance,
@@ -108,7 +113,6 @@ export function NetBalanceChartCard({ accounts, transactions, selectedAccountId,
       });
 
       todayTxs.forEach((tx) => {
-        const txTime = new Date(tx.date);
         const delta = tx.type === 'income' ? tx.amount_minor : tx.type === 'expense' ? -tx.amount_minor : 0;
         runningBalance += delta;
         if (tx.type === 'expense') {
@@ -116,7 +120,7 @@ export function NetBalanceChartCard({ accounts, transactions, selectedAccountId,
         }
 
         rawPoints.push({
-          timestamp: txTime.getTime(),
+          timestamp: tx.time,
           dateLabel: formatDateTime(tx.date),
           subLabel: tx.description || (tx.type === 'income' ? 'Income' : 'Expense'),
           balance: runningBalance,
@@ -125,7 +129,6 @@ export function NetBalanceChartCard({ accounts, transactions, selectedAccountId,
         });
       });
 
-      const nowTime = now.getTime();
       if (rawPoints[rawPoints.length - 1].timestamp < nowTime) {
         rawPoints.push({
           timestamp: nowTime,
@@ -151,8 +154,8 @@ export function NetBalanceChartCard({ accounts, transactions, selectedAccountId,
         });
       }
     } else if (period === 'Month') {
-      const startOfMonth = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
-      const monthTxs = sortedTxs.filter((t) => new Date(t.date) >= startOfMonth && new Date(t.date) <= now);
+      const startOfMonthTime = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0).getTime();
+      const monthTxs = sortedTxs.filter((t) => t.time >= startOfMonthTime && t.time <= nowTime);
 
       const netMonth = monthTxs.reduce((sum, t) => {
         if (t.type === 'income') return sum + t.amount_minor;
@@ -164,39 +167,43 @@ export function NetBalanceChartCard({ accounts, transactions, selectedAccountId,
       const daysInMonthSoFar = currentDate;
       let cumulativeBalance = startBalance;
       let cumulativeSpent = 0;
+      let txIdx = 0;
 
       for (let day = 1; day <= daysInMonthSoFar; day++) {
         const dayStart = new Date(currentYear, currentMonth, day, 0, 0, 0, 0);
         const dayEnd = new Date(currentYear, currentMonth, day, 23, 59, 59, 999);
+        const dayEndTime = dayEnd.getTime();
 
-        const txsOnDay = sortedTxs.filter((t) => {
-          const d = new Date(t.date);
-          return d >= dayStart && d <= dayEnd;
-        });
+        let dayDelta = 0;
+        let daySpent = 0;
+        let txCount = 0;
 
-        const dayDelta = txsOnDay.reduce((sum, t) => {
-          if (t.type === 'income') return sum + t.amount_minor;
-          if (t.type === 'expense') return sum - t.amount_minor;
-          return sum;
-        }, 0);
-
-        const daySpent = txsOnDay.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount_minor, 0);
+        while (txIdx < monthTxs.length && monthTxs[txIdx].time <= dayEndTime) {
+          const tx = monthTxs[txIdx];
+          if (tx.type === 'income') dayDelta += tx.amount_minor;
+          if (tx.type === 'expense') {
+            dayDelta -= tx.amount_minor;
+            daySpent += tx.amount_minor;
+          }
+          txCount++;
+          txIdx++;
+        }
 
         cumulativeBalance += dayDelta;
         cumulativeSpent += daySpent;
 
         rawPoints.push({
-          timestamp: dayEnd.getTime(),
+          timestamp: dayEndTime,
           dateLabel: dayStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-          subLabel: txsOnDay.length > 0 ? `${txsOnDay.length} transaction${txsOnDay.length > 1 ? 's' : ''}` : 'No activity',
+          subLabel: txCount > 0 ? `${txCount} transaction${txCount > 1 ? 's' : ''}` : 'No activity',
           balance: cumulativeBalance,
           spent: cumulativeSpent,
           delta: dayDelta,
         });
       }
     } else {
-      const startOfYear = new Date(currentYear, 0, 1, 0, 0, 0, 0);
-      const yearTxs = sortedTxs.filter((t) => new Date(t.date) >= startOfYear && new Date(t.date) <= now);
+      const startOfYearTime = new Date(currentYear, 0, 1, 0, 0, 0, 0).getTime();
+      const yearTxs = sortedTxs.filter((t) => t.time >= startOfYearTime && t.time <= nowTime);
 
       const netYear = yearTxs.reduce((sum, t) => {
         if (t.type === 'income') return sum + t.amount_minor;
@@ -207,24 +214,28 @@ export function NetBalanceChartCard({ accounts, transactions, selectedAccountId,
       const startBalance = totalBalance - netYear;
       let cumulativeBalance = startBalance;
       let cumulativeSpent = 0;
+      let txIdx = 0;
 
       for (let m = 0; m <= currentMonth; m++) {
         const monthStart = new Date(currentYear, m, 1, 0, 0, 0, 0);
         const daysInM = new Date(currentYear, m + 1, 0).getDate();
         const monthEnd = new Date(currentYear, m, daysInM, 23, 59, 59, 999);
+        const monthEndTime = monthEnd.getTime();
 
-        const txsInM = sortedTxs.filter((t) => {
-          const d = new Date(t.date);
-          return d >= monthStart && d <= monthEnd;
-        });
+        let monthDelta = 0;
+        let monthSpent = 0;
+        let txCount = 0;
 
-        const monthDelta = txsInM.reduce((sum, t) => {
-          if (t.type === 'income') return sum + t.amount_minor;
-          if (t.type === 'expense') return sum - t.amount_minor;
-          return sum;
-        }, 0);
-
-        const monthSpent = txsInM.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount_minor, 0);
+        while (txIdx < yearTxs.length && yearTxs[txIdx].time <= monthEndTime) {
+          const tx = yearTxs[txIdx];
+          if (tx.type === 'income') monthDelta += tx.amount_minor;
+          if (tx.type === 'expense') {
+            monthDelta -= tx.amount_minor;
+            monthSpent += tx.amount_minor;
+          }
+          txCount++;
+          txIdx++;
+        }
 
         cumulativeBalance += monthDelta;
         cumulativeSpent += monthSpent;
@@ -232,9 +243,9 @@ export function NetBalanceChartCard({ accounts, transactions, selectedAccountId,
         const monthName = monthStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
 
         rawPoints.push({
-          timestamp: monthEnd.getTime(),
+          timestamp: monthEndTime,
           dateLabel: monthName,
-          subLabel: txsInM.length > 0 ? `${txsInM.length} transactions` : 'No activity',
+          subLabel: txCount > 0 ? `${txCount} transactions` : 'No activity',
           balance: cumulativeBalance,
           spent: cumulativeSpent,
           delta: monthDelta,
@@ -273,7 +284,7 @@ export function NetBalanceChartCard({ accounts, transactions, selectedAccountId,
       const y = PADDING_Y + chartH * (1 - bRatio);
 
       const sRatio = pt.spent / maxS;
-      const spentY = PADDING_Y + chartH * (1 - sRatio * 0.85); // scaled cleanly to stay bottom-aligned
+      const spentY = PADDING_Y + chartH * (1 - sRatio * 0.85);
 
       return {
         ...pt,
@@ -282,7 +293,7 @@ export function NetBalanceChartCard({ accounts, transactions, selectedAccountId,
         spentY: Math.round(spentY * 100) / 100,
       };
     });
-  }, [accounts, transactions, totalBalance, period, selectedAccountId, activeTransactions]);
+  }, [totalBalance, period, sortedTxs]);
 
   // 3. Total Spent in Current Period
   const totalSpentPeriod = useMemo(() => {
@@ -298,8 +309,8 @@ export function NetBalanceChartCard({ accounts, transactions, selectedAccountId,
   }, [chartPoints]);
 
   const isPositive = periodChange >= 0 && totalBalance >= 0;
-  const netStrokeColor = isPositive ? '#10B981' : '#EF4444'; // Emerald / Rose for Net Balance
-  const spentStrokeColor = '#EF4444'; // Rose Red for Spent Graph
+  const netStrokeColor = isPositive ? '#10B981' : '#EF4444';
+  const spentStrokeColor = '#EF4444';
 
   // 4. Generate SVG Paths for BOTH Net Balance & Red Spent Graph
   const svgPaths = useMemo(() => {
@@ -322,7 +333,6 @@ export function NetBalanceChartCard({ accounts, transactions, selectedAccountId,
       };
     }
 
-    // Cubic Bezier path for Net Balance
     let netD = `M ${chartPoints[0].x} ${chartPoints[0].y}`;
     let spentD = `M ${chartPoints[0].x} ${chartPoints[0].spentY}`;
 
@@ -332,14 +342,12 @@ export function NetBalanceChartCard({ accounts, transactions, selectedAccountId,
       const p2 = chartPoints[i + 1];
       const p3 = chartPoints[i + 2 < chartPoints.length ? i + 2 : i + 1];
 
-      // Net Bezier
       const cp1x = p1.x + (p2.x - p0.x) / 6;
       const cp1y = p1.y + (p2.y - p0.y) / 6;
       const cp2x = p2.x - (p3.x - p1.x) / 6;
       const cp2y = p2.y - (p3.y - p1.y) / 6;
       netD += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
 
-      // Spent Bezier
       const scp1y = p1.spentY + (p2.spentY - p0.spentY) / 6;
       const scp2y = p2.spentY - (p3.spentY - p1.spentY) / 6;
       spentD += ` C ${cp1x.toFixed(1)} ${scp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${scp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.spentY.toFixed(1)}`;
@@ -432,12 +440,14 @@ export function NetBalanceChartCard({ accounts, transactions, selectedAccountId,
     };
   }, [activeTouchPos, chartPoints]);
 
-  if (activeInterpolatedState && activeInterpolatedState.closestIdx !== lastHapticIdxRef.current) {
-    lastHapticIdxRef.current = activeInterpolatedState.closestIdx;
-    try {
-      Haptics.selectionAsync();
-    } catch { }
-  }
+  useEffect(() => {
+    if (activeInterpolatedState && activeInterpolatedState.closestIdx !== lastHapticIdxRef.current) {
+      lastHapticIdxRef.current = activeInterpolatedState.closestIdx;
+      try {
+        Haptics.selectionAsync();
+      } catch {}
+    }
+  }, [activeInterpolatedState]);
 
   // 6. Smooth Pan Gesture Handler with 1-second Dwell Hold on Touch Release
   const panResponder = useRef(
@@ -628,4 +638,4 @@ export function NetBalanceChartCard({ accounts, transactions, selectedAccountId,
       </View>
     </Card>
   );
-}
+});
