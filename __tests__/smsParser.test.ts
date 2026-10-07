@@ -315,7 +315,7 @@ describe('Android Bank SMS Transaction Auto-Detection Parser Pipeline', () => {
         amount_minor: 2680000,
         currency: 'INR',
         date: '2026-09-11',
-        description: 'NEFT Salary Credit [Auto detected]',
+        description: 'NEFT Salary Credit',
       },
     ];
 
@@ -446,6 +446,46 @@ describe('Android Bank SMS Transaction Auto-Detection Parser Pipeline', () => {
     expect(recordedTx?.amount).toBe(120000);
     expect(recordedTx?.account_name).toBe('Kotak Mahindra Bank (XX3344)');
   });
+
+  // Test 21: Rejects promotional / marketing SMS (e.g. Airtel cashback marketing)
+  test('21. Rejects promotional SMS with "cashback on next recharge" and "-P" sender', () => {
+    const promoSms: RawSMS = {
+      sender: 'AX-AIRTEL-P',
+      body: 'Good News! Get up to Rs. 300 cashback on your next recharge via Airtel app. Recharge now...',
+      timestamp: Date.now(),
+    };
+
+    const parsed = parseBankSms(promoSms);
+    expect(parsed).toBeNull();
+  });
+
+  // Test 22: Accurately parses genuine credit and debit SMS
+  test('22. Accurately parses genuine credit and debit SMS', () => {
+    const creditSms: RawSMS = {
+      sender: 'AD-AIRBNK',
+      body: 'Rs. 500.00 credited to your Airtel Payments Bank A/C XX5678 on 07-Oct-26 by UPI Ref 1234567890.',
+      timestamp: Date.now(),
+    };
+
+    const parsedCredit = parseBankSms(creditSms);
+    expect(parsedCredit).not.toBeNull();
+    expect(parsedCredit?.type).toBe('income');
+    expect(parsedCredit?.amount).toBe(500);
+    expect(parsedCredit?.bankId).toBe('airtel');
+
+    const debitSms: RawSMS = {
+      sender: 'VK-SBIINB',
+      body: 'Dear SBI User, your A/c XX9988 debited by Rs.1250.00 on 07Oct26 at Amazon UPI.',
+      timestamp: Date.now(),
+    };
+
+    const parsedDebit = parseBankSms(debitSms);
+    expect(parsedDebit).not.toBeNull();
+    expect(parsedDebit?.type).toBe('expense');
+    expect(parsedDebit?.amount).toBe(1250);
+    expect(parsedDebit?.bankId).toBe('sbi');
+  });
 });
+
 
 

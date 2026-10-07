@@ -205,8 +205,8 @@ export default function BillsScreen() {
               <Text className="text-xs text-zinc-500 mt-1 mb-4 text-center">
                 Add your recurring electricity, internet, or card bills to get push alerts.
               </Text>
-              <Button size="sm" variant="primary" onPress={() => setModalVisible(true)}>
-                <Text className="text-white font-semibold text-xs">Add Bill</Text>
+              <Button size="sm" variant="primary" className="px-6 py-2.5" onPress={() => setModalVisible(true)}>
+                Add Bill
               </Button>
             </Card>
           ) : (
