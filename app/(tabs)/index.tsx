@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, Pressable, BackHandler, Alert, Dimensions, useWindowDimensions, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -12,7 +12,7 @@ import { AppModal } from '../../components/ui/AppModal';
 import { useAuth } from '../../context/AuthContext';
 import { useAppLock } from '../../components/AppLockGate';
 import { accountService, Account } from '../../lib/services/account.service';
-import { transactionService } from '../../lib/services/transaction.service';
+import { transactionService, cleanTransactionDescription } from '../../lib/services/transaction.service';
 import { billService } from '../../lib/services/bill.service';
 import { goalService } from '../../lib/services/goal.service';
 import { reminderService, Reminder } from '../../lib/services/reminder.service';
@@ -23,18 +23,13 @@ import * as Haptics from 'expo-haptics';
 
 import { SmsOnboardingModal } from '../../components/SmsOnboardingCard';
 import { SmsTransactionReviewModal } from '../../components/SmsTransactionReviewModal';
+import { RecordTransactionModal } from '../../components/RecordTransactionModal';
 import { smsStorage } from '../../lib/sms/storage/smsStore';
 import { smsListenerService } from '../../lib/sms/service/smsListenerService';
 import { ParsedSmsTransaction } from '../../lib/sms/types';
 import { NetBalanceChartCard } from '../../components/NetBalanceChartCard';
 
 import { shakeService } from '../../lib/shake/shakeService';
-import { useTabStore } from '../../lib/stores/tabStore';
-import { CustomBottomTabBar } from '../../components/CustomBottomTabBar';
-import TransactionsScreen from './transactions';
-import SubscriptionsScreen from './subscriptions';
-import BudgetsScreen from './budgets';
-import MoreScreen from './more';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -101,7 +96,7 @@ function SwipeableNotificationItem({
   );
 }
 
-export function DashboardScreen() {
+export default function DashboardScreen() {
   const { user } = useAuth();
   const { isLocked } = useAppLock();
   const queryClient = useQueryClient();
@@ -109,6 +104,7 @@ export function DashboardScreen() {
   const [selectedBankId, setSelectedBankId] = useState<string>('all');
   const [bankSelectModalVisible, setBankSelectModalVisible] = useState(false);
   const [notifModalVisible, setNotifModalVisible] = useState(false);
+  const [recordTxModalVisible, setRecordTxModalVisible] = useState(false);
   const [smsOnboardingVisible, setSmsOnboardingVisible] = useState(false);
   const [pendingReviews, setPendingReviews] = useState<ParsedSmsTransaction[]>([]);
   const [selectedReviewTx, setSelectedReviewTx] = useState<ParsedSmsTransaction | null>(null);
@@ -124,9 +120,6 @@ export function DashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
-        if (useTabStore.getState().activeTabIndex !== 0) {
-          return false; // Preserve normal Back behavior on other tabs
-        }
         try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
         setExitModalVisible(true);
         return true; // Handled exit dialog
@@ -208,14 +201,16 @@ export function DashboardScreen() {
   const upcomingBills = bills.filter((b) => !b.is_paid).slice(0, 3);
   const activeGoals = goals.slice(0, 2);
 
-  // Calculate Net Totals & Realtime Cashflow Trend
-  const totalBalance = accounts.reduce((sum, a) => sum + (a.balance || 0), 0);
-  const monthlyIncome = transactions
-    .filter((t) => t.type === 'income')
-    .reduce((sum, t) => sum + t.amount_minor, 0);
-  const monthlyExpense = transactions
-    .filter((t) => t.type === 'expense')
-    .reduce((sum, t) => sum + t.amount_minor, 0);
+  // Calculate Net Totals & Realtime Cashflow Trend (Memoized for high performance)
+  const totalBalance = useMemo(() => accounts.reduce((sum, a) => sum + (a.balance || 0), 0), [accounts]);
+  const monthlyIncome = useMemo(
+    () => transactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount_minor, 0),
+    [transactions]
+  );
+  const monthlyExpense = useMemo(
+    () => transactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount_minor, 0),
+    [transactions]
+  );
 
   const handleOpenEditAccount = (acc: Account, e?: any) => {
     e?.stopPropagation?.();
@@ -431,7 +426,10 @@ export function DashboardScreen() {
             variant="primary"
             size="md"
             className="flex-1 flex-row items-center justify-center gap-2"
-            onPress={() => useTabStore.getState().requestScrollToTab(1)}
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+              setRecordTxModalVisible(true);
+            }}
           >
             <Plus size={18} color="#FFF" />
             <Text className="text-white font-bold text-xs">Add Transaction</Text>
@@ -451,7 +449,7 @@ export function DashboardScreen() {
                 </View>
               )}
             </View>
-            <Pressable onPress={() => useTabStore.getState().requestScrollToTab(1)}>
+            <Pressable onPress={() => router.push('/(tabs)/transactions')}>
               <Text className="text-xs font-bold text-indigo-600">See All</Text>
             </Pressable>
           </View>
@@ -470,7 +468,14 @@ export function DashboardScreen() {
                       ? 'Your latest financial activities will show here.'
                       : `No transactions recorded for ${accounts.find((a) => a.id === selectedBankId)?.name || 'this bank'}.`}
                   </Text>
-                  <Button size="sm" variant="primary" onPress={() => useTabStore.getState().requestScrollToTab(1)}>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onPress={() => {
+                      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+                      setRecordTxModalVisible(true);
+                    }}
+                  >
                     <Text className="text-white font-semibold text-xs">Add Transaction</Text>
                   </Button>
                 </Card>
@@ -504,7 +509,9 @@ export function DashboardScreen() {
                         )}
                       </View>
                       <View className="flex-1">
-                        <Text className="text-sm font-bold text-zinc-900" numberOfLines={1}>{tx.description}</Text>
+                        <Text className="text-sm font-bold text-zinc-900" numberOfLines={1}>
+                          {cleanTransactionDescription(tx.description, categoryName, tx.type)}
+                        </Text>
                         <Text className="text-[11px] text-zinc-500 mt-0.5">
                           {categoryName} • {accountName}
                         </Text>
@@ -957,6 +964,17 @@ export function DashboardScreen() {
         </Pressable>
       </AppModal>
 
+      {/* Direct Add Transaction Modal */}
+      <RecordTransactionModal
+        visible={recordTxModalVisible}
+        onClose={() => setRecordTxModalVisible(false)}
+        defaultAccountId={selectedBankId !== 'all' ? selectedBankId : undefined}
+        onSuccess={() => {
+          refetchTx();
+          refetchAcc();
+        }}
+      />
+
       {/* SMS Onboarding Modal */}
       <SmsOnboardingModal
         visible={smsOnboardingVisible && !!user?.id && !isLocked}
@@ -1024,85 +1042,5 @@ export function DashboardScreen() {
         </Pressable>
       </AppModal>
     </SafeAreaView>
-  );
-}
-
-export default function MainTabsPagerScreen() {
-  const { width: SCREEN_WIDTH } = useWindowDimensions();
-  const activeTabIndex = useTabStore((s) => s.activeTabIndex);
-  const setActiveTabIndex = useTabStore((s) => s.setActiveTabIndex);
-  const tabScrollRequested = useTabStore((s) => s.tabScrollRequested);
-  const clearScrollRequest = useTabStore((s) => s.clearScrollRequest);
-  const pagerRef = useRef<ScrollView>(null);
-  const currentPageRef = useRef<number>(0);
-
-  useEffect(() => {
-    if (tabScrollRequested !== null) {
-      const fromIndex = currentPageRef.current;
-      const toIndex = tabScrollRequested;
-      const isAdjacent = Math.abs(toIndex - fromIndex) <= 1;
-
-      pagerRef.current?.scrollTo({
-        x: toIndex * SCREEN_WIDTH,
-        animated: isAdjacent,
-      });
-      currentPageRef.current = toIndex;
-      clearScrollRequest();
-    }
-  }, [tabScrollRequested, SCREEN_WIDTH, clearScrollRequest]);
-
-  const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const offsetX = e.nativeEvent.contentOffset.x;
-    const pageIndex = Math.round(offsetX / SCREEN_WIDTH);
-    if (pageIndex !== activeTabIndex && pageIndex >= 0 && pageIndex <= 4) {
-      currentPageRef.current = pageIndex;
-      setActiveTabIndex(pageIndex);
-    }
-  };
-
-  const handleMomentumScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const pageIndex = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-    if (pageIndex >= 0 && pageIndex <= 4) {
-      currentPageRef.current = pageIndex;
-      if (pageIndex !== activeTabIndex) {
-        setActiveTabIndex(pageIndex);
-        try {
-          Haptics.selectionAsync();
-        } catch {}
-      }
-    }
-  };
-
-  return (
-    <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
-      <ScrollView
-        ref={pagerRef}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        bounces={false}
-        onScroll={handleScroll}
-        onMomentumScrollEnd={handleMomentumScrollEnd}
-        scrollEventThrottle={16}
-        style={{ flex: 1 }}
-        contentContainerStyle={{ width: SCREEN_WIDTH * 5 }}
-      >
-        <View style={{ width: SCREEN_WIDTH, height: '100%' }}>
-          <DashboardScreen />
-        </View>
-        <View style={{ width: SCREEN_WIDTH, height: '100%' }}>
-          <TransactionsScreen />
-        </View>
-        <View style={{ width: SCREEN_WIDTH, height: '100%' }}>
-          <SubscriptionsScreen />
-        </View>
-        <View style={{ width: SCREEN_WIDTH, height: '100%' }}>
-          <BudgetsScreen />
-        </View>
-        <View style={{ width: SCREEN_WIDTH, height: '100%' }}>
-          <MoreScreen />
-        </View>
-      </ScrollView>
-    </View>
   );
 }

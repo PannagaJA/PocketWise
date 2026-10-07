@@ -199,7 +199,7 @@ export default function SubscriptionsScreen() {
                 Track your Netflix, Spotify, iCloud or gym plans and get push reminders before your card is billed!
               </Text>
               <Button size="md" variant="primary" className="px-6" onPress={() => setModalVisible(true)}>
-                <Text className="text-white font-semibold text-xs">+ Add Subscription</Text>
+                + Add Subscription
               </Button>
             </Card>
           ) : (
