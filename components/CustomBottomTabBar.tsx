@@ -1,24 +1,12 @@
-import React from 'react';
+import React, { memo, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { LayoutDashboard, ArrowLeftRight, CreditCard, PieChart, User } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
-import { useModalStore } from '../lib/stores/modalStore';
-import { useTabStore } from '../lib/stores/tabStore';
 
 export interface CustomBottomTabBarProps {
-  state?: {
-    index: number;
-    routes: Array<{
-      key: string;
-      name: string;
-      params?: any;
-    }>;
-  };
+  state?: any;
   descriptors?: any;
-  navigation?: {
-    emit: (event: any) => any;
-    navigate: (name: string, params?: any) => void;
-  };
+  navigation?: any;
   insets?: any;
 }
 
@@ -30,74 +18,84 @@ const TABS = [
   { name: 'more', label: 'More', icon: User },
 ];
 
-export function CustomBottomTabBar({ state, navigation }: CustomBottomTabBarProps = {}) {
-  const isModalOpen = useModalStore((s) => s.activeModalCount > 0);
-  const activeTabIndex = useTabStore((s) => s.activeTabIndex);
-  const setActiveTabIndex = useTabStore((s) => s.setActiveTabIndex);
-  const requestScrollToTab = useTabStore((s) => s.requestScrollToTab);
+interface TabItemProps {
+  tab: (typeof TABS)[0];
+  isFocused: boolean;
+  onPress: () => void;
+}
 
-  if (isModalOpen) {
-    return null;
-  }
+const TabBarItem = memo(function TabBarItem({ tab, isFocused, onPress }: TabItemProps) {
+  const Icon = tab.icon;
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.7}
+      style={styles.tabItem}
+    >
+      <View style={[styles.iconContainer, isFocused && styles.activeIconContainer]}>
+        <Icon
+          size={20}
+          color={isFocused ? '#09090B' : '#71717A'}
+          strokeWidth={isFocused ? 2.5 : 2}
+        />
+      </View>
 
-  const currentIndex = state ? state.index : activeTabIndex;
+      <Text style={[styles.tabLabel, isFocused ? styles.activeTabLabel : styles.inactiveTabLabel]}>
+        {tab.label}
+      </Text>
+    </TouchableOpacity>
+  );
+});
+
+export const CustomBottomTabBar = memo(function CustomBottomTabBar({
+  state,
+  navigation,
+}: CustomBottomTabBarProps = {}) {
+  const handleTabPress = useCallback(
+    (index: number, isFocused: boolean) => {
+      try {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      } catch {}
+
+      if (navigation && state) {
+        const route = state.routes[index];
+        if (route) {
+          const event = navigation.emit({
+            type: 'tabPress',
+            target: route.key,
+            canPreventDefault: true,
+          });
+          if (!isFocused && !event?.defaultPrevented) {
+            navigation.navigate(route.name);
+          }
+        }
+      }
+    },
+    [navigation, state]
+  );
+
+  const currentIndex = state?.index ?? 0;
 
   return (
     <View style={styles.container}>
       <View style={styles.bar}>
         {TABS.map((tab, index) => {
-          const isFocused = currentIndex === index;
-          const Icon = tab.icon;
-
-          const onPress = () => {
-            try {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            } catch {}
-
-            // INSTANTLY update active state for 0ms latency UI highlight
-            setActiveTabIndex(index);
-            requestScrollToTab(index);
-
-            if (navigation && state) {
-              const route = state.routes[index];
-              if (route) {
-                const event = navigation.emit({
-                  type: 'tabPress',
-                  target: route.key,
-                  canPreventDefault: true,
-                });
-                if (!isFocused && !event.defaultPrevented) {
-                  navigation.navigate(route.name);
-                }
-              }
-            }
-          };
-
+          const routeIndex = state?.routes?.findIndex((r: any) => r.name === tab.name) ?? -1;
+          const targetIndex = routeIndex !== -1 ? routeIndex : index;
+          const isFocused = currentIndex === targetIndex;
           return (
-            <TouchableOpacity
+            <TabBarItem
               key={tab.name}
-              onPress={onPress}
-              activeOpacity={0.7}
-              style={styles.tabItem}
-            >
-              <View style={[styles.iconContainer, isFocused && styles.activeIconContainer]}>
-                <Icon
-                  size={20}
-                  color={isFocused ? '#09090B' : '#71717A'}
-                  strokeWidth={isFocused ? 2.5 : 2}
-                />
-              </View>
-
-              <Text style={[styles.tabLabel, isFocused ? styles.activeTabLabel : styles.inactiveTabLabel]}>
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
+              tab={tab}
+              isFocused={isFocused}
+              onPress={() => handleTabPress(targetIndex, isFocused)}
+            />
           );
         })}
       </View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

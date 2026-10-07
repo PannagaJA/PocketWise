@@ -1,14 +1,15 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, Alert, ActivityIndicator, Pressable, RefreshControl, TextInput, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
+import React, { useState, useMemo, memo, useCallback, useEffect } from 'react';
+import { View, Text, ScrollView, Alert, ActivityIndicator, Pressable, RefreshControl, TextInput, KeyboardAvoidingView, Platform, Keyboard, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useLocalSearchParams } from 'expo-router';
 import Svg, { Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { AppModal } from '../../components/ui/AppModal';
 import { useAuth } from '../../context/AuthContext';
-import { transactionService } from '../../lib/services/transaction.service';
+import { transactionService, cleanTransactionDescription } from '../../lib/services/transaction.service';
 import { accountService } from '../../lib/services/account.service';
 import { categoryService } from '../../lib/services/category.service';
 import { formatMoney, formatDate, parseMoneyToMinor } from '../../lib/finance/core';
@@ -18,13 +19,72 @@ import * as Haptics from 'expo-haptics';
 
 export type DateFilterMode = 'all' | 'today' | 'this_month' | 'last_month' | 'custom_month' | 'custom_range';
 
+const TransactionItem = memo(function TransactionItem({
+  tx,
+  accountName,
+  categoryName,
+}: {
+  tx: any;
+  accountName: string;
+  categoryName: string;
+}) {
+  return (
+    <Card className="mb-3 p-4 bg-white border border-zinc-200">
+      <View className="flex-row items-center justify-between">
+        <View className="flex-row items-center flex-1 pr-3">
+          <View
+            className={`w-11 h-11 rounded-2xl items-center justify-center mr-3 ${
+              tx.type === 'income' ? 'bg-emerald-50' : tx.type === 'expense' ? 'bg-rose-50' : 'bg-indigo-50'
+            }`}
+          >
+            {tx.type === 'income' ? (
+              <ArrowDownLeft size={20} color="#10B981" />
+            ) : tx.type === 'expense' ? (
+              <ArrowUpRight size={20} color="#EF4444" />
+            ) : (
+              <ArrowRightLeft size={20} color="#6366F1" />
+            )}
+          </View>
+          <View className="flex-1">
+            <Text className="text-base font-bold text-zinc-900" numberOfLines={1}>
+              {cleanTransactionDescription(tx.description, categoryName, tx.type)}
+            </Text>
+            <Text className="text-xs text-zinc-500 mt-0.5">
+              {categoryName} • {accountName}
+            </Text>
+          </View>
+        </View>
+
+        <View className="items-end">
+          <Text
+            className={`text-base font-extrabold ${
+              tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-zinc-900' : 'text-indigo-600'
+            }`}
+          >
+            {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}
+            {formatMoney(tx.amount_minor)}
+          </Text>
+          <Text className="text-xs text-zinc-400 mt-0.5">{formatDate(tx.date)}</Text>
+        </View>
+      </View>
+    </Card>
+  );
+});
+
 export default function TransactionsScreen() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const params = useLocalSearchParams<{ add?: string }>();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [accModalVisible, setAccModalVisible] = useState(false);
   const [dateFilterModalVisible, setDateFilterModalVisible] = useState(false);
+
+  useEffect(() => {
+    if (params?.add === 'true') {
+      setModalVisible(true);
+    }
+  }, [params?.add]);
 
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
@@ -55,8 +115,8 @@ export default function TransactionsScreen() {
 
   // Data Queries
   const { data: transactions = [], isLoading: loadingTx, refetch: refetchTx } = useQuery({
-    queryKey: ['transactions', user?.id, selectedAccountFilterId],
-    queryFn: () => transactionService.getTransactions(user?.id || '', 500, selectedAccountFilterId),
+    queryKey: ['transactions', user?.id],
+    queryFn: () => transactionService.getTransactions(user?.id || '', 500),
     enabled: !!user?.id,
   });
 
@@ -140,15 +200,64 @@ export default function TransactionsScreen() {
   const selectedAccObj = accounts.find((a) => a.id === selectedAccountId);
   const selectedDestAccObj = accounts.find((a) => a.id === selectedDestAccountId);
 
-  // Calculate Breakdown for Unique Cashflow Bar Graph (Memoized)
+  // Calculate Breakdown for Unique Cashflow Bar Graph (Derived after active account and date filters)
   const { incomeTotal, expenseTotal, maxBar, incomeHeight, expenseHeight } = useMemo(() => {
-    const inc = displayedTransactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount_minor, 0);
-    const exp = displayedTransactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount_minor, 0);
+    const relevantTxs = transactions.filter((t) => {
+      if (selectedAccountFilterId !== 'all' && t.account_id !== selectedAccountFilterId) {
+        return false;
+      }
+      if (dateFilterMode !== 'all' && t.date) {
+        const txDateStr = t.date.substring(0, 10);
+        const now = new Date();
+        const todayStr = now.toISOString().substring(0, 10);
+        const thisMonthStr = now.toISOString().substring(0, 7);
+        if (dateFilterMode === 'today' && txDateStr !== todayStr) return false;
+        if (dateFilterMode === 'this_month' && !txDateStr.startsWith(thisMonthStr)) return false;
+        if (dateFilterMode === 'last_month') {
+          const lastM = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          const lastMonthStr = `${lastM.getFullYear()}-${String(lastM.getMonth() + 1).padStart(2, '0')}`;
+          if (!txDateStr.startsWith(lastMonthStr)) return false;
+        }
+        if (dateFilterMode === 'custom_month' && selectedCustomMonth && !txDateStr.startsWith(selectedCustomMonth)) return false;
+        if (dateFilterMode === 'custom_range') {
+          if (customStartDate && txDateStr < customStartDate) return false;
+          if (customEndDate && txDateStr > customEndDate) return false;
+        }
+      }
+      return true;
+    });
+
+    const inc = relevantTxs.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount_minor, 0);
+    const exp = relevantTxs.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount_minor, 0);
     const mb = Math.max(inc, exp, 1);
     const ih = Math.max(12, Math.round((inc / mb) * 44));
     const eh = Math.max(12, Math.round((exp / mb) * 44));
     return { incomeTotal: inc, expenseTotal: exp, maxBar: mb, incomeHeight: ih, expenseHeight: eh };
-  }, [displayedTransactions]);
+  }, [transactions, selectedAccountFilterId, dateFilterMode, selectedCustomMonth, customStartDate, customEndDate]);
+
+  const renderItem = useCallback(
+    ({ item: tx }: { item: any }) => {
+      const accountName =
+        tx.account?.name ||
+        (Array.isArray(tx.account) && (tx.account as any)[0]?.name) ||
+        accounts.find((a) => a.id === tx.account_id)?.name ||
+        'Account';
+      const categoryName =
+        tx.category?.name ||
+        (Array.isArray(tx.category) && (tx.category as any)[0]?.name) ||
+        'General';
+      return (
+        <TransactionItem
+          tx={tx}
+          accountName={accountName}
+          categoryName={categoryName}
+        />
+      );
+    },
+    [accounts]
+  );
+
+  const keyExtractor = useCallback((item: any) => item.id, []);
 
   const getPlaceholders = () => {
     switch (type) {
@@ -475,83 +584,56 @@ export default function TransactionsScreen() {
           </View>
         </View>
 
-        {/* Transactions List */}
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          className="flex-1"
-          contentContainerStyle={{ paddingBottom: 110 }}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#09090B']} />
-          }
-        >
-          {loadingTx ? (
-            <View className="py-8">
-              <ActivityIndicator size="small" color="#09090B" />
-            </View>
-          ) : displayedTransactions.length === 0 ? (
-            <Card className="p-6 bg-white border border-zinc-200 items-center mt-2 rounded-2xl">
-              <View className="w-12 h-12 rounded-full bg-zinc-100 items-center justify-center mb-2">
-                <Filter size={20} color="#71717A" />
-              </View>
-              <Text className="text-sm font-bold text-zinc-800">
-                {searchQuery || isFilterActive ? 'No matching transactions' : `No ${activeFilter === 'all' ? '' : activeFilter} transactions found`}
-              </Text>
-              <Text className="text-xs text-zinc-400 mt-0.5 mb-4 text-center">
-                {searchQuery
-                  ? `No transactions matched "${searchQuery}".`
-                  : isFilterActive
-                  ? `No transactions match the selected filter criteria.`
-                  : activeFilter === 'all'
-                  ? 'Record your first transaction to get started!'
-                  : `No transactions matched the "${activeFilter}" filter.`}
-              </Text>
-              {searchQuery || activeFilter !== 'all' || isFilterActive ? (
-                <Button size="sm" variant="outline" onPress={() => { setSearchQuery(''); setActiveFilter('all'); setDateFilterMode('all'); setSelectedAccountFilterId('all'); }}>
-                  <Text className="text-zinc-900 font-semibold text-xs">Clear Search & Filters</Text>
-                </Button>
-              ) : (
-                <Button size="sm" variant="primary" onPress={() => setModalVisible(true)}>
-                  <Text className="text-white font-semibold text-xs">Record Transaction</Text>
-                </Button>
-              )}
-            </Card>
-          ) : (
-            displayedTransactions.map((tx) => (
-              <Card key={tx.id} className="mb-3 p-4 bg-white border border-zinc-200">
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-row items-center flex-1 pr-3">
-                    <View className={`w-11 h-11 rounded-2xl items-center justify-center mr-3 ${
-                      tx.type === 'income' ? 'bg-emerald-50' : tx.type === 'expense' ? 'bg-rose-50' : 'bg-indigo-50'
-                    }`}>
-                      {tx.type === 'income' ? (
-                        <ArrowDownLeft size={20} color="#10B981" />
-                      ) : tx.type === 'expense' ? (
-                        <ArrowUpRight size={20} color="#EF4444" />
-                      ) : (
-                        <ArrowRightLeft size={20} color="#6366F1" />
-                      )}
-                    </View>
-                    <View className="flex-1">
-                      <Text className="text-base font-bold text-zinc-900" numberOfLines={1}>{tx.description}</Text>
-                      <Text className="text-xs text-zinc-500 mt-0.5">
-                        {tx.category?.name || (Array.isArray(tx.category) && (tx.category as any)[0]?.name) || 'General'} • {tx.account?.name || (Array.isArray(tx.account) && (tx.account as any)[0]?.name) || accounts.find((a) => a.id === tx.account_id)?.name || 'Account'}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View className="items-end">
-                    <Text className={`text-base font-extrabold ${
-                      tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-zinc-900' : 'text-indigo-600'
-                    }`}>
-                      {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{formatMoney(tx.amount_minor)}
-                    </Text>
-                    <Text className="text-xs text-zinc-400 mt-0.5">{formatDate(tx.date)}</Text>
-                  </View>
+        {/* Transactions Virtualized List */}
+        {loadingTx ? (
+          <View className="py-8">
+            <ActivityIndicator size="small" color="#09090B" />
+          </View>
+        ) : (
+          <FlatList
+            data={displayedTransactions}
+            keyExtractor={keyExtractor}
+            renderItem={renderItem}
+            showsVerticalScrollIndicator={false}
+            className="flex-1"
+            contentContainerStyle={{ paddingBottom: 110 }}
+            initialNumToRender={12}
+            maxToRenderPerBatch={12}
+            windowSize={5}
+            removeClippedSubviews={Platform.OS === 'android'}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#09090B']} />
+            }
+            ListEmptyComponent={
+              <Card className="p-6 bg-white border border-zinc-200 items-center mt-2 rounded-2xl">
+                <View className="w-12 h-12 rounded-full bg-zinc-100 items-center justify-center mb-2">
+                  <Filter size={20} color="#71717A" />
                 </View>
+                <Text className="text-sm font-bold text-zinc-800">
+                  {searchQuery || isFilterActive ? 'No matching transactions' : `No ${activeFilter === 'all' ? '' : activeFilter} transactions found`}
+                </Text>
+                <Text className="text-xs text-zinc-400 mt-0.5 mb-4 text-center">
+                  {searchQuery
+                    ? `No transactions matched "${searchQuery}".`
+                    : isFilterActive
+                    ? `No transactions match the selected filter criteria.`
+                    : activeFilter === 'all'
+                    ? 'Record your first transaction to get started!'
+                    : `No transactions matched the "${activeFilter}" filter.`}
+                </Text>
+                {searchQuery || activeFilter !== 'all' || isFilterActive ? (
+                  <Button size="sm" variant="outline" onPress={() => { setSearchQuery(''); setActiveFilter('all'); setDateFilterMode('all'); setSelectedAccountFilterId('all'); }}>
+                    <Text className="text-zinc-900 font-semibold text-xs">Clear Search & Filters</Text>
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="primary" onPress={() => setModalVisible(true)}>
+                    <Text className="text-white font-semibold text-xs">Record Transaction</Text>
+                  </Button>
+                )}
               </Card>
-            ))
-          )}
-        </ScrollView>
+            }
+          />
+        )}
       </View>
 
       {/* Custom Date / Month / Bank Filter Modal */}
