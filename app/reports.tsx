@@ -10,6 +10,7 @@ import { budgetService, Budget } from '../lib/services/budget.service';
 import { goalService, Goal } from '../lib/services/goal.service';
 import { formatMoney } from '../lib/finance/core';
 import { ArrowLeft, TrendingUp, PieChart as PieIcon, CreditCard, Calendar, Target } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 
 type PeriodOption = 'this_month' | '3_months' | '6_months' | 'this_year';
 
@@ -107,23 +108,44 @@ export default function ReportsScreen() {
         </View>
 
         {/* Period Selector */}
-        <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-4">
-          {[
-            { id: 'this_month', label: 'This Month' },
-            { id: '3_months', label: '3 Months' },
-            { id: '6_months', label: '6 Months' },
-            { id: 'this_year', label: 'This Year' },
-          ].map((item) => (
-            <Pressable
-              key={item.id}
-              onPress={() => setPeriod(item.id as PeriodOption)}
-              className={`flex-1 py-2 rounded-xl items-center ${period === item.id ? 'bg-white' : ''}`}
-            >
-              <Text className={`text-xs font-bold ${period === item.id ? 'text-zinc-900' : 'text-zinc-500'}`}>
-                {item.label}
-              </Text>
-            </Pressable>
-          ))}
+        <View className="mb-4">
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 8, paddingHorizontal: 2 }}
+          >
+            {[
+              { id: 'this_month', label: 'This Month' },
+              { id: '3_months', label: '3 Months' },
+              { id: '6_months', label: '6 Months' },
+              { id: 'this_year', label: 'This Year' },
+            ].map((item) => {
+              const isSelected = period === item.id;
+              return (
+                <Pressable
+                  key={item.id}
+                  onPress={() => {
+                    try { Haptics.selectionAsync(); } catch {}
+                    setPeriod(item.id as PeriodOption);
+                  }}
+                  className={`px-4 py-2.5 rounded-2xl border ${
+                    isSelected
+                      ? 'bg-zinc-900 border-zinc-900 shadow-sm'
+                      : 'bg-white border-zinc-200 active:bg-zinc-50'
+                  }`}
+                >
+                  <Text
+                    numberOfLines={1}
+                    className={`text-xs font-bold ${
+                      isSelected ? 'text-white' : 'text-zinc-600'
+                    }`}
+                  >
+                    {item.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
         </View>
 
         <ScrollView

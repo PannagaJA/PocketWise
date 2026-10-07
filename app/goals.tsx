@@ -292,8 +292,8 @@ export default function GoalsScreen() {
                   : 'Completed goals saved to history will appear here.'}
               </Text>
               {activeTab === 'active' && (
-                <Button size="sm" variant="primary" onPress={() => setModalVisible(true)}>
-                  <Text className="text-white font-semibold text-xs">Create Goal</Text>
+                <Button size="sm" variant="primary" className="px-6 py-2.5" onPress={() => setModalVisible(true)}>
+                  Create Goal
                 </Button>
               )}
             </Card>
