@@ -299,7 +299,7 @@ class SmsListenerService {
     }
 
     const paymentTag = parsedTx.paymentMethod && parsedTx.paymentMethod !== 'Unknown' ? ` (${parsedTx.paymentMethod})` : '';
-    const cleanDescription = `${merchantLabel}${paymentTag} [Auto detected]`;
+    const cleanDescription = `${merchantLabel}${paymentTag}`;
 
     store.addTransaction({
       id: parsedTx.sourceMessageId || `tx_${Date.now()}`,
