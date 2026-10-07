@@ -185,8 +185,8 @@ export default function BudgetsScreen() {
               <Text className="text-xs text-zinc-500 mt-1 mb-4 text-center">
                 Set a monthly spending limit to stay on track.
               </Text>
-              <Button size="sm" variant="primary" onPress={() => setModalVisible(true)}>
-                <Text className="text-white font-semibold text-xs">Add Budget</Text>
+              <Button size="sm" variant="primary" className="px-6 py-2.5" onPress={() => setModalVisible(true)}>
+                Add Budget
               </Button>
             </Card>
           ) : (
