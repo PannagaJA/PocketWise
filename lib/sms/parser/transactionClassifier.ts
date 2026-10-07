@@ -33,8 +33,8 @@ export function classifyTransaction(body: string): ClassificationResult {
   const salaryKeywords = ['salary', 'payroll', 'monthly salary', 'sal credited'];
   const isSalary = salaryKeywords.some((kw) => normBody.includes(kw));
 
-  // 2. Refund Detection
-  const refundKeywords = ['refund', 'refunded', 'cashback', 'reversal', 'reversed'];
+  // 2. Refund & Reversal Detection
+  const refundKeywords = ['refund', 'refunded', 'cashback credited', 'cashback received', 'reversal', 'reversed'];
   const isRefund = refundKeywords.some((kw) => normBody.includes(kw));
 
   // 3. Own Account Transfer Detection
