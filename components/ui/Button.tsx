@@ -33,8 +33,8 @@ export const Button: React.FC<ButtonProps> = ({
 
   let baseStyle = "flex-row items-center justify-center rounded-2xl active:opacity-80 ";
   
-  if (size === 'sm') baseStyle += "px-3 py-2 ";
-  else if (size === 'md') baseStyle += "px-4 py-3 ";
+  if (size === 'sm') baseStyle += "px-4 py-2.5 ";
+  else if (size === 'md') baseStyle += "px-5 py-3.5 ";
   else if (size === 'lg') baseStyle += "px-6 py-4 ";
 
   if (variant === 'primary') baseStyle += "bg-zinc-900 ";
@@ -64,7 +64,11 @@ export const Button: React.FC<ButtonProps> = ({
       return <ActivityIndicator color={variant === 'primary' || variant === 'destructive' || variant === 'income' ? "#FFF" : "#09090B"} />;
     }
     if (typeof children === 'string' || typeof children === 'number') {
-      return <Text className={textStyle}>{children}</Text>;
+      return (
+        <Text className={textStyle} numberOfLines={1}>
+          {children}
+        </Text>
+      );
     }
     return children;
   };
