@@ -14,6 +14,8 @@ export interface Transaction {
   date: string;
   notes?: string;
   transfer_group_id?: string;
+  created_at?: string;
+  updated_at?: string;
   category?: { name: string; color?: string };
   account?: { name: string };
 }
@@ -100,6 +102,37 @@ function isNetworkError(err: any): boolean {
   );
 }
 
+function deduplicateTwinTransactions(list: Transaction[]): Transaction[] {
+  const result: Transaction[] = [];
+  for (let i = 0; i < list.length; i++) {
+    const current = list[i];
+    let isDuplicate = false;
+    for (let j = 0; j < result.length; j++) {
+      const prev = result[j];
+      if (
+        current.account_id === prev.account_id &&
+        current.type === prev.type &&
+        current.amount_minor === prev.amount_minor &&
+        (current.date || '').substring(0, 10) === (prev.date || '').substring(0, 10) &&
+        (current.description || '').trim().toLowerCase() === (prev.description || '').trim().toLowerCase() &&
+        !current.transfer_group_id &&
+        !prev.transfer_group_id
+      ) {
+        const t1 = current.created_at ? new Date(current.created_at).getTime() : NaN;
+        const t2 = prev.created_at ? new Date(prev.created_at).getTime() : NaN;
+        if (!isNaN(t1) && !isNaN(t2) && Math.abs(t1 - t2) <= 120000) {
+          isDuplicate = true;
+          break;
+        }
+      }
+    }
+    if (!isDuplicate) {
+      result.push(current);
+    }
+  }
+  return result;
+}
+
 export const transactionService = {
   async getTransactions(userId: string, limit: number = 50, accountId?: string): Promise<Transaction[]> {
     let validList: Transaction[] = [];
@@ -140,7 +173,9 @@ export const transactionService = {
       }
     }
 
-    return validList.slice(0, limit).map((tx) => ({
+    const deduplicated = deduplicateTwinTransactions(validList);
+
+    return deduplicated.slice(0, limit).map((tx) => ({
       ...tx,
       description: cleanTransactionDescription(tx.description, tx.category?.name, tx.type),
     }));
@@ -159,8 +194,9 @@ export const transactionService = {
 
     const rawList = data || [];
     const validList = rawList.filter((tx) => !isPromotionalOrSpamTransaction(tx));
+    const deduplicated = deduplicateTwinTransactions(validList);
 
-    return validList.map((tx) => ({
+    return deduplicated.map((tx) => ({
       ...tx,
       description: cleanTransactionDescription(tx.description, tx.category?.name, tx.type),
     }));
@@ -181,8 +217,9 @@ export const transactionService = {
 
     const rawList = data || [];
     const validList = rawList.filter((tx) => !isPromotionalOrSpamTransaction(tx));
+    const deduplicated = deduplicateTwinTransactions(validList);
 
-    return validList.map((tx) => ({
+    return deduplicated.map((tx) => ({
       ...tx,
       description: cleanTransactionDescription(tx.description, tx.category?.name, tx.type),
     }));
