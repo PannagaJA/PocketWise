@@ -42,9 +42,6 @@ export function SmsOnboardingModal({ visible, onClose, onEnabled }: SmsOnboardin
   return (
     <AppModal visible={visible} animationType="slide" onClose={onClose}>
       <Pressable className="flex-col w-full px-6 pt-3 pb-4" onPress={(e) => e.stopPropagation()}>
-        {/* Subtle Drag Handle */}
-        <View className="w-12 h-1 bg-zinc-300 rounded-full self-center mb-3" />
-
         <View className="flex-row justify-between items-center mb-4">
           <View className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 items-center justify-center">
             <Smartphone size={24} color="#6366F1" />
