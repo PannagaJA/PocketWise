@@ -97,9 +97,6 @@ export function SmsTransactionReviewModal({
   return (
     <AppModal visible={visible} animationType="slide" onClose={onClose}>
       <Pressable className="flex-col w-full px-6 pt-3" onPress={(e) => e.stopPropagation()}>
-        {/* Subtle Drag Indicator */}
-        <View className="w-12 h-1 bg-zinc-300 rounded-full self-center mb-3" />
-
         {/* Header */}
         <View className="flex-row justify-between items-center mb-4">
           <View className="flex-row items-center gap-2.5">
