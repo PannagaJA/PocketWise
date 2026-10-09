@@ -14,6 +14,13 @@ const { PocketWiseSmsModule } = NativeModules;
 
 type SmsListenerCallback = (tx: ParsedSmsTransaction) => void;
 
+let smsProcessLock: Promise<any> = Promise.resolve();
+function runSmsProcessWithLock<T>(fn: () => Promise<T>): Promise<T> {
+  const next = smsProcessLock.then(fn, fn);
+  smsProcessLock = next;
+  return next;
+}
+
 class SmsListenerService {
   private isListening = false;
   private callbacks: SmsListenerCallback[] = [];
@@ -171,83 +178,85 @@ class SmsListenerService {
    * Process an incoming raw SMS object through the local pipeline.
    */
   async processIncomingSms(rawSms: RawSMS): Promise<ParsedSmsTransaction | null> {
-    // 1. In-memory exact SMS ID check
-    if (rawSms.id && this.processedSmsIds.has(rawSms.id)) {
-      return null;
-    }
-    if (rawSms.id) {
-      this.processedSmsIds.add(rawSms.id);
-    }
-
-    // Load account mappings & learned categories
-    const accountMappings = await smsStorage.getAccountMappings();
-    const learnedCategories = await smsStorage.getLearnedCategories();
-
-    // Parse SMS
-    const parsedTx = parseBankSms(rawSms, accountMappings, learnedCategories);
-    if (!parsedTx) return null;
-
-    // 2. Persistent Reference / UTR & Fingerprint deduplication check
-    const txFingerprint = createTransactionFingerprint(parsedTx);
-    if (parsedTx.referenceNumber && (await smsStorage.isRefIdProcessed(parsedTx.referenceNumber))) {
-      console.log('[SMS Parser] Duplicate referenceNumber ignored:', parsedTx.referenceNumber);
-      return null;
-    }
-    if (parsedTx.upiReference && (await smsStorage.isRefIdProcessed(parsedTx.upiReference))) {
-      console.log('[SMS Parser] Duplicate upiReference ignored:', parsedTx.upiReference);
-      return null;
-    }
-    if (txFingerprint && (await smsStorage.isRefIdProcessed(txFingerprint))) {
-      console.log('[SMS Parser] Duplicate fingerprint ignored:', txFingerprint);
-      return null;
-    }
-
-    // 3. Check duplicate against pending reviews queue
-    const pendingReviews = await smsStorage.getPendingReviews();
-    if (isDuplicateTransaction(parsedTx, pendingReviews)) {
-      console.log('[SMS Parser] Duplicate pending review ignored:', parsedTx.referenceNumber || parsedTx.amount);
-      if (txFingerprint) await smsStorage.markRefIdProcessed(txFingerprint);
-      return null;
-    }
-
-    // 4. Check duplicate against active Supabase DB transactions for logged-in user
-    try {
-      const { data: authData } = await supabase.auth.getUser();
-      const userId = authData?.user?.id;
-      if (userId) {
-        const recentTxs = await transactionService.getTransactions(userId, 100);
-        if (isDuplicateTransaction(parsedTx, recentTxs)) {
-          console.log('[SMS Parser] Duplicate Supabase transaction ignored:', parsedTx.referenceNumber || parsedTx.amount);
-          if (parsedTx.referenceNumber) await smsStorage.markRefIdProcessed(parsedTx.referenceNumber);
-          if (parsedTx.upiReference) await smsStorage.markRefIdProcessed(parsedTx.upiReference);
-          if (txFingerprint) await smsStorage.markRefIdProcessed(txFingerprint);
-          return null;
-        }
+    return runSmsProcessWithLock(async () => {
+      // 1. In-memory exact SMS ID check
+      if (rawSms.id && this.processedSmsIds.has(rawSms.id)) {
+        return null;
       }
-    } catch (e) {
-      console.warn('[SMS Parser] Non-fatal DB duplicate check error:', e);
-    }
+      if (rawSms.id) {
+        this.processedSmsIds.add(rawSms.id);
+      }
 
-    // Mark reference ID and fingerprint as processed
-    if (parsedTx.referenceNumber) await smsStorage.markRefIdProcessed(parsedTx.referenceNumber);
-    if (parsedTx.upiReference) await smsStorage.markRefIdProcessed(parsedTx.upiReference);
-    if (txFingerprint) await smsStorage.markRefIdProcessed(txFingerprint);
+      // Load account mappings & learned categories
+      const accountMappings = await smsStorage.getAccountMappings();
+      const learnedCategories = await smsStorage.getLearnedCategories();
 
-    // Update statistics count
-    await smsStorage.incrementDetectedCount();
+      // Parse SMS
+      const parsedTx = parseBankSms(rawSms, accountMappings, learnedCategories);
+      if (!parsedTx) return null;
 
-    // Auto-save transaction directly into App Store & Supabase so it records immediately
-    await this.saveTransactionToStore(parsedTx);
+      // 2. Persistent Reference / UTR & Fingerprint deduplication check
+      const txFingerprint = createTransactionFingerprint(parsedTx);
+      if (parsedTx.referenceNumber && (await smsStorage.isRefIdProcessed(parsedTx.referenceNumber))) {
+        console.log('[SMS Parser] Duplicate referenceNumber ignored:', parsedTx.referenceNumber);
+        return null;
+      }
+      if (parsedTx.upiReference && (await smsStorage.isRefIdProcessed(parsedTx.upiReference))) {
+        console.log('[SMS Parser] Duplicate upiReference ignored:', parsedTx.upiReference);
+        return null;
+      }
+      if (txFingerprint && (await smsStorage.isRefIdProcessed(txFingerprint))) {
+        console.log('[SMS Parser] Duplicate fingerprint ignored:', txFingerprint);
+        return null;
+      }
 
-    // If it needs review, also add to pending reviews queue for user confirmation
-    if (parsedTx.needsReview) {
-      await smsStorage.addPendingReview(parsedTx);
-    }
+      // 3. Check duplicate against pending reviews queue
+      const pendingReviews = await smsStorage.getPendingReviews();
+      if (isDuplicateTransaction(parsedTx, pendingReviews)) {
+        console.log('[SMS Parser] Duplicate pending review ignored:', parsedTx.referenceNumber || parsedTx.amount);
+        if (txFingerprint) await smsStorage.markRefIdProcessed(txFingerprint);
+        return null;
+      }
 
-    // Trigger callbacks
-    this.callbacks.forEach((cb) => cb(parsedTx));
+      // 4. Check duplicate against active Supabase DB transactions for logged-in user
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        const userId = authData?.user?.id;
+        if (userId) {
+          const recentTxs = await transactionService.getTransactions(userId, 100);
+          if (isDuplicateTransaction(parsedTx, recentTxs)) {
+            console.log('[SMS Parser] Duplicate Supabase transaction ignored:', parsedTx.referenceNumber || parsedTx.amount);
+            if (parsedTx.referenceNumber) await smsStorage.markRefIdProcessed(parsedTx.referenceNumber);
+            if (parsedTx.upiReference) await smsStorage.markRefIdProcessed(parsedTx.upiReference);
+            if (txFingerprint) await smsStorage.markRefIdProcessed(txFingerprint);
+            return null;
+          }
+        }
+      } catch (e) {
+        console.warn('[SMS Parser] Non-fatal DB duplicate check error:', e);
+      }
 
-    return parsedTx;
+      // Mark reference ID and fingerprint as processed
+      if (parsedTx.referenceNumber) await smsStorage.markRefIdProcessed(parsedTx.referenceNumber);
+      if (parsedTx.upiReference) await smsStorage.markRefIdProcessed(parsedTx.upiReference);
+      if (txFingerprint) await smsStorage.markRefIdProcessed(txFingerprint);
+
+      // Update statistics count
+      await smsStorage.incrementDetectedCount();
+
+      // If it needs review, only add to pending reviews queue for user confirmation (DO NOT auto-save yet)
+      if (parsedTx.needsReview) {
+        await smsStorage.addPendingReview(parsedTx);
+      } else {
+        // Auto-save high-confidence transaction directly into App Store & Supabase
+        await this.saveTransactionToStore(parsedTx);
+      }
+
+      // Trigger callbacks
+      this.callbacks.forEach((cb) => cb(parsedTx));
+
+      return parsedTx;
+    });
   }
 
   /**
@@ -268,6 +277,16 @@ class SmsListenerService {
     const accountLookupName = bankDisplayName.toLowerCase();
     const cleanLastDigits = parsedTx.maskedAccount ? parsedTx.maskedAccount.replace(/\D/g, '') : '';
 
+    // Clean merchant/payee formatting: Avoid 'Bank Transaction (Unknown)' label
+    let merchantLabel = parsedTx.merchant && parsedTx.merchant !== 'Bank Transaction' ? parsedTx.merchant : '';
+    if (!merchantLabel) {
+      merchantLabel = parsedTx.type === 'income' ? 'Received Payment' : 'Bank Payment';
+    }
+
+    const paymentTag = parsedTx.paymentMethod && parsedTx.paymentMethod !== 'Unknown' ? ` (${parsedTx.paymentMethod})` : '';
+    const cleanDescription = `${merchantLabel}${paymentTag}`;
+    const txDateStr = parsedTx.transactionDate.split('T')[0];
+
     // 1. Resolve or Auto-Add Account in Zustand store (in-memory)
     const store = useAppStore.getState();
     let localAccount = store.accounts.find(
@@ -275,6 +294,17 @@ class SmsListenerService {
         (bankDisplayName !== 'Bank Account' && acc.name.toLowerCase().includes(accountLookupName)) ||
         (cleanLastDigits.length >= 3 && acc.name.includes(cleanLastDigits))
     );
+
+    const existingLocalTx = localAccount
+      ? store.transactions.find(
+          (t) =>
+            t.account_id === localAccount!.id &&
+            t.type === (parsedTx.type === 'income' ? 'income' : 'expense') &&
+            t.amount === parsedTx.amountMinor &&
+            t.date === txDateStr &&
+            t.description === cleanDescription
+        )
+      : null;
 
     if (!localAccount) {
       const newAccountId = `acc_auto_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
@@ -287,32 +317,25 @@ class SmsListenerService {
         color: bankColor,
       };
       store.addAccount(localAccount);
-    } else {
+    } else if (!existingLocalTx) {
       const newBalance = (localAccount.balance || 0) + deltaAmount;
       store.updateAccountBalance(localAccount.id, newBalance);
     }
 
-    // Clean merchant/payee formatting: Avoid 'Bank Transaction (Unknown)' label
-    let merchantLabel = parsedTx.merchant && parsedTx.merchant !== 'Bank Transaction' ? parsedTx.merchant : '';
-    if (!merchantLabel) {
-      merchantLabel = parsedTx.type === 'income' ? 'Received Payment' : 'Bank Payment';
+    if (!existingLocalTx) {
+      store.addTransaction({
+        id: parsedTx.sourceMessageId || `tx_${Date.now()}`,
+        account_id: localAccount.id,
+        account_name: localAccount.name,
+        type: parsedTx.type === 'income' ? 'income' : 'expense',
+        amount: parsedTx.amountMinor,
+        currency: parsedTx.currency,
+        category_name: parsedTx.category,
+        category_color: parsedTx.type === 'income' ? '#10B981' : '#EF4444',
+        description: cleanDescription,
+        date: txDateStr,
+      });
     }
-
-    const paymentTag = parsedTx.paymentMethod && parsedTx.paymentMethod !== 'Unknown' ? ` (${parsedTx.paymentMethod})` : '';
-    const cleanDescription = `${merchantLabel}${paymentTag}`;
-
-    store.addTransaction({
-      id: parsedTx.sourceMessageId || `tx_${Date.now()}`,
-      account_id: localAccount.id,
-      account_name: localAccount.name,
-      type: parsedTx.type === 'income' ? 'income' : 'expense',
-      amount: parsedTx.amountMinor,
-      currency: parsedTx.currency,
-      category_name: parsedTx.category,
-      category_color: parsedTx.type === 'income' ? '#10B981' : '#EF4444',
-      description: cleanDescription,
-      date: parsedTx.transactionDate.split('T')[0],
-    });
 
     // Auto-save account mapping for persistent linking
     if (parsedTx.maskedAccount && parsedTx.bankId && parsedTx.bankId !== 'unknown') {
@@ -348,6 +371,23 @@ class SmsListenerService {
           });
         }
 
+        // Check if an exact match already exists in Supabase
+        const recentAccountTxs = await transactionService.getTransactions(userId, 50, targetAccount.id);
+        const alreadyExists = recentAccountTxs.some(
+          (t) =>
+            t.type === (parsedTx.type === 'income' ? 'income' : 'expense') &&
+            t.amount_minor === parsedTx.amountMinor &&
+            (t.date || '').substring(0, 10) === txDateStr &&
+            ((t.description || '').trim().toLowerCase() === cleanDescription.trim().toLowerCase() ||
+              (parsedTx.referenceNumber && t.notes?.includes(parsedTx.referenceNumber)) ||
+              (parsedTx.upiReference && t.notes?.includes(parsedTx.upiReference)))
+        );
+
+        if (alreadyExists) {
+          console.log('[SMS Listener] Prevented duplicate Supabase transaction creation:', cleanDescription, parsedTx.amountMinor);
+          return;
+        }
+
         await transactionService.createTransaction({
           user_id: userId,
           account_id: targetAccount.id,
@@ -355,7 +395,8 @@ class SmsListenerService {
           amount_minor: parsedTx.amountMinor,
           currency: parsedTx.currency,
           description: cleanDescription,
-          date: parsedTx.transactionDate.split('T')[0],
+          date: txDateStr,
+          notes: parsedTx.referenceNumber ? `Ref: ${parsedTx.referenceNumber}` : (parsedTx.upiReference ? `UPI Ref: ${parsedTx.upiReference}` : undefined),
         });
       }
     } catch (err) {
