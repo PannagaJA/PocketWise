@@ -95,18 +95,54 @@ export const exportService = {
   },
 
   /**
-   * Universal share function using React Native Share.
+   * Universal share and download function for mobile and web.
    */
   async shareContent(content: string, title: string = 'PocketWise Statement'): Promise<boolean> {
     try {
+      if (Platform.OS === 'web' && typeof document !== 'undefined') {
+        try {
+          if (typeof navigator !== 'undefined' && typeof (navigator as any).share === 'function') {
+            await navigator.share({ title, text: content });
+            return true;
+          }
+        } catch (shareErr: any) {
+          if (shareErr?.name === 'AbortError' || shareErr?.message?.includes('canceled') || shareErr?.message?.includes('cancelled')) {
+            return false;
+          }
+        }
+
+        // Web download fallback: create a download link for seamless CSV/text file save
+        const isCsv = content.includes('"Date","Description"') || title.toLowerCase().includes('statement') || title.toLowerCase().includes('csv');
+        const defaultFilename = isCsv ? 'PocketWise_Transactions.csv' : 'PocketWise_Financial_Summary.txt';
+        const mimeType = isCsv ? 'text/csv;charset=utf-8;' : 'text/plain;charset=utf-8;';
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', defaultFilename);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        return true;
+      }
+
       const result = await Share.share(
         Platform.OS === 'ios'
           ? { message: content }
           : { message: content, title }
       );
       return result.action === Share.sharedAction;
-    } catch (error) {
-      console.error('[ExportService] Share error:', error);
+    } catch (error: any) {
+      if (
+        error?.name === 'AbortError' ||
+        error?.message?.includes('canceled') ||
+        error?.message?.includes('cancelled') ||
+        error?.message?.includes('dismissed')
+      ) {
+        return false;
+      }
+      console.warn('[ExportService] Share error:', error?.message || error);
       return false;
     }
   },

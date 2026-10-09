@@ -125,6 +125,21 @@ export const budgetService = {
     return data;
   },
 
+  async updateBudget(id: string, updates: Partial<Pick<Budget, 'amount_minor' | 'period'>>): Promise<Budget> {
+    const { data, error } = await supabase
+      .from('budgets')
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
   async deleteBudget(id: string): Promise<void> {
     const { error } = await supabase
       .from('budgets')
