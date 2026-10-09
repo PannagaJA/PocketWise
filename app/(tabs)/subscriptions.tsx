@@ -305,42 +305,59 @@ export default function SubscriptionsScreen() {
             </Card>
           ) : (
             subscriptions.map((sub) => (
-              <Card key={sub.id} className="mb-3 p-4 bg-white border border-zinc-200">
+              <Card key={sub.id} className="mb-3 p-4 bg-white border border-zinc-200 rounded-2xl shadow-xs">
+                {/* Top Section: Service Branding, Cycle Badge & Amount */}
                 <View className="flex-row items-center justify-between">
-                  <View className="flex-row items-center flex-1 pr-2">
-                    <View className="w-12 h-12 rounded-2xl bg-indigo-50 items-center justify-center mr-3">
-                      <Text className="font-extrabold text-lg text-indigo-600">{sub.name[0]}</Text>
+                  <View className="flex-row items-center flex-1 mr-3">
+                    <View className="w-11 h-11 rounded-2xl bg-indigo-50 border border-indigo-100 items-center justify-center mr-3">
+                      <Text className="font-black text-lg text-indigo-600">{sub.name[0]?.toUpperCase() || 'S'}</Text>
                     </View>
                     <View className="flex-1">
-                      <Text className="text-base font-bold text-zinc-900">{sub.name}</Text>
-                      <View className="flex-row items-center mt-1 space-x-2">
+                      <Text className="text-base font-extrabold text-zinc-900" numberOfLines={1}>
+                        {sub.name}
+                      </Text>
+                      <View className="flex-row items-center gap-1.5 mt-0.5">
                         <Badge label={sub.billing_cycle} variant="subscription" />
-                        <Text className="text-xs text-zinc-500 ml-2">Due {formatDate(sub.next_billing_date)}</Text>
+                        <View className="flex-row items-center bg-indigo-50/80 px-1.5 py-0.5 rounded-md border border-indigo-100/60">
+                          <Bell size={10} color="#6366F1" />
+                          <Text className="text-[10px] font-bold text-indigo-600 ml-1">Auto Alert</Text>
+                        </View>
                       </View>
                     </View>
                   </View>
 
-                  <View className="items-end flex-row items-center gap-2">
-                    <View className="items-end mr-1">
-                      <Text className="text-base font-extrabold text-zinc-900">{formatCurrency(sub.amount_minor)}</Text>
-                      <View className="flex-row items-center mt-0.5">
-                        <Bell size={12} color="#6366F1" />
-                        <Text className="text-[10px] font-semibold text-indigo-600 ml-1">Auto Reminder</Text>
-                      </View>
-                    </View>
+                  <View className="items-end">
+                    <Text className="text-lg font-black text-zinc-900">{formatCurrency(sub.amount_minor)}</Text>
+                    <Text className="text-[10px] font-semibold text-zinc-400 capitalize">per {sub.billing_cycle}</Text>
+                  </View>
+                </View>
 
+                {/* Subtle Divider */}
+                <View className="h-[1px] bg-zinc-100 w-full my-3" />
+
+                {/* Bottom Section: Due Date & Action Buttons */}
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center gap-1.5">
+                    <CalendarIcon size={13} color="#71717A" />
+                    <Text className="text-xs font-semibold text-zinc-500">
+                      Due <Text className="font-bold text-zinc-800">{formatDate(sub.next_billing_date)}</Text>
+                    </Text>
+                  </View>
+
+                  <View className="flex-row items-center gap-1.5">
                     <Pressable
                       onPress={() => handleRenewSub(sub)}
-                      className="p-2 rounded-xl bg-emerald-50 active:bg-emerald-100 border border-emerald-100"
+                      className="flex-row items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 active:bg-emerald-100 border border-emerald-200/60"
                     >
-                      <RotateCcw size={15} color="#059669" />
+                      <RotateCcw size={12} color="#059669" />
+                      <Text className="text-xs font-bold text-emerald-700">Renew</Text>
                     </Pressable>
 
                     <Pressable
                       onPress={() => handleOpenEditSub(sub)}
-                      className="p-2 rounded-xl bg-zinc-100 active:bg-zinc-200 border border-zinc-200"
+                      className="p-1.5 rounded-xl bg-zinc-100 active:bg-zinc-200 border border-zinc-200/60 items-center justify-center"
                     >
-                      <Pencil size={15} color="#18181B" />
+                      <Pencil size={13} color="#27272A" />
                     </Pressable>
 
                     <Pressable
@@ -348,9 +365,9 @@ export default function SubscriptionsScreen() {
                         try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch { }
                         setSubToDelete(sub);
                       }}
-                      className="p-2 rounded-xl bg-rose-50 active:bg-rose-100 border border-rose-100"
+                      className="p-1.5 rounded-xl bg-rose-50 active:bg-rose-100 border border-rose-200/60 items-center justify-center"
                     >
-                      <Trash2 size={15} color="#EF4444" />
+                      <Trash2 size={13} color="#EF4444" />
                     </Pressable>
                   </View>
                 </View>

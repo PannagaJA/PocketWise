@@ -20,6 +20,7 @@ import { financialAnalyticsEngine } from '../../lib/finance/analyticsEngine';
 import { formatMoney, formatDate, formatDateTime, parseSignedMoneyToMinor } from '../../lib/finance/core';
 import { Plus, ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight, ChevronDown, Check, Building2, ShieldCheck, TrendingUp, TrendingDown, ArrowRightLeft, X, Clock, Trash2, LogOut, Pencil, RotateCcw } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { useTabStore } from '../../lib/stores/tabStore';
 
 import { SmsOnboardingModal } from '../../components/SmsOnboardingCard';
 import { SmsTransactionReviewModal } from '../../components/SmsTransactionReviewModal';
@@ -508,7 +509,13 @@ export default function DashboardScreen() {
                 </View>
               )}
             </View>
-            <Pressable onPress={() => router.push('/(tabs)/transactions')}>
+            <Pressable
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                useTabStore.getState().requestScrollToTab(1);
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
               <Text className="text-xs font-bold text-indigo-600">See All</Text>
             </Pressable>
           </View>
@@ -1100,6 +1107,7 @@ export default function DashboardScreen() {
             pathname: '/(tabs)/transactions',
             params: { editId: tx.id },
           });
+          useTabStore.getState().requestScrollToTab(1);
         }}
         onDelete={(tx) => handleDeleteTxFromDashboard(tx)}
       />
