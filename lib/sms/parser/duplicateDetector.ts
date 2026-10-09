@@ -1,4 +1,5 @@
 import { ParsedSmsTransaction } from '../types';
+import { INDIAN_BANKS } from '../banks/bankRegistry';
 
 export function createTransactionFingerprint(tx: {
   amountMinor: number;
@@ -65,13 +66,20 @@ export function isDuplicateTransaction(
       const txAccountName = (tx.account?.name || tx.account_name || '').toLowerCase();
       const txBankId = (tx.bankId || tx.bank_id || '').toLowerCase();
 
+      const regBank = newBankId ? INDIAN_BANKS.find((b) => b.id === newBankId) : null;
+      const bankNames = [
+        newBankId,
+        newBankName,
+        regBank?.name.toLowerCase(),
+        regBank?.shortName.toLowerCase(),
+      ].filter(Boolean) as string[];
+
       // Check if both reference the same bank or account if known
       const bankOrAccountMatches =
         !newBankId ||
         newBankId === 'unknown' ||
         !txAccountName ||
-        (newBankId && txAccountName.includes(newBankId)) ||
-        (newBankName && txAccountName.includes(newBankName)) ||
+        bankNames.some((bn) => txAccountName.includes(bn)) ||
         (txBankId && (txBankId === newBankId || txBankId.includes(newBankId) || newBankId.includes(txBankId)));
 
       // If masked account is present in both, ensure it matches
@@ -82,8 +90,13 @@ export function isDuplicateTransaction(
         return true;
       }
 
-      // If both are exact same amount on same date and type, and description has overlap or auto-detected tag
-      if (txNotes && (txNotes.includes('AUTO DETECTED') || (newBankName && txNotes.includes(newBankName.toUpperCase())))) {
+      // If both are exact same amount on same date and type, and description/merchant has overlap
+      const txDesc = (tx.description || '').toLowerCase();
+      const newMerchant = (newTx.merchant || '').toLowerCase();
+      if (
+        (bankOrAccountMatches && maskedMatches && txDesc && newMerchant && (txDesc.includes(newMerchant) || newMerchant.includes(txDesc))) ||
+        (txNotes && (txNotes.includes('AUTO DETECTED') || (newBankName && txNotes.includes(newBankName.toUpperCase()))))
+      ) {
         return true;
       }
 
