@@ -180,6 +180,25 @@ export const notificationService = {
     }
   },
 
+  async deactivateDeviceToken(tokenOrUserId: string, column?: 'fcm_token' | 'user_id'): Promise<void> {
+    if (!tokenOrUserId) return;
+    try {
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tokenOrUserId);
+      const targetColumn = column || (isUUID ? 'user_id' : 'fcm_token');
+
+      const { error } = await supabase
+        .from('devices')
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq(targetColumn, tokenOrUserId);
+
+      if (error) {
+        console.warn('[NotificationService] Error deactivating device token:', error);
+      }
+    } catch (err) {
+      console.warn('[NotificationService] Unexpected error deactivating device token:', err);
+    }
+  },
+
   /**
    * Schedule a local push notification on the device for upcoming bill/subscription due dates.
    * Cancels existing notification for the same ID to prevent duplicates.
@@ -362,14 +381,6 @@ export const notificationService = {
       console.warn('[NotificationService] Failed to schedule test notification:', err);
       return false;
     }
-  },
-
-  async deactivateDeviceToken(token: string): Promise<void> {
-    if (!token) return;
-    await supabase
-      .from('devices')
-      .update({ is_active: false })
-      .eq('fcm_token', token);
   },
 };
 

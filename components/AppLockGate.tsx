@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, Pressable, StyleSheet, AppState, AppStateStatus } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { appLockService } from '../lib/security/app-lock.service';
 import { deepLinkService } from '../lib/notifications/deep-link.service';
@@ -18,10 +18,38 @@ export function AppLockGate({ children }: AppLockGateProps) {
   const [pinInput, setPinInput] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
+  const backgroundTimestampRef = useRef<number | null>(null);
 
   useEffect(() => {
     checkAppLockState();
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => {
+      subscription.remove();
+    };
   }, []);
+
+  const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+    if (nextAppState === 'background' || nextAppState === 'inactive') {
+      if (backgroundTimestampRef.current === null) {
+        backgroundTimestampRef.current = Date.now();
+      }
+    } else if (nextAppState === 'active') {
+      if (backgroundTimestampRef.current !== null) {
+        const needsRelock = await appLockService.shouldRelock(backgroundTimestampRef.current);
+        if (needsRelock) {
+          setIsLocked(true);
+          deepLinkService.setLockedState(true);
+          const bioEnabled = await appLockService.isBiometricsEnabled();
+          if (bioEnabled) {
+            setBiometricsAvailable(true);
+            triggerBiometricUnlock();
+          }
+        }
+        backgroundTimestampRef.current = null;
+      }
+    }
+  };
 
   const checkAppLockState = async () => {
     const enabled = await appLockService.isAppLockEnabled();
@@ -46,6 +74,7 @@ export function AppLockGate({ children }: AppLockGateProps) {
       handleUnlockSuccess();
     }
   };
+
 
   const handleKeyPress = (num: string) => {
     try {

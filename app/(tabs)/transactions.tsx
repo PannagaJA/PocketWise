@@ -10,11 +10,12 @@ import { Input } from '../../components/ui/Input';
 import { AppModal } from '../../components/ui/AppModal';
 import { useAuth } from '../../context/AuthContext';
 import { transactionService, cleanTransactionDescription } from '../../lib/services/transaction.service';
+import { supabase } from '../../lib/supabase';
 import { accountService } from '../../lib/services/account.service';
 import { categoryService } from '../../lib/services/category.service';
 import { formatMoney, formatDate, parseMoneyToMinor } from '../../lib/finance/core';
 import { DatePickerButton } from '../../components/ui/DatePickerModal';
-import { Plus, ArrowUpRight, ArrowDownLeft, X, ArrowRightLeft, ChevronDown, Check, Wallet, BarChart2, Filter, Search, Calendar, SlidersHorizontal } from 'lucide-react-native';
+import { Plus, ArrowUpRight, ArrowDownLeft, X, ArrowRightLeft, ChevronDown, Check, Wallet, BarChart2, Filter, Search, Calendar, SlidersHorizontal, Pencil, Trash2 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 export type DateFilterMode = 'all' | 'today' | 'this_month' | 'last_month' | 'custom_month' | 'custom_range';
@@ -23,51 +24,55 @@ const TransactionItem = memo(function TransactionItem({
   tx,
   accountName,
   categoryName,
+  onPress,
 }: {
   tx: any;
   accountName: string;
   categoryName: string;
+  onPress?: () => void;
 }) {
   return (
-    <Card className="mb-3 p-4 bg-white border border-zinc-200">
-      <View className="flex-row items-center justify-between">
-        <View className="flex-row items-center flex-1 pr-3">
-          <View
-            className={`w-11 h-11 rounded-2xl items-center justify-center mr-3 ${
-              tx.type === 'income' ? 'bg-emerald-50' : tx.type === 'expense' ? 'bg-rose-50' : 'bg-indigo-50'
-            }`}
-          >
-            {tx.type === 'income' ? (
-              <ArrowDownLeft size={20} color="#10B981" />
-            ) : tx.type === 'expense' ? (
-              <ArrowUpRight size={20} color="#EF4444" />
-            ) : (
-              <ArrowRightLeft size={20} color="#6366F1" />
-            )}
+    <Pressable onPress={onPress}>
+      <Card className="mb-3 p-4 bg-white border border-zinc-200 active:bg-zinc-50">
+        <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center flex-1 pr-3">
+            <View
+              className={`w-11 h-11 rounded-2xl items-center justify-center mr-3 ${
+                tx.type === 'income' ? 'bg-emerald-50' : tx.type === 'expense' ? 'bg-rose-50' : 'bg-indigo-50'
+              }`}
+            >
+              {tx.type === 'income' ? (
+                <ArrowDownLeft size={20} color="#10B981" />
+              ) : tx.type === 'expense' ? (
+                <ArrowUpRight size={20} color="#EF4444" />
+              ) : (
+                <ArrowRightLeft size={20} color="#6366F1" />
+              )}
+            </View>
+            <View className="flex-1">
+              <Text className="text-base font-bold text-zinc-900" numberOfLines={1}>
+                {cleanTransactionDescription(tx.description, categoryName, tx.type)}
+              </Text>
+              <Text className="text-xs text-zinc-500 mt-0.5">
+                {categoryName} • {accountName}
+              </Text>
+            </View>
           </View>
-          <View className="flex-1">
-            <Text className="text-base font-bold text-zinc-900" numberOfLines={1}>
-              {cleanTransactionDescription(tx.description, categoryName, tx.type)}
-            </Text>
-            <Text className="text-xs text-zinc-500 mt-0.5">
-              {categoryName} • {accountName}
-            </Text>
-          </View>
-        </View>
 
-        <View className="items-end">
-          <Text
-            className={`text-base font-extrabold ${
-              tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-zinc-900' : 'text-indigo-600'
-            }`}
-          >
-            {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}
-            {formatMoney(tx.amount_minor)}
-          </Text>
-          <Text className="text-xs text-zinc-400 mt-0.5">{formatDate(tx.date)}</Text>
+          <View className="items-end">
+            <Text
+              className={`text-base font-extrabold ${
+                tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-zinc-900' : 'text-indigo-600'
+              }`}
+            >
+              {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}
+              {formatMoney(tx.amount_minor)}
+            </Text>
+            <Text className="text-xs text-zinc-400 mt-0.5">{formatDate(tx.date)}</Text>
+          </View>
         </View>
-      </View>
-    </Card>
+      </Card>
+    </Pressable>
   );
 });
 
@@ -235,6 +240,30 @@ export default function TransactionsScreen() {
     return { incomeTotal: inc, expenseTotal: exp, maxBar: mb, incomeHeight: ih, expenseHeight: eh };
   }, [transactions, selectedAccountFilterId, dateFilterMode, selectedCustomMonth, customStartDate, customEndDate]);
 
+  // Edit & Delete Transaction State
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingTx, setEditingTx] = useState<any>(null);
+  const [editDescription, setEditDescription] = useState('');
+  const [editAmount, setEditAmount] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editAccountId, setEditAccountId] = useState('');
+  const [editCategoryId, setEditCategoryId] = useState('');
+  const [editCategoryDropdownOpen, setEditCategoryDropdownOpen] = useState(false);
+  const [editAccountDropdownOpen, setEditAccountDropdownOpen] = useState(false);
+
+  const handleOpenEditTx = useCallback((tx: any) => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    setEditingTx(tx);
+    setEditDescription(tx.description || '');
+    setEditAmount((tx.amount_minor / 100).toString());
+    setEditDate(tx.date || new Date().toISOString().substring(0, 10));
+    setEditAccountId(tx.account_id || '');
+    setEditCategoryId(tx.category_id || '');
+    setEditCategoryDropdownOpen(false);
+    setEditAccountDropdownOpen(false);
+    setEditModalVisible(true);
+  }, []);
+
   const renderItem = useCallback(
     ({ item: tx }: { item: any }) => {
       const accountName =
@@ -251,10 +280,11 @@ export default function TransactionsScreen() {
           tx={tx}
           accountName={accountName}
           categoryName={categoryName}
+          onPress={() => handleOpenEditTx(tx)}
         />
       );
     },
-    [accounts]
+    [accounts, handleOpenEditTx]
   );
 
   const keyExtractor = useCallback((item: any) => item.id, []);
@@ -277,6 +307,91 @@ export default function TransactionsScreen() {
           amount: 'e.g. 5,000.00',
         };
     }
+  };
+
+  const updateTxMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingTx) return;
+      const minorAmount = parseMoneyToMinor(editAmount);
+      if (minorAmount <= 0) throw new Error('Amount must be greater than zero');
+      if (!editDescription.trim()) throw new Error('Description is required');
+
+      if (editingTx.transfer_group_id) {
+        if (minorAmount !== editingTx.amount_minor || (editAccountId && editAccountId !== editingTx.account_id)) {
+          throw new Error('Transfer amount and accounts cannot be modified individually. Please delete and recreate the transfer.');
+        }
+        return transactionService.updateTransaction(editingTx.id, {
+          description: editDescription.trim(),
+          category_id: editCategoryId || undefined,
+          date: editDate,
+        });
+      }
+
+      return transactionService.updateTransaction(editingTx.id, {
+        description: editDescription.trim(),
+        amount_minor: minorAmount,
+        category_id: editCategoryId || undefined,
+        account_id: editAccountId || editingTx.account_id,
+        date: editDate,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+      try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+      setEditModalVisible(false);
+      setEditingTx(null);
+    },
+    onError: (err: any) => {
+      Alert.alert('Error', err.message || 'Failed to update transaction');
+    },
+  });
+
+  const deleteTxMutation = useMutation({
+    mutationFn: async (id: string) => {
+      if (editingTx?.transfer_group_id) {
+        const { data, error } = await supabase
+          .from('transactions')
+          .delete()
+          .eq('transfer_group_id', editingTx.transfer_group_id)
+          .select('id');
+        if (error) {
+          throw new Error(error.message);
+        }
+        if (!data || data.length === 0) {
+          throw new Error('No transactions found to delete');
+        }
+        return data.map((d: any) => d.id);
+      }
+      await transactionService.deleteTransaction(id, true);
+      return [id];
+    },
+    onSuccess: (deletedIds) => {
+      if (!deletedIds || deletedIds.length === 0) return;
+      queryClient.invalidateQueries();
+      try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+      setEditModalVisible(false);
+      setEditingTx(null);
+    },
+    onError: (err: any) => {
+      Alert.alert('Error', err.message || 'Failed to delete transaction');
+    },
+  });
+
+  const confirmDeleteTx = () => {
+    if (!editingTx) return;
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); } catch {}
+    Alert.alert(
+      'Delete Transaction?',
+      `Are you sure you want to delete this ${formatMoney(editingTx.amount_minor)} transaction? Account balance will be restored automatically.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => deleteTxMutation.mutate(editingTx.id),
+        },
+      ]
+    );
   };
 
   const currentPlaceholders = getPlaceholders();
@@ -1013,6 +1128,160 @@ export default function TransactionsScreen() {
             >
               <Text className="text-white font-semibold">Save Account</Text>
             </Button>
+          </ScrollView>
+        </Pressable>
+      </AppModal>
+
+      {/* Edit & Delete Transaction Modal */}
+      <AppModal
+        visible={editModalVisible}
+        onClose={() => setEditModalVisible(false)}
+        animationType="slide"
+      >
+        <Pressable
+          style={{ width: '100%', padding: 24, paddingBottom: 12 }}
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View className="flex-row justify-between items-center mb-4">
+            <View className="flex-row items-center gap-2">
+              <View className="w-8 h-8 rounded-xl bg-zinc-100 items-center justify-center">
+                <Pencil size={16} color="#18181B" />
+              </View>
+              <Text className="text-xl font-bold text-zinc-900">Edit Transaction</Text>
+            </View>
+            <Pressable onPress={() => setEditModalVisible(false)} className="p-1">
+              <X size={20} color="#71717A" />
+            </Pressable>
+          </View>
+
+          <ScrollView 
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 32 }}
+          >
+            <Input
+              label="Amount (₹)"
+              placeholder="0.00"
+              keyboardType="numeric"
+              value={editAmount}
+              onChangeText={setEditAmount}
+            />
+
+            <Input
+              label="Description"
+              placeholder="e.g. Dinner, Grocery"
+              value={editDescription}
+              onChangeText={setEditDescription}
+            />
+
+            {/* Date Selector */}
+            <View className="mb-4">
+              <DatePickerButton
+                label="Date"
+                value={editDate}
+                placeholder="Pick transaction date"
+                onSelectDate={(val) => {
+                  if (val) setEditDate(val);
+                }}
+              />
+            </View>
+
+            {/* Account Selector */}
+            <View className="mb-4">
+              <Text className="text-xs font-semibold text-zinc-600 mb-1.5 uppercase tracking-wider">Account</Text>
+              <Pressable
+                onPress={() => {
+                  setEditAccountDropdownOpen(!editAccountDropdownOpen);
+                  setEditCategoryDropdownOpen(false);
+                }}
+                className="flex-row items-center justify-between p-3.5 bg-zinc-50 border border-zinc-200 rounded-2xl"
+              >
+                <Text className="text-sm font-semibold text-zinc-900">
+                  {accounts.find((a) => a.id === editAccountId)?.name || 'Select Account'}
+                </Text>
+                <ChevronDown size={18} color="#71717A" />
+              </Pressable>
+
+              {editAccountDropdownOpen && (
+                <View className="mt-2 p-2 bg-white border border-zinc-200 rounded-2xl shadow-sm">
+                  {accounts.map((acc) => (
+                    <Pressable
+                      key={acc.id}
+                      onPress={() => {
+                        setEditAccountId(acc.id);
+                        setEditAccountDropdownOpen(false);
+                      }}
+                      className="flex-row items-center justify-between p-2.5 rounded-xl active:bg-zinc-50"
+                    >
+                      <Text className="text-sm font-medium text-zinc-800">{acc.name}</Text>
+                      {editAccountId === acc.id && <Check size={16} color="#6366F1" />}
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            {/* Category Selector */}
+            <View className="mb-4">
+              <Text className="text-xs font-semibold text-zinc-600 mb-1.5 uppercase tracking-wider">Category</Text>
+              <Pressable
+                onPress={() => {
+                  setEditCategoryDropdownOpen(!editCategoryDropdownOpen);
+                  setEditAccountDropdownOpen(false);
+                }}
+                className="flex-row items-center justify-between p-3.5 bg-zinc-50 border border-zinc-200 rounded-2xl"
+              >
+                <Text className="text-sm font-semibold text-zinc-900">
+                  {categories.find((c) => c.id === editCategoryId)?.name || 'General / Uncategorized'}
+                </Text>
+                <ChevronDown size={18} color="#71717A" />
+              </Pressable>
+
+              {editCategoryDropdownOpen && (
+                <View className="mt-2 p-2 bg-white border border-zinc-200 rounded-2xl shadow-sm max-h-48">
+                  <ScrollView nestedScrollEnabled>
+                    {categories
+                      .filter((cat) => !editingTx?.type || editingTx.type === 'transfer' || cat.type === editingTx.type)
+                      .map((cat) => (
+                        <Pressable
+                          key={cat.id}
+                          onPress={() => {
+                            setEditCategoryId(cat.id);
+                            setEditCategoryDropdownOpen(false);
+                          }}
+                          className="flex-row items-center justify-between p-2.5 rounded-xl active:bg-zinc-50"
+                        >
+                          <Text className="text-sm font-medium text-zinc-800">{cat.name}</Text>
+                          {editCategoryId === cat.id && <Check size={16} color="#6366F1" />}
+                        </Pressable>
+                      ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+
+            <View className="flex-row gap-3 mt-3">
+              <Button
+                variant="outline"
+                size="lg"
+                loading={deleteTxMutation.isPending}
+                className="flex-1 border-rose-200 bg-rose-50/50"
+                onPress={confirmDeleteTx}
+              >
+                <Trash2 size={16} color="#EF4444" />
+                <Text className="text-rose-600 font-bold ml-1.5">Delete</Text>
+              </Button>
+
+              <Button
+                variant="primary"
+                size="lg"
+                loading={updateTxMutation.isPending}
+                className="flex-1"
+                onPress={() => updateTxMutation.mutate()}
+              >
+                <Text className="text-white font-bold">Save</Text>
+              </Button>
+            </View>
           </ScrollView>
         </Pressable>
       </AppModal>
