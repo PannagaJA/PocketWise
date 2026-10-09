@@ -14,7 +14,7 @@ import { accountService } from '../lib/services/account.service';
 import { categoryService } from '../lib/services/category.service';
 import { formatMoney, formatDate, parseMoneyToMinor } from '../lib/finance/core';
 import { notificationService } from '../lib/notifications/notification.service';
-import { Plus, X, ArrowLeft, Calendar, CheckCircle2, Clock, AlertCircle, ShieldAlert, ChevronLeft, ChevronRight, Check } from 'lucide-react-native';
+import { Plus, X, ArrowLeft, Calendar, CheckCircle2, Clock, AlertCircle, ShieldAlert, ChevronLeft, ChevronRight, Check, Pencil, Trash2, RotateCcw } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { TimePickerModal, format12HourTime } from '../components/ui/TimePickerModal';
 
@@ -27,6 +27,14 @@ export default function BillsScreen() {
   const [timePickerVisible, setTimePickerVisible] = useState(false);
   const [billToPay, setBillToPay] = useState<any | null>(null);
 
+  // Edit Bill State
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingBill, setEditingBill] = useState<any | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editAmount, setEditAmount] = useState('');
+  const [editDueDate, setEditDueDate] = useState('');
+  const [editFrequency, setEditFrequency] = useState<'monthly' | 'yearly' | 'one_time'>('monthly');
+
   // Form state
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
@@ -34,6 +42,7 @@ export default function BillsScreen() {
   const [dueTime, setDueTime] = useState('09:00');
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
+  const [frequency, setFrequency] = useState<'monthly' | 'yearly' | 'one_time'>('monthly');
 
   // Interactive Calendar State
   const now = new Date();
@@ -95,12 +104,12 @@ export default function BillsScreen() {
         name,
         expected_amount_minor: minorAmount,
         due_date: finalDueDate,
-        frequency: 'monthly',
+        frequency,
         category_id: selectedCategoryId || undefined,
         account_id: selectedAccountId || accounts[0]?.id,
       });
     },
-    onSuccess: (newBill: any) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bills', user?.id] });
       queryClient.invalidateQueries({ queryKey: ['transactions', user?.id] });
       queryClient.invalidateQueries({ queryKey: ['accounts', user?.id] });
@@ -114,6 +123,73 @@ export default function BillsScreen() {
       Alert.alert('Error', err.message || 'Failed to create bill');
     },
   });
+
+  const updateBillMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingBill) return;
+      const minorAmount = parseMoneyToMinor(editAmount);
+      if (minorAmount <= 0) throw new Error('Amount must be greater than zero');
+      if (!editName.trim()) throw new Error('Bill name is required');
+
+      return billService.updateBill(editingBill.id, {
+        name: editName.trim(),
+        expected_amount_minor: minorAmount,
+        due_date: editDueDate || editingBill.due_date,
+        frequency: editFrequency,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bills', user?.id] });
+      setEditModalVisible(false);
+      setEditingBill(null);
+      try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+    },
+    onError: (err: any) => {
+      Alert.alert('Error', err.message || 'Failed to update bill');
+    },
+  });
+
+  const deleteBillMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return billService.deleteBill(id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bills', user?.id] });
+      setEditModalVisible(false);
+      setEditingBill(null);
+      try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+    },
+    onError: (err: any) => {
+      Alert.alert('Error', err.message || 'Failed to delete bill');
+    },
+  });
+
+  const confirmDeleteBill = () => {
+    if (!editingBill) return;
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); } catch {}
+    Alert.alert(
+      'Delete Bill?',
+      `Are you sure you want to delete "${editingBill.name}"? Scheduled reminders for this bill will be canceled.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => deleteBillMutation.mutate(editingBill.id),
+        },
+      ]
+    );
+  };
+
+  const handleOpenEditBill = (bill: any) => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    setEditingBill(bill);
+    setEditName(bill.name);
+    setEditAmount((bill.expected_amount_minor / 100).toString());
+    setEditDueDate(bill.due_date ? bill.due_date.substring(0, 10) : '');
+    setEditFrequency(bill.frequency || 'monthly');
+    setEditModalVisible(true);
+  };
 
   const markPaidMutation = useMutation({
     mutationFn: async (bill: any) => {
@@ -240,32 +316,143 @@ export default function BillsScreen() {
 
                     <View className="items-end gap-1">
                       <Text className="text-base font-extrabold text-zinc-900">{formatMoney(b.expected_amount_minor)}</Text>
-                      <Badge
-                        label={isPaid ? 'Paid' : isOverdue ? 'Overdue' : 'Upcoming'}
-                        variant={isPaid ? 'income' : isOverdue ? 'expense' : 'budget'}
-                      />
+                      <View className="flex-row items-center gap-1.5">
+                        {b.frequency && b.frequency !== 'one_time' && (
+                          <Badge label={b.frequency} variant="subscription" />
+                        )}
+                        <Badge
+                          label={isPaid ? 'Paid' : isOverdue ? 'Overdue' : 'Upcoming'}
+                          variant={isPaid ? 'income' : isOverdue ? 'expense' : 'budget'}
+                        />
+                      </View>
                     </View>
                   </View>
 
-                  {!isPaid && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-1 border-emerald-300 bg-emerald-50/40"
-                      onPress={() => {
-                        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
-                        setBillToPay(b);
-                      }}
+                  <View className="flex-row items-center gap-2 mt-1">
+                    {!isPaid && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 border-emerald-300 bg-emerald-50/40"
+                        onPress={() => {
+                          try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+                          setBillToPay(b);
+                        }}
+                      >
+                        <Text className="text-emerald-700 font-bold text-xs">Mark as Paid</Text>
+                      </Button>
+                    )}
+
+                    <Pressable
+                      onPress={() => handleOpenEditBill(b)}
+                      className="p-2.5 rounded-xl bg-zinc-100 active:bg-zinc-200 border border-zinc-200"
                     >
-                      <Text className="text-emerald-700 font-bold text-xs">Mark as Paid</Text>
-                    </Button>
-                  )}
+                      <Pencil size={15} color="#18181B" />
+                    </Pressable>
+                  </View>
                 </Card>
               );
             })
           )}
         </ScrollView>
       </View>
+
+      {/* Custom Edit Bill Modal */}
+      <AppModal
+        visible={editModalVisible}
+        onClose={() => setEditModalVisible(false)}
+        animationType="slide"
+      >
+        <Pressable
+          className="bg-white rounded-t-3xl p-6 pb-6 border-t border-zinc-200 max-h-[90%]"
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View className="flex-row justify-between items-center mb-6">
+            <View className="flex-row items-center gap-2">
+              <View className="w-8 h-8 rounded-xl bg-zinc-100 items-center justify-center">
+                <Pencil size={16} color="#18181B" />
+              </View>
+              <Text className="text-xl font-bold text-zinc-900">Edit Bill</Text>
+            </View>
+            <Pressable onPress={() => setEditModalVisible(false)}>
+              <X size={20} color="#71717A" />
+            </Pressable>
+          </View>
+
+          <ScrollView 
+            showsVerticalScrollIndicator={false} 
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 48 }}
+          >
+            <Input
+              label="Bill Name"
+              placeholder="e.g. Electricity, Internet"
+              value={editName}
+              onChangeText={setEditName}
+            />
+
+            <Input
+              label="Expected Amount (₹)"
+              placeholder="1500.00"
+              keyboardType="numeric"
+              value={editAmount}
+              onChangeText={setEditAmount}
+            />
+
+            {/* Frequency Selector */}
+            <View className="mb-4">
+              <Text className="text-xs font-semibold text-zinc-700 mb-2 uppercase tracking-wide">Frequency</Text>
+              <View className="flex-row gap-2">
+                {(['monthly', 'yearly', 'one_time'] as const).map((f) => (
+                  <Pressable
+                    key={f}
+                    onPress={() => setEditFrequency(f)}
+                    className={`flex-1 py-2 rounded-xl border items-center ${
+                      editFrequency === f
+                        ? 'bg-indigo-600 border-indigo-600'
+                        : 'bg-zinc-50 border-zinc-200'
+                    }`}
+                  >
+                    <Text className={`text-xs font-semibold capitalize ${editFrequency === f ? 'text-white' : 'text-zinc-700'}`}>
+                      {f === 'one_time' ? 'One Time' : f}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            <Input
+              label="Due Date (YYYY-MM-DD)"
+              placeholder="YYYY-MM-DD"
+              value={editDueDate}
+              onChangeText={setEditDueDate}
+            />
+
+            <View className="flex-row gap-3 mt-4">
+              <Button
+                variant="outline"
+                size="lg"
+                loading={deleteBillMutation.isPending}
+                className="flex-1 border-rose-200 bg-rose-50/50"
+                onPress={confirmDeleteBill}
+              >
+                <Trash2 size={16} color="#EF4444" />
+                <Text className="text-rose-600 font-bold ml-1.5">Delete</Text>
+              </Button>
+
+              <Button
+                variant="primary"
+                size="lg"
+                loading={updateBillMutation.isPending}
+                className="flex-1"
+                onPress={() => updateBillMutation.mutate()}
+              >
+                <Text className="text-white font-bold">Save</Text>
+              </Button>
+            </View>
+          </ScrollView>
+        </Pressable>
+      </AppModal>
 
       {/* Custom Mark as Paid Confirmation Modal */}
       <AppModal

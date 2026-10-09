@@ -98,7 +98,8 @@ export default function LendsScreen() {
   // TanStack Query for reactive data loading
   const { data: lends = [], isLoading: loadingLends } = useQuery({
     queryKey: ['lends', user?.id],
-    queryFn: () => lendService.getAll(),
+    queryFn: () => lendService.getAll(user?.id),
+    enabled: !!user?.id || true,
   });
 
   const activeRecords = lends
@@ -130,6 +131,7 @@ export default function LendsScreen() {
       if (amountMinor <= 0) throw new Error('Please enter a valid amount greater than ₹0.');
       if (!dueDate || dueDate < lentDate) throw new Error('Collection date must be on or after lent date.');
       return lendService.createLend({
+        userId: user?.id,
         personName: name,
         amountMinor,
         notes: notes.trim() || undefined,
@@ -155,7 +157,7 @@ export default function LendsScreen() {
 
   const markCollectedMutation = useMutation({
     mutationFn: async (id: string) => {
-      return lendService.markCollected(id);
+      return lendService.markCollected(id, user?.id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lends'] });
@@ -168,7 +170,7 @@ export default function LendsScreen() {
 
   const deleteLendMutation = useMutation({
     mutationFn: async (id: string) => {
-      return lendService.deleteLend(id);
+      return lendService.deleteLend(id, user?.id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lends'] });
@@ -182,7 +184,7 @@ export default function LendsScreen() {
   const rescheduleMutation = useMutation({
     mutationFn: async () => {
       if (!rescheduleTarget || !newDueDate) return;
-      return lendService.updateDueDate(rescheduleTarget.id, newDueDate);
+      return lendService.updateDueDate(rescheduleTarget.id, newDueDate, user?.id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lends'] });
