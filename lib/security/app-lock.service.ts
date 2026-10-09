@@ -4,6 +4,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 const PIN_VERIFIER_KEY = 'pocketwise_pin_verifier';
 const APP_LOCK_ENABLED_KEY = 'pocketwise_app_lock_enabled';
 const BIOMETRICS_ENABLED_KEY = 'pocketwise_biometrics_enabled';
+const LOCK_TIMEOUT_KEY = 'pocketwise_lock_timeout_seconds';
 
 // Simple salt derivation helper for PIN verification
 async function hashPin(pin: string): Promise<string> {
@@ -44,6 +45,33 @@ export const appLockService = {
     await SecureStore.setItemAsync(BIOMETRICS_ENABLED_KEY, enabled ? 'true' : 'false');
   },
 
+  async getLockTimeout(): Promise<number> {
+    try {
+      const val = await SecureStore.getItemAsync(LOCK_TIMEOUT_KEY);
+      if (val === null || val === undefined) return 30; // Default 30 seconds
+      const parsed = parseInt(val, 10);
+      return Number.isFinite(parsed) ? parsed : 30;
+    } catch {
+      return 30;
+    }
+  },
+
+  async setLockTimeout(seconds: number): Promise<void> {
+    await SecureStore.setItemAsync(LOCK_TIMEOUT_KEY, seconds.toString());
+  },
+
+  async shouldRelock(backgroundTimestamp: number | null): Promise<boolean> {
+    const isEnabled = await this.isAppLockEnabled();
+    if (!isEnabled || !backgroundTimestamp) return false;
+
+    const timeout = await this.getLockTimeout();
+    if (timeout === -1) return false; // Never automatically relock
+    if (timeout === 0) return true; // Immediately
+
+    const elapsedSeconds = (Date.now() - backgroundTimestamp) / 1000;
+    return elapsedSeconds >= timeout;
+  },
+
   async setPin(pin: string): Promise<void> {
     const verifier = await hashPin(pin);
     await SecureStore.setItemAsync(PIN_VERIFIER_KEY, verifier);
@@ -72,6 +100,7 @@ export const appLockService = {
 
   async clearPin(): Promise<void> {
     await SecureStore.deleteItemAsync(PIN_VERIFIER_KEY);
+    await SecureStore.deleteItemAsync(LOCK_TIMEOUT_KEY);
     await this.setAppLockEnabled(false);
     await this.setBiometricsEnabled(false);
   },
@@ -93,3 +122,4 @@ export const appLockService = {
     }
   },
 };
+
