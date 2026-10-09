@@ -547,6 +547,7 @@ export default function DashboardScreen() {
                 <TouchableOpacity
                   key={tx.id}
                   activeOpacity={0.7}
+                  delayPressIn={0}
                   onPress={() => handleOpenDetailTx(tx)}
                 >
                   <Card className="mb-2.5 p-3.5 bg-white border border-zinc-200 rounded-2xl active:bg-zinc-50">
@@ -675,9 +676,6 @@ export default function DashboardScreen() {
           onPress={(e) => e.stopPropagation()}
           className="flex-col w-full"
         >
-          {/* Subtle Drag Handle */}
-          <View className="w-12 h-1 bg-zinc-300 rounded-full self-center mt-3 mb-1" />
-
           {/* Header */}
           <View className="flex-row justify-between items-center p-5 pb-3 border-b border-zinc-100">
             <View className="flex-row items-center gap-3">
@@ -750,9 +748,6 @@ export default function DashboardScreen() {
         animationType="slide"
       >
         <View className="flex-col w-full">
-          {/* Subtle Drag Indicator */}
-          <View className="w-12 h-1 bg-zinc-300 rounded-full self-center mt-3 mb-1" />
-
           {/* Fixed Header */}
           <View className="flex-row justify-between items-center px-5 py-3 border-b border-zinc-100">
             <View className="flex-row items-center gap-3">
