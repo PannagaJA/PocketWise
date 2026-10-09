@@ -1,15 +1,19 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Card } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
+import { AppModal } from '../components/ui/AppModal';
 import { useAuth } from '../context/AuthContext';
 import { reportService } from '../lib/services/report.service';
 import { budgetService, Budget } from '../lib/services/budget.service';
 import { goalService, Goal } from '../lib/services/goal.service';
+import { transactionService } from '../lib/services/transaction.service';
+import { exportService } from '../lib/services/export.service';
 import { formatMoney } from '../lib/finance/core';
-import { ArrowLeft, TrendingUp, PieChart as PieIcon, CreditCard, Calendar, Target } from 'lucide-react-native';
+import { ArrowLeft, TrendingUp, PieChart as PieIcon, CreditCard, Calendar, Target, Share2, FileSpreadsheet, FileText, X } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 type PeriodOption = 'this_month' | '3_months' | '6_months' | 'this_year';
@@ -19,6 +23,8 @@ export default function ReportsScreen() {
   const router = useRouter();
   const [period, setPeriod] = useState<PeriodOption>('this_month');
   const [refreshing, setRefreshing] = useState(false);
+  const [exportModalVisible, setExportModalVisible] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const getDateRange = (selectedPeriod: PeriodOption) => {
     const now = new Date();
@@ -91,20 +97,66 @@ export default function ReportsScreen() {
     setRefreshing(false);
   };
 
+  const handleExportCSV = async () => {
+    if (!user?.id) return;
+    setIsExporting(true);
+    try {
+      const txs = await transactionService.getTransactionsByDateRange(user.id, startDate, endDate);
+      const csvData = exportService.generateTransactionsCSV(txs);
+      await exportService.shareContent(csvData, 'PocketWise Transactions Statement');
+      setExportModalVisible(false);
+    } catch {
+      Alert.alert('Export Error', 'Failed to export CSV statement.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportSummary = async () => {
+    if (!summary) return;
+    setIsExporting(true);
+    try {
+      const summaryText = exportService.generateFinancialSummaryText({
+        periodName: period.replace('_', ' '),
+        startDate,
+        endDate,
+        summary,
+        categories,
+      });
+      await exportService.shareContent(summaryText, 'PocketWise Financial Summary');
+      setExportModalVisible(false);
+    } catch {
+      Alert.alert('Export Error', 'Failed to export summary report.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const hasNoData = !summary || (summary.totalIncome === 0 && summary.totalExpense === 0);
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       <View className="px-4 pt-2 flex-1">
         {/* Header */}
-        <View className="flex-row items-center mb-4">
-          <Pressable onPress={() => { if (router.canGoBack()) { router.back(); } else { router.replace('/(tabs)/'); } }} className="p-2 -ml-2 mr-2 rounded-full active:bg-zinc-100">
-            <ArrowLeft size={20} color="#09090B" />
-          </Pressable>
-          <View>
-            <Text className="text-2xl font-black text-zinc-900">Financial Analytics</Text>
-            <Text className="text-xs text-zinc-500 mt-0.5">Real-time spending & performance breakdown</Text>
+        <View className="flex-row items-center justify-between mb-4">
+          <View className="flex-row items-center flex-1">
+            <Pressable onPress={() => { if (router.canGoBack()) { router.back(); } else { router.replace('/(tabs)/'); } }} className="p-2 -ml-2 mr-2 rounded-full active:bg-zinc-100">
+              <ArrowLeft size={20} color="#09090B" />
+            </Pressable>
+            <View className="flex-1">
+              <Text className="text-2xl font-black text-zinc-900">Financial Analytics</Text>
+              <Text className="text-xs text-zinc-500 mt-0.5">Real-time spending & performance breakdown</Text>
+            </View>
           </View>
+          <Pressable
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              setExportModalVisible(true);
+            }}
+            className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 items-center justify-center active:bg-indigo-100 ml-2"
+          >
+            <Share2 size={18} color="#6366F1" />
+          </Pressable>
         </View>
 
         {/* Period Selector */}
@@ -376,6 +428,77 @@ export default function ReportsScreen() {
           )}
         </ScrollView>
       </View>
+
+      {/* Export Statement Modal */}
+      <AppModal
+        visible={exportModalVisible}
+        onClose={() => setExportModalVisible(false)}
+        animationType="slide"
+      >
+        <Pressable
+          className="bg-white rounded-t-3xl p-6 pb-6 border-t border-zinc-200"
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View className="flex-row justify-between items-center mb-4">
+            <View>
+              <Text className="text-xl font-bold text-zinc-900">Export Financial Statement</Text>
+              <Text className="text-xs text-zinc-500 mt-0.5">
+                {period.replace('_', ' ').toUpperCase()} ({startDate} to {endDate})
+              </Text>
+            </View>
+            <Pressable onPress={() => setExportModalVisible(false)} className="p-1">
+              <X size={20} color="#71717A" />
+            </Pressable>
+          </View>
+
+          <View className="gap-3 my-3">
+            <Pressable
+              disabled={isExporting}
+              onPress={handleExportCSV}
+              className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 flex-row items-center active:bg-zinc-100"
+            >
+              <View className="w-10 h-10 rounded-xl bg-emerald-50 items-center justify-center mr-3 border border-emerald-100">
+                <FileSpreadsheet size={20} color="#10B981" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-sm font-bold text-zinc-900">Transactions Spreadsheet (CSV)</Text>
+                <Text className="text-xs text-zinc-500">Full itemized statement with dates, categories & amounts</Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              disabled={isExporting}
+              onPress={handleExportSummary}
+              className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 flex-row items-center active:bg-zinc-100"
+            >
+              <View className="w-10 h-10 rounded-xl bg-indigo-50 items-center justify-center mr-3 border border-indigo-100">
+                <FileText size={20} color="#6366F1" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-sm font-bold text-zinc-900">Financial Summary Report (Text)</Text>
+                <Text className="text-xs text-zinc-500">Savings rate, income/expense breakdown & totals</Text>
+              </View>
+            </Pressable>
+          </View>
+
+          {isExporting && (
+            <View className="py-2 items-center flex-row justify-center gap-2">
+              <ActivityIndicator size="small" color="#6366F1" />
+              <Text className="text-xs font-semibold text-zinc-500">Preparing export statement...</Text>
+            </View>
+          )}
+
+          <Button
+            variant="outline"
+            size="lg"
+            className="mt-2 mb-2"
+            onPress={() => setExportModalVisible(false)}
+          >
+            <Text className="text-zinc-700 font-semibold">Cancel</Text>
+          </Button>
+        </Pressable>
+      </AppModal>
     </SafeAreaView>
   );
 }
+

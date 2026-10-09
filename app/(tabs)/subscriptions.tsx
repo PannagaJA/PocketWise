@@ -8,11 +8,12 @@ import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { AppModal } from '../../components/ui/AppModal';
 import { useAuth } from '../../context/AuthContext';
-import { subscriptionService, Subscription } from '../../lib/services/subscription.service';
+import { subscriptionService, Subscription, BillingCycle } from '../../lib/services/subscription.service';
+import { accountService } from '../../lib/services/account.service';
 import { notificationService } from '../../lib/notifications/notification.service';
 import { formatCurrency, formatDate } from '../../lib/formatters';
 import { parseMoneyToMinor } from '../../lib/finance/core';
-import { Plus, Bell, CreditCard, X, Calendar as CalendarIcon, ChevronLeft, ChevronRight, ShieldCheck, Trash2, AlertTriangle, Clock } from 'lucide-react-native';
+import { Plus, Bell, CreditCard, X, Calendar as CalendarIcon, ChevronLeft, ChevronRight, ShieldCheck, Trash2, AlertTriangle, Clock, RotateCcw, Pencil, Check } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { TimePickerModal, format12HourTime } from '../../components/ui/TimePickerModal';
 
@@ -22,9 +23,17 @@ export default function SubscriptionsScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
-  const [cycle, setCycle] = useState<'monthly' | 'yearly'>('monthly');
+  const [cycle, setCycle] = useState<BillingCycle>('monthly');
   const [nextBillingDate, setNextBillingDate] = useState('');
   const [renewalTime, setRenewalTime] = useState('09:00');
+
+  // Edit Subscription Modal state
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingSub, setEditingSub] = useState<Subscription | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editAmount, setEditAmount] = useState('');
+  const [editCycle, setEditCycle] = useState<BillingCycle>('monthly');
+  const [editNextBillingDate, setEditNextBillingDate] = useState('');
 
   // Delete Confirmation Modal state
   const [subToDelete, setSubToDelete] = useState<Subscription | null>(null);
@@ -38,6 +47,12 @@ export default function SubscriptionsScreen() {
   const { data: subscriptions = [], isLoading: loadingSubs } = useQuery({
     queryKey: ['subscriptions', user?.id],
     queryFn: () => subscriptionService.getSubscriptions(user?.id || ''),
+    enabled: !!user?.id,
+  });
+
+  const { data: accounts = [] } = useQuery({
+    queryKey: ['accounts', user?.id],
+    queryFn: () => accountService.getAccounts(user?.id || ''),
     enabled: !!user?.id,
   });
 
@@ -84,6 +99,92 @@ export default function SubscriptionsScreen() {
       Alert.alert('Error', err.message || 'Failed to create subscription');
     },
   });
+
+  const renewSubMutation = useMutation({
+    mutationFn: async (sub: Subscription) => {
+      const accountId = sub.account_id || accounts[0]?.id;
+      return subscriptionService.renewSubscription(sub.id, accountId);
+    },
+    onSuccess: (res) => {
+      queryClient.invalidateQueries();
+      try {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch {}
+      Alert.alert(
+        '🎉 Subscription Renewed',
+        `Renewed! Next billing date is set to ${formatDate(res.subscription.next_billing_date)}.`
+      );
+    },
+    onError: (err: any) => {
+      Alert.alert('Error', err.message || 'Failed to renew subscription');
+    },
+  });
+
+  const handleRenewSub = (sub: Subscription) => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+    Alert.alert(
+      'Renew Subscription',
+      `Record renewal payment of ${formatCurrency(sub.amount_minor)} for "${sub.name}" and advance next billing date?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Renew Now',
+          style: 'default',
+          onPress: () => renewSubMutation.mutate(sub),
+        },
+      ]
+    );
+  };
+
+  const updateSubMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingSub) return;
+      const minorAmount = parseMoneyToMinor(editAmount);
+      if (minorAmount <= 0) throw new Error('Amount must be greater than zero');
+      if (!editName.trim()) throw new Error('Name is required');
+
+      let updatedBillingDate = editingSub.next_billing_date;
+      if (editNextBillingDate && editNextBillingDate.trim()) {
+        const trimmedDate = editNextBillingDate.trim();
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (!dateRegex.test(trimmedDate)) {
+          throw new Error('Next billing date must be in YYYY-MM-DD format');
+        }
+        const hasTime = editingSub.next_billing_date.includes('T') || editingSub.next_billing_date.includes(' ');
+        const separator = editingSub.next_billing_date.includes('T') ? 'T' : ' ';
+        const [, timePart] = hasTime ? editingSub.next_billing_date.split(separator) : ['', ''];
+        updatedBillingDate = timePart ? `${trimmedDate}${separator}${timePart}` : trimmedDate;
+      }
+
+      return subscriptionService.updateSubscription(editingSub.id, {
+        name: editName.trim(),
+        amount_minor: minorAmount,
+        billing_cycle: editCycle,
+        next_billing_date: updatedBillingDate,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+      try {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch {}
+      setEditModalVisible(false);
+      setEditingSub(null);
+    },
+    onError: (err: any) => {
+      Alert.alert('Error', err.message || 'Failed to update subscription');
+    },
+  });
+
+  const handleOpenEditSub = (sub: Subscription) => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    setEditingSub(sub);
+    setEditName(sub.name);
+    setEditAmount((sub.amount_minor / 100).toString());
+    setEditCycle(sub.billing_cycle);
+    setEditNextBillingDate(sub.next_billing_date ? sub.next_billing_date.substring(0, 10) : '');
+    setEditModalVisible(true);
+  };
 
   const deleteSubMutation = useMutation({
     mutationFn: (subId: string) => subscriptionService.deleteSubscription(subId),
@@ -219,8 +320,8 @@ export default function SubscriptionsScreen() {
                     </View>
                   </View>
 
-                  <View className="items-end flex-row items-center gap-3">
-                    <View className="items-end">
+                  <View className="items-end flex-row items-center gap-2">
+                    <View className="items-end mr-1">
                       <Text className="text-base font-extrabold text-zinc-900">{formatCurrency(sub.amount_minor)}</Text>
                       <View className="flex-row items-center mt-0.5">
                         <Bell size={12} color="#6366F1" />
@@ -229,13 +330,27 @@ export default function SubscriptionsScreen() {
                     </View>
 
                     <Pressable
+                      onPress={() => handleRenewSub(sub)}
+                      className="p-2 rounded-xl bg-emerald-50 active:bg-emerald-100 border border-emerald-100"
+                    >
+                      <RotateCcw size={15} color="#059669" />
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => handleOpenEditSub(sub)}
+                      className="p-2 rounded-xl bg-zinc-100 active:bg-zinc-200 border border-zinc-200"
+                    >
+                      <Pencil size={15} color="#18181B" />
+                    </Pressable>
+
+                    <Pressable
                       onPress={() => {
                         try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch { }
                         setSubToDelete(sub);
                       }}
                       className="p-2 rounded-xl bg-rose-50 active:bg-rose-100 border border-rose-100"
                     >
-                      <Trash2 size={16} color="#EF4444" />
+                      <Trash2 size={15} color="#EF4444" />
                     </Pressable>
                   </View>
                 </View>
@@ -244,6 +359,90 @@ export default function SubscriptionsScreen() {
           )}
         </ScrollView>
       </View>
+
+      {/* Custom Edit Subscription Modal */}
+      <AppModal
+        visible={editModalVisible}
+        onClose={() => setEditModalVisible(false)}
+        animationType="slide"
+      >
+        <Pressable
+          className="bg-white rounded-t-3xl p-6 pb-6 border-t border-zinc-200 max-h-[90%]"
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View className="flex-row justify-between items-center mb-6">
+            <View className="flex-row items-center gap-2">
+              <View className="w-8 h-8 rounded-xl bg-zinc-100 items-center justify-center">
+                <Pencil size={16} color="#18181B" />
+              </View>
+              <Text className="text-xl font-bold text-zinc-900">Edit Subscription</Text>
+            </View>
+            <Pressable onPress={() => setEditModalVisible(false)}>
+              <X size={20} color="#71717A" />
+            </Pressable>
+          </View>
+
+          <ScrollView 
+            showsVerticalScrollIndicator={false} 
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 48 }}
+          >
+            <Input
+              label="Service Name"
+              placeholder="e.g. Netflix, Spotify"
+              value={editName}
+              onChangeText={setEditName}
+            />
+
+            <Input
+              label="Amount (₹)"
+              placeholder="649.00"
+              keyboardType="numeric"
+              value={editAmount}
+              onChangeText={setEditAmount}
+            />
+
+            {/* Cycle Selector */}
+            <View className="mb-4">
+              <Text className="text-xs font-semibold text-zinc-700 mb-2 uppercase tracking-wide">Billing Cycle</Text>
+              <View className="flex-row gap-2 flex-wrap">
+                {(['weekly', 'monthly', 'quarterly', 'yearly'] as BillingCycle[]).map((c) => (
+                  <Pressable
+                    key={c}
+                    onPress={() => setEditCycle(c)}
+                    className={`py-2 px-3 rounded-xl border ${
+                      editCycle === c
+                        ? 'bg-indigo-600 border-indigo-600'
+                        : 'bg-zinc-50 border-zinc-200'
+                    }`}
+                  >
+                    <Text className={`text-xs font-semibold capitalize ${editCycle === c ? 'text-white' : 'text-zinc-700'}`}>
+                      {c}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            <Input
+              label="Next Billing Date (YYYY-MM-DD)"
+              placeholder="YYYY-MM-DD"
+              value={editNextBillingDate}
+              onChangeText={setEditNextBillingDate}
+            />
+
+            <Button
+              variant="primary"
+              size="lg"
+              loading={updateSubMutation.isPending}
+              className="mt-4"
+              onPress={() => updateSubMutation.mutate()}
+            >
+              <Text className="text-white font-semibold">Save Changes</Text>
+            </Button>
+          </ScrollView>
+        </Pressable>
+      </AppModal>
 
       {/* Custom Delete Confirmation Modal */}
       <AppModal

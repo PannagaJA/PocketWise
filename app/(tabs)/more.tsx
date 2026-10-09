@@ -9,7 +9,7 @@ import { Badge } from '../../components/ui/Badge';
 import { AppModal } from '../../components/ui/AppModal';
 import { useAuth } from '../../context/AuthContext';
 import { appLockService } from '../../lib/security/app-lock.service';
-import { Fingerprint, Bell, Database, LogOut, ChevronRight, Calendar, Target, Lock, PieChart, X, Smartphone, Zap, HandCoins } from 'lucide-react-native';
+import { Fingerprint, Bell, Database, LogOut, ChevronRight, Calendar, Target, Lock, PieChart, X, Smartphone, Zap, HandCoins, Clock } from 'lucide-react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as Haptics from 'expo-haptics';
 
@@ -18,6 +18,7 @@ export default function MoreScreen() {
 
   const [appLockEnabled, setAppLockEnabled] = useState(false);
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
+  const [lockTimeout, setLockTimeout] = useState(30);
   const [pushEnabled, setPushEnabled] = useState(true);
 
   // Pin setup modal state
@@ -32,8 +33,10 @@ export default function MoreScreen() {
   const loadSecurityState = async () => {
     const lockOn = await appLockService.isAppLockEnabled();
     const bioOn = await appLockService.isBiometricsEnabled();
+    const timeout = await appLockService.getLockTimeout();
     setAppLockEnabled(lockOn);
     setBiometricsEnabled(bioOn);
+    setLockTimeout(timeout);
   };
 
   const toggleAppLock = async (value: boolean) => {
@@ -214,22 +217,63 @@ export default function MoreScreen() {
           </View>
 
           {appLockEnabled && (
-            <View className="p-4 flex-row items-center justify-between">
-              <View className="flex-row items-center">
-                <View className="w-9 h-9 rounded-xl bg-emerald-50 items-center justify-center mr-3">
-                  <Fingerprint size={20} color="#10B981" />
+            <>
+              <View className="p-4 flex-row items-center justify-between">
+                <View className="flex-row items-center">
+                  <View className="w-9 h-9 rounded-xl bg-emerald-50 items-center justify-center mr-3">
+                    <Fingerprint size={20} color="#10B981" />
+                  </View>
+                  <View>
+                    <Text className="text-sm font-bold text-zinc-900">Biometric Unlock</Text>
+                    <Text className="text-xs text-zinc-500">Face ID / Touch ID unlock</Text>
+                  </View>
                 </View>
-                <View>
-                  <Text className="text-sm font-bold text-zinc-900">Biometric Unlock</Text>
-                  <Text className="text-xs text-zinc-500">Face ID / Touch ID unlock</Text>
+                <Switch
+                  value={biometricsEnabled}
+                  onValueChange={toggleBiometrics}
+                  trackColor={{ false: '#E4E4E7', true: '#10B981' }}
+                />
+              </View>
+
+              <View className="p-4 bg-zinc-50/50">
+                <View className="flex-row items-center mb-2.5">
+                  <Clock size={16} color="#6366F1" />
+                  <Text className="text-xs font-bold text-zinc-700 ml-1.5">Auto-Lock When in Background</Text>
+                </View>
+                <View className="flex-row gap-2">
+                  {[
+                    { label: 'Immediately', value: 0 },
+                    { label: '30s', value: 30 },
+                    { label: '1m', value: 60 },
+                    { label: '5m', value: 300 },
+                  ].map((option) => (
+                    <Pressable
+                      key={option.value}
+                      onPress={async () => {
+                        await appLockService.setLockTimeout(option.value);
+                        setLockTimeout(option.value);
+                        try {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        } catch {}
+                      }}
+                      className={`flex-1 py-2 rounded-xl items-center border ${
+                        lockTimeout === option.value
+                          ? 'bg-indigo-600 border-indigo-600 shadow-sm'
+                          : 'bg-white border-zinc-200'
+                      }`}
+                    >
+                      <Text
+                        className={`text-xs font-bold ${
+                          lockTimeout === option.value ? 'text-white' : 'text-zinc-700'
+                        }`}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  ))}
                 </View>
               </View>
-              <Switch
-                value={biometricsEnabled}
-                onValueChange={toggleBiometrics}
-                trackColor={{ false: '#E4E4E7', true: '#10B981' }}
-              />
-            </View>
+            </>
           )}
 
           <Pressable onPress={() => router.push('/sms-settings')} className="p-4 flex-row items-center justify-between">
