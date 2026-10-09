@@ -225,37 +225,50 @@ export default function ReportsScreen() {
             <>
               {/* Financial Summary Card */}
               <Card className="bg-zinc-900 border-zinc-800 p-5 mb-5 rounded-3xl shadow-md">
-                <Text className="text-xs font-extrabold text-zinc-400 uppercase tracking-widest mb-3">
-                  Period Summary
-                </Text>
-                <View className="flex-row justify-between mb-4">
+                {/* Hero Top: Net Savings & Savings Rate */}
+                <View className="flex-row justify-between items-center mb-4">
                   <View>
-                    <Text className="text-xs text-zinc-400 font-medium">Income</Text>
-                    <Text className="text-lg font-black text-emerald-400 mt-0.5">
-                      +{formatMoney(summary?.totalIncome || 0)}
+                    <Text className="text-[11px] font-extrabold text-zinc-400 uppercase tracking-widest">
+                      Period Summary
                     </Text>
-                  </View>
-                  <View>
-                    <Text className="text-xs text-zinc-400 font-medium">Expenses</Text>
-                    <Text className="text-lg font-black text-rose-400 mt-0.5">
-                      -{formatMoney(summary?.totalExpense || 0)}
-                    </Text>
-                  </View>
-                  <View className="items-end">
-                    <Text className="text-xs text-zinc-400 font-medium">Savings</Text>
-                    <Text className="text-lg font-black text-white mt-0.5">
+                    <Text className="text-2xl font-black text-white mt-1">
                       {formatMoney(summary?.savings || 0)}
                     </Text>
+                    <Text className="text-xs font-semibold text-zinc-400 mt-0.5">Net Period Savings</Text>
+                  </View>
+
+                  <View className="bg-zinc-800/90 px-3.5 py-2 rounded-2xl flex-row items-center gap-2 border border-zinc-700/60">
+                    <TrendingUp size={16} color="#10B981" />
+                    <View>
+                      <Text className="text-[9px] font-bold text-zinc-400 uppercase">Savings Rate</Text>
+                      <Text className="text-sm font-black text-emerald-400">{summary?.savingsRate || 0}%</Text>
+                    </View>
                   </View>
                 </View>
 
-                {/* Savings Rate Bar with Gap Spacing */}
-                <View className="bg-zinc-800/90 p-3 rounded-2xl flex-row items-center justify-between">
-                  <View className="flex-row items-center gap-2.5">
-                    <TrendingUp size={18} color="#10B981" />
-                    <Text className="text-xs font-bold text-zinc-300">Savings Rate</Text>
+                {/* 2-Column Full-Width Breakdown: Income & Expenses */}
+                <View className="flex-row gap-3 pt-3.5 border-t border-zinc-800">
+                  {/* Income */}
+                  <View className="flex-1 bg-zinc-800/80 p-3.5 rounded-2xl border border-zinc-700/50">
+                    <View className="flex-row items-center gap-1.5 mb-1.5">
+                      <View className="w-2 h-2 rounded-full bg-emerald-400" />
+                      <Text className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Total Income</Text>
+                    </View>
+                    <Text className="text-base font-black text-emerald-400">
+                      +{formatMoney(summary?.totalIncome || 0)}
+                    </Text>
                   </View>
-                  <Text className="text-sm font-black text-emerald-400">{summary?.savingsRate || 0}%</Text>
+
+                  {/* Expenses */}
+                  <View className="flex-1 bg-zinc-800/80 p-3.5 rounded-2xl border border-zinc-700/50">
+                    <View className="flex-row items-center gap-1.5 mb-1.5">
+                      <View className="w-2 h-2 rounded-full bg-rose-400" />
+                      <Text className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Total Expenses</Text>
+                    </View>
+                    <Text className="text-base font-black text-rose-400">
+                      -{formatMoney(summary?.totalExpense || 0)}
+                    </Text>
+                  </View>
                 </View>
               </Card>
 

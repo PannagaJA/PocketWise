@@ -12,13 +12,16 @@ import { useAuth } from '../../context/AuthContext';
 import { budgetService } from '../../lib/services/budget.service';
 import { categoryService } from '../../lib/services/category.service';
 import { formatMoney, parseMoneyToMinor } from '../../lib/finance/core';
-import { Plus, X, PieChart, AlertTriangle, ChevronDown, Check, Target, TrendingUp, ShieldCheck } from 'lucide-react-native';
+import { Plus, X, PieChart, AlertTriangle, ChevronDown, Check, Target, TrendingUp, ShieldCheck, Pencil, Trash2 } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 
 export default function BudgetsScreen() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [modalVisible, setModalVisible] = useState(false);
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Form state
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
@@ -57,11 +60,26 @@ export default function BudgetsScreen() {
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (circumference * overallPercentage) / 100;
 
-  const createBudgetMutation = useMutation({
+  const saveBudgetMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedCategoryId) throw new Error('Please select a category');
+      setFormError(null);
+      if (!selectedCategoryId) throw new Error('Please select an expense category');
       const minorLimit = parseMoneyToMinor(monthlyLimit);
       if (minorLimit <= 0) throw new Error('Monthly limit must be greater than zero');
+
+      if (editingBudgetId) {
+        return budgetService.updateBudget(editingBudgetId, {
+          amount_minor: minorLimit,
+        });
+      }
+
+      // If budget already exists for this category this month, update it seamlessly
+      const existing = budgets.find((b) => b.category_id === selectedCategoryId);
+      if (existing) {
+        return budgetService.updateBudget(existing.id, {
+          amount_minor: minorLimit,
+        });
+      }
 
       return budgetService.createBudget({
         user_id: user!.id,
@@ -73,14 +91,29 @@ export default function BudgetsScreen() {
       });
     },
     onSuccess: () => {
+      try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
       queryClient.invalidateQueries({ queryKey: ['budgets', user?.id] });
       setModalVisible(false);
       setSelectedCategoryId('');
       setMonthlyLimit('');
+      setEditingBudgetId(null);
+      setFormError(null);
       setCategoryDropdownOpen(false);
     },
     onError: (err: any) => {
-      Alert.alert('Error', err.message || 'Failed to create budget');
+      try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch {}
+      setFormError(err.message || 'Failed to save budget');
+    },
+  });
+
+  const deleteBudgetMutation = useMutation({
+    mutationFn: async (id: string) => budgetService.deleteBudget(id),
+    onSuccess: () => {
+      try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+      queryClient.invalidateQueries({ queryKey: ['budgets', user?.id] });
+    },
+    onError: (err: any) => {
+      Alert.alert('Error', err.message || 'Failed to delete budget');
     },
   });
 
@@ -98,7 +131,14 @@ export default function BudgetsScreen() {
             variant="primary"
             size="sm"
             className="flex-row space-x-1"
-            onPress={() => setModalVisible(true)}
+            onPress={() => {
+              setEditingBudgetId(null);
+              setSelectedCategoryId('');
+              setMonthlyLimit('');
+              setFormError(null);
+              setCategoryDropdownOpen(false);
+              setModalVisible(true);
+            }}
           >
             <Plus size={16} color="#FFF" />
             <Text className="text-white font-semibold text-xs">Add Budget</Text>
@@ -138,7 +178,7 @@ export default function BudgetsScreen() {
               <View className="relative items-center justify-center">
                 <Svg width={size} height={size}>
                   <G transform={`rotate(-90 ${size / 2} ${size / 2})`}>
-                    {/* Background Circle */}
+                    {/* Background Track */}
                     <Circle
                       cx={size / 2}
                       cy={size / 2}
@@ -185,7 +225,19 @@ export default function BudgetsScreen() {
               <Text className="text-xs text-zinc-500 mt-1 mb-4 text-center">
                 Set a monthly spending limit to stay on track.
               </Text>
-              <Button size="sm" variant="primary" className="px-6 py-2.5" onPress={() => setModalVisible(true)}>
+              <Button
+                size="sm"
+                variant="primary"
+                className="px-6 py-2.5"
+                onPress={() => {
+                  setEditingBudgetId(null);
+                  setSelectedCategoryId('');
+                  setMonthlyLimit('');
+                  setFormError(null);
+                  setCategoryDropdownOpen(false);
+                  setModalVisible(true);
+                }}
+              >
                 Add Budget
               </Button>
             </Card>
@@ -198,16 +250,44 @@ export default function BudgetsScreen() {
               const isExceeded = percentage >= 100;
 
               return (
-                <Card key={b.id} className="mb-3 p-4 bg-white border border-zinc-200 rounded-2xl">
+                <Card key={b.id} className="mb-3 p-4 bg-white border border-zinc-200 rounded-2xl shadow-xs">
                   <View className="flex-row justify-between items-center mb-2">
-                    <View className="flex-row items-center">
-                      <View className="w-3.5 h-3.5 rounded-full mr-2.5" style={{ backgroundColor: b.category_color }} />
-                      <Text className="text-base font-bold text-zinc-900">{b.category_name}</Text>
+                    <View className="flex-row items-center flex-1 mr-2">
+                      <View className="w-3.5 h-3.5 rounded-full mr-2.5" style={{ backgroundColor: b.category_color || '#10B981' }} />
+                      <Text className="text-base font-bold text-zinc-900 flex-1" numberOfLines={1}>{b.category_name}</Text>
                     </View>
-                    <Badge
-                      label={isExceeded ? `${percentage}% Exceeded` : `${percentage}% Used`}
-                      variant={isExceeded ? 'expense' : isWarning ? 'income' : 'budget'}
-                    />
+                    <View className="flex-row items-center gap-1.5">
+                      <Badge
+                        label={isExceeded ? `${percentage}% Exceeded` : `${percentage}% Used`}
+                        variant={isExceeded ? 'expense' : isWarning ? 'income' : 'budget'}
+                      />
+                      <Pressable
+                        onPress={() => {
+                          try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                          setEditingBudgetId(b.id);
+                          setSelectedCategoryId(b.category_id);
+                          setMonthlyLimit((b.amount_minor / 100).toString());
+                          setFormError(null);
+                          setCategoryDropdownOpen(false);
+                          setModalVisible(true);
+                        }}
+                        className="p-1.5 rounded-lg bg-zinc-100 active:bg-zinc-200"
+                      >
+                        <Pencil size={13} color="#27272A" />
+                      </Pressable>
+                      <Pressable
+                        onPress={() => {
+                          try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+                          Alert.alert('Delete Budget', `Are you sure you want to delete the ${b.category_name} budget?`, [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Delete', style: 'destructive', onPress: () => deleteBudgetMutation.mutate(b.id) },
+                          ]);
+                        }}
+                        className="p-1.5 rounded-lg bg-rose-50 active:bg-rose-100"
+                      >
+                        <Trash2 size={13} color="#EF4444" />
+                      </Pressable>
+                    </View>
                   </View>
 
                   {/* Dynamic Gradient / Category Color Progress Bar */}
@@ -247,10 +327,14 @@ export default function BudgetsScreen() {
         </ScrollView>
       </View>
 
-      {/* Add Budget Modal */}
+      {/* Add / Edit Budget Modal */}
       <AppModal
         visible={modalVisible}
-        onClose={() => setModalVisible(false)}
+        onClose={() => {
+          setModalVisible(false);
+          setEditingBudgetId(null);
+          setFormError(null);
+        }}
         animationType="slide"
       >
         <Pressable
@@ -258,8 +342,17 @@ export default function BudgetsScreen() {
           onPress={(e) => e.stopPropagation()}
         >
           <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-xl font-bold text-zinc-900">Set Monthly Budget</Text>
-            <Pressable onPress={() => setModalVisible(false)} className="p-1">
+            <Text className="text-xl font-bold text-zinc-900">
+              {editingBudgetId ? 'Edit Budget' : 'Set Monthly Budget'}
+            </Text>
+            <Pressable
+              onPress={() => {
+                setModalVisible(false);
+                setEditingBudgetId(null);
+                setFormError(null);
+              }}
+              className="p-1"
+            >
               <X size={20} color="#71717A" />
             </Pressable>
           </View>
@@ -269,6 +362,14 @@ export default function BudgetsScreen() {
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ paddingBottom: 48 }}
           >
+            {/* In-Modal Error Banner */}
+            {formError && (
+              <View className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl flex-row items-center gap-2">
+                <AlertTriangle size={16} color="#EF4444" />
+                <Text className="text-xs font-semibold text-rose-700 flex-1">{formError}</Text>
+              </View>
+            )}
+
             {/* Category Dropdown */}
             <View className="mb-4">
               <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Category</Text>
@@ -285,22 +386,36 @@ export default function BudgetsScreen() {
               {categoryDropdownOpen && (
                 <View className="mt-1 bg-white border border-zinc-200 rounded-xl max-h-48 overflow-hidden shadow-sm">
                   <ScrollView nestedScrollEnabled className="p-1">
-                    {expenseCategories.map((cat) => (
-                      <Pressable
-                        key={cat.id}
-                        onPress={() => {
-                          setSelectedCategoryId(cat.id);
-                          setCategoryDropdownOpen(false);
-                        }}
-                        className={`flex-row justify-between items-center p-3 rounded-lg ${selectedCategoryId === cat.id ? 'bg-zinc-100' : ''}`}
-                      >
-                        <View className="flex-row items-center">
-                          <View className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: cat.color }} />
-                          <Text className={`text-sm ${selectedCategoryId === cat.id ? 'font-bold text-zinc-900' : 'text-zinc-700'}`}>{cat.name}</Text>
-                        </View>
-                        {selectedCategoryId === cat.id && <Check size={16} color="#09090B" />}
-                      </Pressable>
-                    ))}
+                    {expenseCategories.map((cat) => {
+                      const isBudgeted = budgets.some((b) => b.category_id === cat.id && b.id !== editingBudgetId);
+                      return (
+                        <Pressable
+                          key={cat.id}
+                          onPress={() => {
+                            setSelectedCategoryId(cat.id);
+                            setFormError(null);
+                            setCategoryDropdownOpen(false);
+                            // Preload amount if already budgeted
+                            const existing = budgets.find((b) => b.category_id === cat.id);
+                            if (existing && !monthlyLimit) {
+                              setMonthlyLimit((existing.amount_minor / 100).toString());
+                            }
+                          }}
+                          className={`flex-row justify-between items-center p-3 rounded-lg ${selectedCategoryId === cat.id ? 'bg-zinc-100' : ''}`}
+                        >
+                          <View className="flex-row items-center flex-1 mr-2">
+                            <View className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: cat.color }} />
+                            <Text className={`text-sm ${selectedCategoryId === cat.id ? 'font-bold text-zinc-900' : 'text-zinc-700'}`}>
+                              {cat.name}
+                            </Text>
+                            {isBudgeted && (
+                              <Text className="text-[10px] text-zinc-400 ml-2">(Active)</Text>
+                            )}
+                          </View>
+                          {selectedCategoryId === cat.id && <Check size={16} color="#09090B" />}
+                        </Pressable>
+                      );
+                    })}
                   </ScrollView>
                 </View>
               )}
@@ -311,17 +426,22 @@ export default function BudgetsScreen() {
               placeholder="e.g. 15000.00"
               keyboardType="numeric"
               value={monthlyLimit}
-              onChangeText={setMonthlyLimit}
+              onChangeText={(val) => {
+                setMonthlyLimit(val);
+                if (formError) setFormError(null);
+              }}
             />
 
             <Button
               variant="primary"
               size="lg"
-              loading={createBudgetMutation.isPending}
+              loading={saveBudgetMutation.isPending}
               className="mt-2"
-              onPress={() => createBudgetMutation.mutate()}
+              onPress={() => saveBudgetMutation.mutate()}
             >
-              <Text className="text-white font-semibold">Save Budget</Text>
+              <Text className="text-white font-semibold">
+                {editingBudgetId ? 'Update Budget' : 'Save Budget'}
+              </Text>
             </Button>
           </ScrollView>
         </Pressable>
