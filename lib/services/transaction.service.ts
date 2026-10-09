@@ -1,6 +1,7 @@
 import { supabase } from '../supabase';
 import { accountService } from './account.service';
 import { outboxService } from './outbox.service';
+import { generateUUID } from '../finance/core';
 
 export interface Transaction {
   id: string;
@@ -229,10 +230,10 @@ export const transactionService = {
     tx: Omit<Transaction, 'id'>,
     transferDestinationAccountId?: string
   ): Promise<Transaction> {
-    const sourceId = (tx as any).id || crypto.randomUUID();
+    const sourceId = (tx as any).id || generateUUID();
     const isTransfer = tx.type === 'transfer';
-    const transferGroupId = isTransfer ? ((tx as any).transfer_group_id || crypto.randomUUID()) : undefined;
-    const destinationTxId = (isTransfer && transferDestinationAccountId) ? crypto.randomUUID() : undefined;
+    const transferGroupId = isTransfer ? ((tx as any).transfer_group_id || generateUUID()) : undefined;
+    const destinationTxId = (isTransfer && transferDestinationAccountId) ? generateUUID() : undefined;
 
     try {
       if (isTransfer) {
