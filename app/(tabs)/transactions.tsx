@@ -1,5 +1,5 @@
-import React, { useState, useMemo, memo, useCallback, useEffect } from 'react';
-import { View, Text, ScrollView, Alert, ActivityIndicator, Pressable, RefreshControl, TextInput, KeyboardAvoidingView, Platform, Keyboard, FlatList } from 'react-native';
+import React, { useState, useMemo, memo, useCallback, useEffect, useRef } from 'react';
+import { View, Text, ScrollView, Alert, ActivityIndicator, Pressable, RefreshControl, TextInput, KeyboardAvoidingView, Platform, Keyboard, FlatList, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
@@ -15,6 +15,7 @@ import { accountService } from '../../lib/services/account.service';
 import { categoryService } from '../../lib/services/category.service';
 import { formatMoney, formatDate, parseMoneyToMinor } from '../../lib/finance/core';
 import { DatePickerButton } from '../../components/ui/DatePickerModal';
+import { TransactionDetailModal } from '../../components/TransactionDetailModal';
 import { Plus, ArrowUpRight, ArrowDownLeft, X, ArrowRightLeft, ChevronDown, Check, Wallet, BarChart2, Filter, Search, Calendar, SlidersHorizontal, Pencil, Trash2 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
@@ -32,8 +33,8 @@ const TransactionItem = memo(function TransactionItem({
   onPress?: () => void;
 }) {
   return (
-    <Pressable onPress={onPress}>
-      <Card className="mb-3 p-4 bg-white border border-zinc-200 active:bg-zinc-50">
+    <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
+      <Card className="mb-3 p-4 bg-white border border-zinc-200">
         <View className="flex-row items-center justify-between">
           <View className="flex-row items-center flex-1 pr-3">
             <View
@@ -72,14 +73,14 @@ const TransactionItem = memo(function TransactionItem({
           </View>
         </View>
       </Card>
-    </Pressable>
+    </TouchableOpacity>
   );
 });
 
 export default function TransactionsScreen() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const params = useLocalSearchParams<{ add?: string }>();
+  const params = useLocalSearchParams<{ add?: string; editId?: string }>();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [accModalVisible, setAccModalVisible] = useState(false);
@@ -240,6 +241,10 @@ export default function TransactionsScreen() {
     return { incomeTotal: inc, expenseTotal: exp, maxBar: mb, incomeHeight: ih, expenseHeight: eh };
   }, [transactions, selectedAccountFilterId, dateFilterMode, selectedCustomMonth, customStartDate, customEndDate]);
 
+  // View Transaction Detail State
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [selectedDetailTx, setSelectedDetailTx] = useState<any>(null);
+
   // Edit & Delete Transaction State
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingTx, setEditingTx] = useState<any>(null);
@@ -250,6 +255,12 @@ export default function TransactionsScreen() {
   const [editCategoryId, setEditCategoryId] = useState('');
   const [editCategoryDropdownOpen, setEditCategoryDropdownOpen] = useState(false);
   const [editAccountDropdownOpen, setEditAccountDropdownOpen] = useState(false);
+
+  const handleOpenDetailTx = useCallback((tx: any) => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    setSelectedDetailTx(tx);
+    setDetailModalVisible(true);
+  }, []);
 
   const handleOpenEditTx = useCallback((tx: any) => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
@@ -263,6 +274,20 @@ export default function TransactionsScreen() {
     setEditAccountDropdownOpen(false);
     setEditModalVisible(true);
   }, []);
+
+  const handledEditIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (params?.editId && params.editId !== handledEditIdRef.current && transactions.length > 0) {
+      const txToEdit = transactions.find((t) => t.id === params.editId);
+      if (txToEdit) {
+        handledEditIdRef.current = params.editId;
+        handleOpenEditTx(txToEdit);
+      }
+    } else if (!params?.editId) {
+      handledEditIdRef.current = null;
+    }
+  }, [params?.editId, transactions, handleOpenEditTx]);
 
   const renderItem = useCallback(
     ({ item: tx }: { item: any }) => {
@@ -280,11 +305,11 @@ export default function TransactionsScreen() {
           tx={tx}
           accountName={accountName}
           categoryName={categoryName}
-          onPress={() => handleOpenEditTx(tx)}
+          onPress={() => handleOpenDetailTx(tx)}
         />
       );
     },
-    [accounts, handleOpenEditTx]
+    [accounts, handleOpenDetailTx]
   );
 
   const keyExtractor = useCallback((item: any) => item.id, []);
@@ -370,25 +395,29 @@ export default function TransactionsScreen() {
       queryClient.invalidateQueries();
       try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
       setEditModalVisible(false);
+      setDetailModalVisible(false);
       setEditingTx(null);
+      setSelectedDetailTx(null);
     },
     onError: (err: any) => {
       Alert.alert('Error', err.message || 'Failed to delete transaction');
     },
   });
 
-  const confirmDeleteTx = () => {
-    if (!editingTx) return;
+  const confirmDeleteTx = (txToDel?: any) => {
+    const target = txToDel || editingTx;
+    if (!target) return;
+    setEditingTx(target);
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); } catch {}
     Alert.alert(
       'Delete Transaction?',
-      `Are you sure you want to delete this ${formatMoney(editingTx.amount_minor)} transaction? Account balance will be restored automatically.`,
+      `Are you sure you want to delete this ${formatMoney(target.amount_minor)} transaction? Account balance will be restored automatically.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => deleteTxMutation.mutate(editingTx.id),
+          onPress: () => deleteTxMutation.mutate(target.id),
         },
       ]
     );
@@ -1285,6 +1314,23 @@ export default function TransactionsScreen() {
           </ScrollView>
         </Pressable>
       </AppModal>
+
+      {/* Transaction Details View Modal */}
+      <TransactionDetailModal
+        visible={detailModalVisible}
+        transaction={selectedDetailTx}
+        account={accounts.find((a) => a.id === selectedDetailTx?.account_id)}
+        category={categories.find((c) => c.id === selectedDetailTx?.category_id)}
+        onClose={() => setDetailModalVisible(false)}
+        onEdit={(tx) => {
+          setDetailModalVisible(false);
+          handleOpenEditTx(tx);
+        }}
+        onDelete={(tx) => {
+          setDetailModalVisible(false);
+          confirmDeleteTx(tx);
+        }}
+      />
     </SafeAreaView>
   );
 }
