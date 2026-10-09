@@ -11,8 +11,10 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   ScrollView,
+  PanResponder,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 import { useModalStore } from '../../lib/stores/modalStore';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -45,12 +47,109 @@ export const AppModal: React.FC<AppModalProps> = ({
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const scaleAnim = useRef(new Animated.Value(0.92)).current;
   const keyboardOffsetAnim = useRef(new Animated.Value(0)).current;
+  const isDismissingRef = useRef(false);
 
   const useDriver = Platform.OS !== 'web';
+  const isSlide = animationType === 'slide';
+  const isSlideRef = useRef(isSlide);
+  isSlideRef.current = isSlide;
 
-  // Persist animated combinations across renders so native driver graph is stable and doesn't detach
+  const handleCloseRef = useRef(handleClose);
+  handleCloseRef.current = handleClose;
+
+  // Persist animated combinations: base slide - keyboard offset
   const combinedSheetTranslateY = useRef(
     Animated.subtract(slideAnim, keyboardOffsetAnim)
+  ).current;
+
+  const performDismiss = (gestureState: any) => {
+    const currentClose = handleCloseRef.current;
+    if ((gestureState.dy > 60 || gestureState.vy > 0.3) && currentClose) {
+      isDismissingRef.current = true;
+      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: SCREEN_HEIGHT,
+          duration: 180,
+          useNativeDriver: useDriver,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: useDriver,
+        }),
+      ]).start(() => {
+        setRendered(false);
+        isDismissingRef.current = false;
+        currentClose();
+      });
+    } else {
+      Animated.parallel([
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          damping: 30,
+          stiffness: 400,
+          mass: 0.6,
+          useNativeDriver: useDriver,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 120,
+          useNativeDriver: useDriver,
+        }),
+      ]).start();
+    }
+  };
+
+  const handleBarPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
+      onPanResponderGrant: () => {
+        Keyboard.dismiss();
+      },
+      onPanResponderMove: (_evt, gestureState) => {
+        if (gestureState.dy > 0) {
+          slideAnim.setValue(gestureState.dy);
+          fadeAnim.setValue(Math.max(0.1, 1 - gestureState.dy / (SCREEN_HEIGHT * 0.55)));
+        } else {
+          slideAnim.setValue(gestureState.dy * 0.12);
+        }
+      },
+      onPanResponderRelease: (_evt, gestureState) => performDismiss(gestureState),
+      onPanResponderTerminate: () => performDismiss({ dy: 0, vy: 0 }),
+    })
+  ).current;
+
+  // Pan responder for sheet content (does NOT capture before ScrollView children)
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: (_evt, gestureState) => {
+        if (!isSlideRef.current) return false;
+        return (
+          gestureState.dy > 6 &&
+          Math.abs(gestureState.dy) > Math.abs(gestureState.dx) * 1.2
+        );
+      },
+      onPanResponderGrant: () => {
+        Keyboard.dismiss();
+      },
+      onPanResponderMove: (_evt, gestureState) => {
+        if (gestureState.dy > 0) {
+          slideAnim.setValue(gestureState.dy);
+          fadeAnim.setValue(Math.max(0.1, 1 - gestureState.dy / (SCREEN_HEIGHT * 0.55)));
+        } else {
+          slideAnim.setValue(gestureState.dy * 0.12);
+        }
+      },
+      onPanResponderRelease: (_evt, gestureState) => performDismiss(gestureState),
+      onPanResponderTerminate: () => performDismiss({ dy: 0, vy: 0 }),
+    })
   ).current;
 
   // Coordinate modal visibility with global tab bar so floating navigation never overlaps modal
@@ -101,6 +200,7 @@ export const AppModal: React.FC<AppModalProps> = ({
 
   useEffect(() => {
     if (visible) {
+      isDismissingRef.current = false;
       setRendered(true);
       keyboardOffsetAnim.setValue(0);
       if (animationType === 'slide') {
@@ -109,14 +209,14 @@ export const AppModal: React.FC<AppModalProps> = ({
         Animated.parallel([
           Animated.timing(fadeAnim, {
             toValue: 1,
-            duration: 200,
+            duration: 120,
             useNativeDriver: useDriver,
           }),
           Animated.spring(slideAnim, {
             toValue: 0,
-            damping: 28,
-            stiffness: 300,
-            mass: 0.8,
+            damping: 32,
+            stiffness: 450,
+            mass: 0.5,
             useNativeDriver: useDriver,
           }),
         ]).start();
@@ -142,6 +242,10 @@ export const AppModal: React.FC<AppModalProps> = ({
         scaleAnim.setValue(1);
       }
     } else if (rendered) {
+      if (isDismissingRef.current) {
+        return;
+      }
+      isDismissingRef.current = true;
       Keyboard.dismiss();
       Animated.timing(keyboardOffsetAnim, {
         toValue: 0,
@@ -160,7 +264,10 @@ export const AppModal: React.FC<AppModalProps> = ({
             duration: 180,
             useNativeDriver: useDriver,
           }),
-        ]).start(() => setRendered(false));
+        ]).start(() => {
+          setRendered(false);
+          isDismissingRef.current = false;
+        });
       } else if (animationType === 'fade') {
         Animated.parallel([
           Animated.timing(fadeAnim, {
@@ -173,9 +280,13 @@ export const AppModal: React.FC<AppModalProps> = ({
             duration: 150,
             useNativeDriver: useDriver,
           }),
-        ]).start(() => setRendered(false));
+        ]).start(() => {
+          setRendered(false);
+          isDismissingRef.current = false;
+        });
       } else {
         setRendered(false);
+        isDismissingRef.current = false;
       }
     }
   }, [visible]);
@@ -203,7 +314,6 @@ export const AppModal: React.FC<AppModalProps> = ({
     }
   };
 
-  const isSlide = animationType === 'slide';
   const visibleSpaceAboveKeyboard = SCREEN_HEIGHT - keyboardHeight - insets.top - (Platform.OS === 'ios' ? 32 : 16);
   const maxDialogHeight = keyboardHeight > 0
     ? Math.min(SCREEN_HEIGHT * 0.85, Math.max(0, visibleSpaceAboveKeyboard))
@@ -254,7 +364,12 @@ export const AppModal: React.FC<AppModalProps> = ({
                 },
               ]}
               pointerEvents="auto"
+              {...panResponder.panHandlers}
             >
+              {/* Native Drag Handle Bar */}
+              <View style={styles.dragPillContainer} {...handleBarPanResponder.panHandlers}>
+                <View style={styles.dragPill} />
+              </View>
               {children}
             </Animated.View>
           </View>
@@ -339,6 +454,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
     overflow: 'hidden',
+  },
+  dragPillContainer: {
+    width: '100%',
+    paddingTop: 10,
+    paddingBottom: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  dragPill: {
+    width: 44,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#D4D4D8',
   },
 });
 
