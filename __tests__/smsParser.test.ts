@@ -485,6 +485,42 @@ describe('Android Bank SMS Transaction Auto-Detection Parser Pipeline', () => {
     expect(parsedDebit?.amount).toBe(1250);
     expect(parsedDebit?.bankId).toBe('sbi');
   });
+
+  // Test 23: Bank of Baroda NEFT double record deduplication with General account name
+  test('23. Deduplicates Bank of Baroda NEFT payment against "General • Bank of Baroda" account', () => {
+    const existingTransactions = [
+      {
+        id: 'tx-bob-1',
+        account_id: 'acc-bob',
+        account: { name: 'General • Bank of Baroda' },
+        type: 'income',
+        amount_minor: 2680000,
+        date: '2026-10-08',
+        description: 'Received Payment (NEFT)',
+      },
+    ];
+
+    const newIncoming: ParsedSmsTransaction = {
+      smsSender: 'VK-BOBTXN',
+      type: 'income',
+      amount: 26800,
+      amountMinor: 2680000,
+      currency: 'INR',
+      bankId: 'bob',
+      bankName: 'Bank of Baroda',
+      paymentMethod: 'NEFT',
+      category: 'General',
+      transactionDate: '2026-10-08T08:00:00.000Z',
+      confidenceScore: 80,
+      isSalary: false,
+      isRefund: false,
+      isTransfer: false,
+      isAutoDetected: true,
+      needsReview: true,
+    };
+
+    expect(isDuplicateTransaction(newIncoming, existingTransactions)).toBe(true);
+  });
 });
 
 
