@@ -2,7 +2,7 @@ import React, { useState, useMemo, memo, useCallback, useEffect, useRef } from '
 import { View, Text, ScrollView, Alert, ActivityIndicator, Pressable, RefreshControl, TextInput, KeyboardAvoidingView, Platform, Keyboard, FlatList, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, router } from 'expo-router';
 import Svg, { Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -33,7 +33,7 @@ const TransactionItem = memo(function TransactionItem({
   onPress?: () => void;
 }) {
   return (
-    <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
+    <TouchableOpacity activeOpacity={0.7} delayPressIn={0} onPress={onPress}>
       <Card className="mb-3 p-4 bg-white border border-zinc-200">
         <View className="flex-row items-center justify-between">
           <View className="flex-row items-center flex-1 pr-3">
@@ -275,17 +275,13 @@ export default function TransactionsScreen() {
     setEditModalVisible(true);
   }, []);
 
-  const handledEditIdRef = useRef<string | null>(null);
-
   useEffect(() => {
-    if (params?.editId && params.editId !== handledEditIdRef.current && transactions.length > 0) {
+    if (params?.editId && transactions.length > 0) {
       const txToEdit = transactions.find((t) => t.id === params.editId);
       if (txToEdit) {
-        handledEditIdRef.current = params.editId;
         handleOpenEditTx(txToEdit);
+        router.setParams({ editId: undefined });
       }
-    } else if (!params?.editId) {
-      handledEditIdRef.current = null;
     }
   }, [params?.editId, transactions, handleOpenEditTx]);
 
