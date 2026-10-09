@@ -151,6 +151,23 @@ CREATE TABLE IF NOT EXISTS public.devices (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Create lends table for HandCoins / Personal debt & loan tracking
+CREATE TABLE IF NOT EXISTS public.lends (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  person_name TEXT NOT NULL,
+  amount_minor BIGINT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'lend' CHECK (type IN ('lend', 'borrow')),
+  lent_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  due_date DATE NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'collected', 'overdue')),
+  notes TEXT,
+  notification_id TEXT,
+  collected_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Enable RLS on all tables
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.accounts ENABLE ROW LEVEL SECURITY;
@@ -162,15 +179,130 @@ ALTER TABLE public.budgets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.goals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reminders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.devices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.lends ENABLE ROW LEVEL SECURITY;
 
--- Helper policy definition
+-- Helper policy definition (idempotent drops and creates)
+DROP POLICY IF EXISTS "Users can manage their own profiles" ON public.profiles;
 CREATE POLICY "Users can manage their own profiles" ON public.profiles FOR ALL USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Users can manage their own accounts" ON public.accounts;
 CREATE POLICY "Users can manage their own accounts" ON public.accounts FOR ALL USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can manage their own categories" ON public.categories;
 CREATE POLICY "Users can manage their own categories" ON public.categories FOR ALL USING (auth.uid() = user_id OR is_default = true);
+
+DROP POLICY IF EXISTS "Users can manage their own transactions" ON public.transactions;
 CREATE POLICY "Users can manage their own transactions" ON public.transactions FOR ALL USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can manage their own subscriptions" ON public.subscriptions;
 CREATE POLICY "Users can manage their own subscriptions" ON public.subscriptions FOR ALL USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can manage their own bills" ON public.bills;
 CREATE POLICY "Users can manage their own bills" ON public.bills FOR ALL USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can manage their own budgets" ON public.budgets;
 CREATE POLICY "Users can manage their own budgets" ON public.budgets FOR ALL USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can manage their own goals" ON public.goals;
 CREATE POLICY "Users can manage their own goals" ON public.goals FOR ALL USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can manage their own reminders" ON public.reminders;
 CREATE POLICY "Users can manage their own reminders" ON public.reminders FOR ALL USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can manage their own devices" ON public.devices;
 CREATE POLICY "Users can manage their own devices" ON public.devices FOR ALL USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can manage their own lends" ON public.lends;
+CREATE POLICY "Users can manage their own lends" ON public.lends FOR ALL USING (auth.uid() = user_id);
+
+-- PostgreSQL Function & Trigger for Atomic Account Balance Sync
+CREATE OR REPLACE FUNCTION public.sync_account_balance()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- Handle DELETION of a transaction
+  IF TG_OP = 'DELETE' THEN
+    IF OLD.type = 'income' THEN
+      UPDATE public.accounts SET balance = balance - OLD.amount_minor, updated_at = NOW() WHERE id = OLD.account_id AND user_id = OLD.user_id;
+    ELSIF OLD.type = 'expense' THEN
+      UPDATE public.accounts SET balance = balance + OLD.amount_minor, updated_at = NOW() WHERE id = OLD.account_id AND user_id = OLD.user_id;
+    ELSIF OLD.type = 'transfer' THEN
+      UPDATE public.accounts SET balance = balance + OLD.amount_minor, updated_at = NOW() WHERE id = OLD.account_id AND user_id = OLD.user_id;
+    END IF;
+    RETURN OLD;
+  END IF;
+
+  -- Handle INSERT of a transaction
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.deleted_at IS NULL THEN
+      IF NEW.type = 'income' THEN
+        UPDATE public.accounts SET balance = balance + NEW.amount_minor, updated_at = NOW() WHERE id = NEW.account_id AND user_id = NEW.user_id;
+      ELSIF NEW.type = 'expense' THEN
+        UPDATE public.accounts SET balance = balance - NEW.amount_minor, updated_at = NOW() WHERE id = NEW.account_id AND user_id = NEW.user_id;
+      ELSIF NEW.type = 'transfer' THEN
+        UPDATE public.accounts SET balance = balance - NEW.amount_minor, updated_at = NOW() WHERE id = NEW.account_id AND user_id = NEW.user_id;
+      END IF;
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  -- Handle UPDATE of a transaction (including soft-delete via deleted_at)
+  IF TG_OP = 'UPDATE' THEN
+    -- If transaction was previously active, revert OLD impact
+    IF OLD.deleted_at IS NULL THEN
+      IF OLD.type = 'income' THEN
+        UPDATE public.accounts SET balance = balance - OLD.amount_minor, updated_at = NOW() WHERE id = OLD.account_id AND user_id = OLD.user_id;
+      ELSIF OLD.type = 'expense' THEN
+        UPDATE public.accounts SET balance = balance + OLD.amount_minor, updated_at = NOW() WHERE id = OLD.account_id AND user_id = OLD.user_id;
+      ELSIF OLD.type = 'transfer' THEN
+        UPDATE public.accounts SET balance = balance + OLD.amount_minor, updated_at = NOW() WHERE id = OLD.account_id AND user_id = OLD.user_id;
+      END IF;
+    END IF;
+
+    -- If transaction is currently active, apply NEW impact
+    IF NEW.deleted_at IS NULL THEN
+      IF NEW.type = 'income' THEN
+        UPDATE public.accounts SET balance = balance + NEW.amount_minor, updated_at = NOW() WHERE id = NEW.account_id AND user_id = NEW.user_id;
+      ELSIF NEW.type = 'expense' THEN
+        UPDATE public.accounts SET balance = balance - NEW.amount_minor, updated_at = NOW() WHERE id = NEW.account_id AND user_id = NEW.user_id;
+      ELSIF NEW.type = 'transfer' THEN
+        UPDATE public.accounts SET balance = balance - NEW.amount_minor, updated_at = NOW() WHERE id = NEW.account_id AND user_id = NEW.user_id;
+      END IF;
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_sync_account_balance ON public.transactions;
+CREATE TRIGGER trg_sync_account_balance
+AFTER INSERT OR UPDATE OR DELETE ON public.transactions
+FOR EACH ROW EXECUTE FUNCTION public.sync_account_balance();
+
+-- Optional: Supabase pg_cron + pg_net Scheduled Reminder Dispatcher
+-- Run the following in your Supabase SQL Editor with vault secrets configured:
+--
+-- CREATE EXTENSION IF NOT EXISTS pg_cron;
+-- CREATE EXTENSION IF NOT EXISTS pg_net;
+--
+-- SELECT cron.schedule(
+--   'dispatch-reminders-every-minute',
+--   '* * * * *',
+--   $$
+--   SELECT net.http_post(
+--     url := 'https://<project-ref>.supabase.co/functions/v1/process-reminders',
+--     headers := jsonb_build_object(
+--       'Content-Type', 'application/json',
+--       'Authorization', 'Bearer <service-role-key>'
+--     ),
+--     body := '{}'::jsonb
+--   );
+--   $$
+-- );
+
+
