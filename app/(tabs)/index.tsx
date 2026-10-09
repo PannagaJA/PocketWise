@@ -24,6 +24,7 @@ import * as Haptics from 'expo-haptics';
 import { SmsOnboardingModal } from '../../components/SmsOnboardingCard';
 import { SmsTransactionReviewModal } from '../../components/SmsTransactionReviewModal';
 import { RecordTransactionModal } from '../../components/RecordTransactionModal';
+import { TransactionDetailModal } from '../../components/TransactionDetailModal';
 import { smsStorage } from '../../lib/sms/storage/smsStore';
 import { smsListenerService } from '../../lib/sms/service/smsListenerService';
 import { ParsedSmsTransaction } from '../../lib/sms/types';
@@ -110,11 +111,48 @@ export default function DashboardScreen() {
   const [selectedReviewTx, setSelectedReviewTx] = useState<ParsedSmsTransaction | null>(null);
   const [exitModalVisible, setExitModalVisible] = useState(false);
 
+  // View Transaction Detail State
+  const [selectedDetailTx, setSelectedDetailTx] = useState<any>(null);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+
   // Edit / Adjust Account state
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [editAccName, setEditAccName] = useState('');
   const [editAccBalance, setEditAccBalance] = useState('');
   const [isSavingAccount, setIsSavingAccount] = useState(false);
+
+  const handleOpenDetailTx = useCallback((tx: any) => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    setSelectedDetailTx(tx);
+    setDetailModalVisible(true);
+  }, []);
+
+  const handleDeleteTxFromDashboard = useCallback((tx: any) => {
+    if (!tx) return;
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); } catch {}
+    Alert.alert(
+      'Delete Transaction?',
+      `Are you sure you want to delete this ${formatMoney(tx.amount_minor)} transaction? Account balance will be restored automatically.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await transactionService.deleteTransaction(tx.id, true);
+              queryClient.invalidateQueries();
+              try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+              setDetailModalVisible(false);
+              setSelectedDetailTx(null);
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Failed to delete transaction');
+            }
+          },
+        },
+      ]
+    );
+  }, [queryClient]);
 
   // Focus-scoped Hardware Back Button Navigation Handler on Dashboard Tab
   useFocusEffect(
@@ -506,40 +544,46 @@ export default function DashboardScreen() {
                 'General';
 
               return (
-                <Card key={tx.id} className="mb-2.5 p-3.5 bg-white border border-zinc-200 rounded-2xl">
-                  <View className="flex-row items-center justify-between">
-                    <View className="flex-row items-center flex-1 pr-3">
-                      <View className={`w-10 h-10 rounded-xl items-center justify-center mr-3 ${
-                        tx.type === 'income' ? 'bg-emerald-50' : tx.type === 'expense' ? 'bg-rose-50' : 'bg-indigo-50'
-                      }`}>
-                        {tx.type === 'income' ? (
-                          <ArrowDownLeft size={18} color="#10B981" />
-                        ) : tx.type === 'expense' ? (
-                          <ArrowUpRight size={18} color="#EF4444" />
-                        ) : (
-                          <ArrowRightLeft size={18} color="#6366F1" />
-                        )}
+                <TouchableOpacity
+                  key={tx.id}
+                  activeOpacity={0.7}
+                  onPress={() => handleOpenDetailTx(tx)}
+                >
+                  <Card className="mb-2.5 p-3.5 bg-white border border-zinc-200 rounded-2xl active:bg-zinc-50">
+                    <View className="flex-row items-center justify-between">
+                      <View className="flex-row items-center flex-1 pr-3">
+                        <View className={`w-10 h-10 rounded-xl items-center justify-center mr-3 ${
+                          tx.type === 'income' ? 'bg-emerald-50' : tx.type === 'expense' ? 'bg-rose-50' : 'bg-indigo-50'
+                        }`}>
+                          {tx.type === 'income' ? (
+                            <ArrowDownLeft size={18} color="#10B981" />
+                          ) : tx.type === 'expense' ? (
+                            <ArrowUpRight size={18} color="#EF4444" />
+                          ) : (
+                            <ArrowRightLeft size={18} color="#6366F1" />
+                          )}
+                        </View>
+                        <View className="flex-1">
+                          <Text className="text-sm font-bold text-zinc-900" numberOfLines={1}>
+                            {cleanTransactionDescription(tx.description, categoryName, tx.type)}
+                          </Text>
+                          <Text className="text-[11px] text-zinc-500 mt-0.5">
+                            {categoryName} • {accountName}
+                          </Text>
+                        </View>
                       </View>
-                      <View className="flex-1">
-                        <Text className="text-sm font-bold text-zinc-900" numberOfLines={1}>
-                          {cleanTransactionDescription(tx.description, categoryName, tx.type)}
-                        </Text>
-                        <Text className="text-[11px] text-zinc-500 mt-0.5">
-                          {categoryName} • {accountName}
-                        </Text>
-                      </View>
-                    </View>
 
-                    <View className="items-end">
-                      <Text className={`text-sm font-extrabold ${
-                        tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-zinc-900' : 'text-indigo-600'
-                      }`}>
-                        {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{formatMoney(tx.amount_minor)}
-                      </Text>
-                      <Text className="text-[10px] text-zinc-400 mt-0.5">{formatDate(tx.date)}</Text>
+                      <View className="items-end">
+                        <Text className={`text-sm font-extrabold ${
+                          tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-zinc-900' : 'text-indigo-600'
+                        }`}>
+                          {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{formatMoney(tx.amount_minor)}
+                        </Text>
+                        <Text className="text-[10px] text-zinc-400 mt-0.5">{formatDate(tx.date)}</Text>
+                      </View>
                     </View>
-                  </View>
-                </Card>
+                  </Card>
+                </TouchableOpacity>
               );
             })
           )}
@@ -1047,6 +1091,23 @@ export default function DashboardScreen() {
           </View>
         </Pressable>
       </AppModal>
+
+      {/* Transaction Details View Modal */}
+      <TransactionDetailModal
+        visible={detailModalVisible}
+        transaction={selectedDetailTx}
+        account={accounts.find((a) => a.id === selectedDetailTx?.account_id)}
+        category={selectedDetailTx?.category}
+        onClose={() => setDetailModalVisible(false)}
+        onEdit={(tx) => {
+          setDetailModalVisible(false);
+          router.push({
+            pathname: '/(tabs)/transactions',
+            params: { editId: tx.id },
+          });
+        }}
+        onDelete={(tx) => handleDeleteTxFromDashboard(tx)}
+      />
     </SafeAreaView>
   );
 }
