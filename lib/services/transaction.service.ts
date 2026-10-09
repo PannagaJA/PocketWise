@@ -1,5 +1,6 @@
 import { supabase } from '../supabase';
 import { accountService } from './account.service';
+import { outboxService } from './outbox.service';
 
 export interface Transaction {
   id: string;
@@ -84,6 +85,21 @@ export function isPromotionalOrSpamTransaction(tx: {
   return promoPhrases.some((phrase) => combined.includes(phrase));
 }
 
+function isNetworkError(err: any): boolean {
+  if (!err) return false;
+  const msg = (err.message || '').toLowerCase();
+  const name = err.name || '';
+  return (
+    msg.includes('network request failed') ||
+    msg.includes('failed to fetch') ||
+    msg.includes('fetch failed') ||
+    msg.includes('networkerror') ||
+    msg.includes('timeout') ||
+    msg.includes('offline') ||
+    (name === 'TypeError' && (msg.includes('fetch') || msg.includes('network') || msg.includes('failed')))
+  );
+}
+
 export const transactionService = {
   async getTransactions(userId: string, limit: number = 50, accountId?: string): Promise<Transaction[]> {
     let validList: Transaction[] = [];
@@ -150,75 +166,164 @@ export const transactionService = {
     }));
   },
 
+  async getTransactionsByDateRange(userId: string, startDate: string, endDate: string): Promise<Transaction[]> {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*, category:categories(name, color), account:accounts(name)')
+      .eq('user_id', userId)
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .is('deleted_at', null)
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const rawList = data || [];
+    const validList = rawList.filter((tx) => !isPromotionalOrSpamTransaction(tx));
+
+    return validList.map((tx) => ({
+      ...tx,
+      description: cleanTransactionDescription(tx.description, tx.category?.name, tx.type),
+    }));
+  },
+
   async createTransaction(
     tx: Omit<Transaction, 'id'>,
     transferDestinationAccountId?: string
   ): Promise<Transaction> {
-    if (tx.type === 'transfer') {
-      if (!transferDestinationAccountId || tx.account_id === transferDestinationAccountId) {
-        throw new Error('Transfer requires different source and destination accounts');
+    const sourceId = (tx as any).id || crypto.randomUUID();
+    const isTransfer = tx.type === 'transfer';
+    const transferGroupId = isTransfer ? ((tx as any).transfer_group_id || crypto.randomUUID()) : undefined;
+    const destinationTxId = (isTransfer && transferDestinationAccountId) ? crypto.randomUUID() : undefined;
+
+    try {
+      if (isTransfer) {
+        if (!transferDestinationAccountId || tx.account_id === transferDestinationAccountId) {
+          throw new Error('Transfer requires different source and destination accounts');
+        }
+
+        // Source deduction
+        const { data: sourceTx, error: err1 } = await supabase
+          .from('transactions')
+          .insert({
+            ...tx,
+            id: sourceId,
+            type: 'transfer',
+            transfer_group_id: transferGroupId,
+            description: tx.description || `Transfer to ${transferDestinationAccountId}`,
+          })
+          .select()
+          .single();
+
+        if (err1) throw err1;
+
+        // Destination addition (for transfer counterpart)
+        const { error: err2 } = await supabase
+          .from('transactions')
+          .insert({
+            ...tx,
+            id: destinationTxId,
+            account_id: transferDestinationAccountId,
+            type: 'income', // Treated as inflow into destination account
+            transfer_group_id: transferGroupId,
+            description: tx.description || `Transfer from ${tx.account_id}`,
+          });
+
+        if (err2) throw err2;
+
+        return sourceTx;
+      } else {
+        // Normal Income or Expense - trigger atomically syncs balance
+        const { data, error } = await supabase
+          .from('transactions')
+          .insert({
+            ...tx,
+            id: sourceId,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data;
       }
-
-      const transferGroupId = crypto.randomUUID();
-
-      // Source deduction
-      const { data: sourceTx, error: err1 } = await supabase
-        .from('transactions')
-        .insert({
+    } catch (networkOrDbError: any) {
+      if (isNetworkError(networkOrDbError)) {
+        const payload = {
           ...tx,
-          type: 'transfer',
+          id: sourceId,
           transfer_group_id: transferGroupId,
-          description: `Transfer to ${transferDestinationAccountId}`,
-        })
-        .select()
-        .single();
-
-      if (err1) throw err1;
-
-      // Update source balance
-      const { data: sourceAcc } = await supabase.from('accounts').select('balance').eq('id', tx.account_id).single();
-      if (sourceAcc) {
-        await accountService.updateAccountBalance(tx.account_id, sourceAcc.balance - tx.amount_minor);
-      }
-
-      // Destination addition
-      const { error: err2 } = await supabase
-        .from('transactions')
-        .insert({
+          transferDestinationAccountId,
+          transferDestinationTxId: destinationTxId,
+        };
+        await outboxService.enqueueMutation('CREATE_TRANSACTION', payload);
+        return {
           ...tx,
-          account_id: transferDestinationAccountId,
-          type: 'transfer',
+          id: sourceId,
           transfer_group_id: transferGroupId,
-          description: `Transfer from ${tx.account_id}`,
-        });
-
-      if (err2) throw err2;
-
-      // Update destination balance
-      const { data: destAcc } = await supabase.from('accounts').select('balance').eq('id', transferDestinationAccountId).single();
-      if (destAcc) {
-        await accountService.updateAccountBalance(transferDestinationAccountId, destAcc.balance + tx.amount_minor);
+        } as Transaction;
       }
+      throw networkOrDbError;
+    }
+  },
 
-      return sourceTx;
-    } else {
-      // Normal Income or Expense
+  async updateTransaction(
+    transactionId: string,
+    updates: Partial<Omit<Transaction, 'id' | 'user_id'>>
+  ): Promise<Transaction> {
+    try {
       const { data, error } = await supabase
         .from('transactions')
-        .insert(tx)
-        .select()
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', transactionId)
+        .select('*, category:categories(name, color), account:accounts(name)')
         .single();
 
       if (error) throw error;
-
-      // Update account balance
-      const { data: acc } = await supabase.from('accounts').select('balance').eq('id', tx.account_id).single();
-      if (acc) {
-        const newBalance = tx.type === 'income' ? acc.balance + tx.amount_minor : acc.balance - tx.amount_minor;
-        await accountService.updateAccountBalance(tx.account_id, newBalance);
-      }
-
       return data;
+    } catch (networkOrDbError: any) {
+      if (isNetworkError(networkOrDbError)) {
+        await outboxService.enqueueMutation('UPDATE_TRANSACTION', { id: transactionId, updates });
+        return {
+          id: transactionId,
+          ...updates,
+        } as any;
+      }
+      throw networkOrDbError;
+    }
+  },
+
+  async deleteTransaction(transactionId: string, softDelete: boolean = true): Promise<void> {
+    try {
+      if (softDelete) {
+        const { error } = await supabase
+          .from('transactions')
+          .update({
+            deleted_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', transactionId);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('transactions')
+          .delete()
+          .eq('id', transactionId);
+
+        if (error) throw error;
+      }
+    } catch (networkOrDbError: any) {
+      if (isNetworkError(networkOrDbError)) {
+        await outboxService.enqueueMutation('DELETE_TRANSACTION', { id: transactionId, softDelete });
+        return;
+      }
+      throw networkOrDbError;
     }
   },
 };
+
+
