@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../supabase';
+import { generateUUID } from '../finance/core';
 
 export type OutboxMutationType =
   | 'CREATE_TRANSACTION'
@@ -113,8 +114,8 @@ export const outboxService = {
             case 'CREATE_TRANSACTION': {
               const { transferDestinationAccountId, transferDestinationTxId, ...txData } = item.payload;
               if (txData.type === 'transfer' && transferDestinationAccountId) {
-                const transferGroupId = txData.transfer_group_id || item.payload.transfer_group_id || crypto.randomUUID();
-                const destTxId = transferDestinationTxId || item.payload.transferDestinationTxId || crypto.randomUUID();
+                const transferGroupId = txData.transfer_group_id || item.payload.transfer_group_id || generateUUID();
+                const destTxId = transferDestinationTxId || item.payload.transferDestinationTxId || generateUUID();
                 // Ensure IDs are preserved in payload for subsequent retries if an error happens
                 item.payload.transfer_group_id = transferGroupId;
                 item.payload.transferDestinationTxId = destTxId;
