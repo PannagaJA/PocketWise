@@ -327,7 +327,7 @@ export const AppModal: React.FC<AppModalProps> = ({
       statusBarTranslucent={statusBarTranslucent}
       onRequestClose={onModalRequestClose}
     >
-      <View style={styles.modalRoot} pointerEvents="box-none">
+      <View style={[styles.modalRoot, { pointerEvents: 'box-none' as any }]}>
         {/* Full-screen Backdrop */}
         <Animated.View
           style={[
@@ -352,8 +352,7 @@ export const AppModal: React.FC<AppModalProps> = ({
         {/* Dynamic Container */}
         {isSlide ? (
           <View
-            style={[styles.container, styles.slideContainer]}
-            pointerEvents="box-none"
+            style={[styles.container, styles.slideContainer, { pointerEvents: 'box-none' as any }]}
           >
             <Animated.View
               style={[
@@ -361,9 +360,9 @@ export const AppModal: React.FC<AppModalProps> = ({
                 {
                   transform: [{ translateY: combinedSheetTranslateY }],
                   paddingBottom: Math.max(insets.bottom, Platform.OS === 'ios' ? 24 : 16),
+                  pointerEvents: 'auto' as any,
                 },
               ]}
-              pointerEvents="auto"
               {...panResponder.panHandlers}
             >
               {/* Native Drag Handle Bar */}
@@ -376,8 +375,7 @@ export const AppModal: React.FC<AppModalProps> = ({
         ) : (
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={[styles.container, styles.fadeContainer]}
-            pointerEvents="box-none"
+            style={[styles.container, styles.fadeContainer, { pointerEvents: 'box-none' as any }]}
           >
             <Animated.View
               style={[
@@ -386,9 +384,9 @@ export const AppModal: React.FC<AppModalProps> = ({
                   opacity: fadeAnim,
                   transform: [{ scale: scaleAnim }],
                   maxHeight: maxDialogHeight,
+                  pointerEvents: 'auto' as any,
                 },
               ]}
-              pointerEvents="auto"
             >
               <ScrollView
                 style={{ flexShrink: 1 }}
