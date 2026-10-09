@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useRef } from 'react';
 import { View, Text, Pressable, ScrollView, TouchableOpacity } from 'react-native';
 import { AppModal } from './ui/AppModal';
 import { Button } from './ui/Button';
@@ -41,28 +41,24 @@ export function TransactionDetailModal({
   onEdit,
   onDelete,
 }: TransactionDetailModalProps) {
-  const [cachedTx, setCachedTx] = useState(propTx);
-  const [cachedAccount, setCachedAccount] = useState(propAccount);
-  const [cachedCategory, setCachedCategory] = useState(propCategory);
+  const lastTxRef = useRef(propTx);
+  const lastAccountRef = useRef(propAccount);
+  const lastCategoryRef = useRef(propCategory);
 
-  useEffect(() => {
-    if (propTx) {
-      if (propTx.id !== cachedTx?.id) {
-        setCachedTx(propTx);
-        setCachedAccount(propAccount || null);
-        setCachedCategory(propCategory || null);
-      } else {
-        setCachedTx(propTx);
-        if (propAccount !== undefined) setCachedAccount(propAccount);
-        if (propCategory !== undefined) setCachedCategory(propCategory);
-      }
+  if (propTx) {
+    if (propTx.id !== lastTxRef.current?.id) {
+      lastAccountRef.current = null;
+      lastCategoryRef.current = null;
     }
-  }, [propTx, propAccount, propCategory, cachedTx?.id]);
+    lastTxRef.current = propTx;
+    if (propAccount !== undefined) lastAccountRef.current = propAccount;
+    if (propCategory !== undefined) lastCategoryRef.current = propCategory;
+  }
 
-  const tx = propTx || cachedTx;
+  const tx = propTx || lastTxRef.current;
   const isSameTx = tx && (!propTx || propTx.id === tx.id);
-  const account = propAccount !== undefined ? propAccount : (isSameTx ? cachedAccount : null);
-  const category = propCategory !== undefined ? propCategory : (isSameTx ? cachedCategory : null);
+  const account = propAccount !== undefined ? propAccount : (isSameTx ? lastAccountRef.current : null);
+  const category = propCategory !== undefined ? propCategory : (isSameTx ? lastCategoryRef.current : null);
 
   if (!tx) return null;
 
@@ -117,9 +113,6 @@ export function TransactionDetailModal({
   return (
     <AppModal visible={visible} onClose={onClose} animationType="slide">
       <Pressable className="flex-col w-full" onPress={(e) => e.stopPropagation()}>
-        {/* Subtle Drag Indicator */}
-        <View className="w-12 h-1 bg-zinc-300 rounded-full self-center mt-3 mb-1" />
-
         {/* Modal Header */}
         <View className="flex-row items-center justify-between px-6 py-3 border-b border-zinc-100">
           <View className="flex-row items-center gap-2.5">
