@@ -80,24 +80,24 @@
 
 ```mermaid
 graph TD
-    subgraph Client Device
-        UI[React Native / Expo SDK 57 UI]
-        Sensor[Sensors: Accelerometer & SMS Receiver]
-        Security[App Lock Gate & Biometrics]
-        Cache[(Offline Cache: TanStack Query + AsyncStorage)]
+    subgraph Client_Device ["Client Device"]
+        UI["React Native / Expo SDK 57 UI"]
+        Sensor["Sensors: Accelerometer & SMS Receiver"]
+        Security["App Lock Gate & Biometrics"]
+        Cache[("Offline Cache: TanStack Query + AsyncStorage")]
     end
 
-    subgraph Business Logic Layer
-        SMSParser[On-Device SMS Regex Parser]
-        Analytics[Anomaly & Analytics Engine]
-        LendEngine[Lend & Debt Lifecycle Engine]
-        NotifEngine[Local & Push Notification Scheduler]
+    subgraph Business_Logic ["Business Logic Layer"]
+        SMSParser["On-Device SMS Regex Parser"]
+        Analytics["Anomaly & Analytics Engine"]
+        LendEngine["Lend & Debt Lifecycle Engine"]
+        NotifEngine["Local & Push Notification Scheduler"]
     end
 
-    subgraph Cloud Backend (Supabase)
-        Auth[Supabase Auth / JWT Skew Interceptor]
-        DB[(PostgreSQL Database + Row Level Security)]
-        Realtime[Realtime WebSocket Engine]
+    subgraph Cloud_Backend ["Cloud Backend (Supabase)"]
+        Auth["Supabase Auth / JWT Skew Interceptor"]
+        DB[("PostgreSQL Database + Row Level Security")]
+        Realtime["Realtime WebSocket Engine"]
     end
 
     Sensor -->|SMS Event| SMSParser
