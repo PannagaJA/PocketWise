@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, RefreshControl, Alert } from 'react-native';
+import { View, Text, ScrollView, Pressable, TouchableOpacity, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -140,23 +140,34 @@ export default function ReportsScreen() {
         {/* Header */}
         <View className="flex-row items-center justify-between mb-4">
           <View className="flex-row items-center flex-1">
-            <Pressable onPress={() => { if (router.canGoBack()) { router.back(); } else { router.replace('/(tabs)/'); } }} className="p-2 -ml-2 mr-2 rounded-full active:bg-zinc-100">
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace('/(tabs)/');
+                }
+              }}
+              className="p-2 -ml-2 mr-2 rounded-full"
+            >
               <ArrowLeft size={20} color="#09090B" />
-            </Pressable>
+            </TouchableOpacity>
             <View className="flex-1">
               <Text className="text-2xl font-black text-zinc-900">Financial Analytics</Text>
               <Text className="text-xs text-zinc-500 mt-0.5">Real-time spending & performance breakdown</Text>
             </View>
           </View>
-          <Pressable
+          <TouchableOpacity
+            activeOpacity={0.7}
             onPress={() => {
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
               setExportModalVisible(true);
             }}
-            className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 items-center justify-center active:bg-indigo-100 ml-2"
+            className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 items-center justify-center ml-2"
           >
             <Share2 size={18} color="#6366F1" />
-          </Pressable>
+          </TouchableOpacity>
         </View>
 
         {/* Period Selector */}
@@ -174,27 +185,27 @@ export default function ReportsScreen() {
             ].map((item) => {
               const isSelected = period === item.id;
               return (
-                <Pressable
+                <TouchableOpacity
                   key={item.id}
+                  activeOpacity={0.7}
                   onPress={() => {
                     try { Haptics.selectionAsync(); } catch {}
                     setPeriod(item.id as PeriodOption);
                   }}
-                  className={`px-4 py-2.5 rounded-2xl border ${
-                    isSelected
-                      ? 'bg-zinc-900 border-zinc-900 shadow-sm'
-                      : 'bg-white border-zinc-200 active:bg-zinc-50'
-                  }`}
+                  style={{
+                    backgroundColor: isSelected ? '#18181b' : '#ffffff',
+                    borderColor: isSelected ? '#18181b' : '#e4e4e7',
+                  }}
+                  className="px-4 py-2.5 rounded-2xl border"
                 >
                   <Text
                     numberOfLines={1}
-                    className={`text-xs font-bold ${
-                      isSelected ? 'text-white' : 'text-zinc-600'
-                    }`}
+                    style={{ color: isSelected ? '#ffffff' : '#52525b' }}
+                    className="text-xs font-bold"
                   >
                     {item.label}
                   </Text>
-                </Pressable>
+                </TouchableOpacity>
               );
             })}
           </ScrollView>
@@ -465,10 +476,11 @@ export default function ReportsScreen() {
           </View>
 
           <View className="gap-3 my-3">
-            <Pressable
+            <TouchableOpacity
+              activeOpacity={0.7}
               disabled={isExporting}
               onPress={handleExportCSV}
-              className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 flex-row items-center active:bg-zinc-100"
+              className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 flex-row items-center"
             >
               <View className="w-10 h-10 rounded-xl bg-emerald-50 items-center justify-center mr-3 border border-emerald-100">
                 <FileSpreadsheet size={20} color="#10B981" />
@@ -477,12 +489,13 @@ export default function ReportsScreen() {
                 <Text className="text-sm font-bold text-zinc-900">Transactions Spreadsheet (CSV)</Text>
                 <Text className="text-xs text-zinc-500">Full itemized statement with dates, categories & amounts</Text>
               </View>
-            </Pressable>
+            </TouchableOpacity>
 
-            <Pressable
+            <TouchableOpacity
+              activeOpacity={0.7}
               disabled={isExporting}
               onPress={handleExportSummary}
-              className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 flex-row items-center active:bg-zinc-100"
+              className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 flex-row items-center"
             >
               <View className="w-10 h-10 rounded-xl bg-indigo-50 items-center justify-center mr-3 border border-indigo-100">
                 <FileText size={20} color="#6366F1" />
@@ -491,7 +504,7 @@ export default function ReportsScreen() {
                 <Text className="text-sm font-bold text-zinc-900">Financial Summary Report (Text)</Text>
                 <Text className="text-xs text-zinc-500">Savings rate, income/expense breakdown & totals</Text>
               </View>
-            </Pressable>
+            </TouchableOpacity>
           </View>
 
           {isExporting && (
