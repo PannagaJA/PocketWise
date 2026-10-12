@@ -35,12 +35,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        profileService.ensureProfile(session.user.id, session.user.email?.split('@')[0]).catch(console.error);
-        notificationService.registerDeviceToken(session.user.id).catch(console.error);
+        if (event !== 'INITIAL_SESSION') {
+          profileService.ensureProfile(session.user.id, session.user.email?.split('@')[0]).catch(console.error);
+          notificationService.registerDeviceToken(session.user.id).catch(console.error);
+        }
         shakeService.init(session.user.id).catch(console.error);
       } else {
         shakeService.clearUserSession().catch(console.error);
