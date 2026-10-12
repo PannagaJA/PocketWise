@@ -301,5 +301,32 @@ export const lendService = {
       await saveLocal(records);
     }
   },
+
+  /**
+   * Update the amount to be collected for an existing lend record.
+   */
+  async updateAmount(id: string, newAmountMinor: number, userId?: string): Promise<void> {
+    if (userId) {
+      const { error } = await supabase
+        .from('lends')
+        .update({
+          amount_minor: newAmountMinor,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+    }
+
+    const records = await loadLocal();
+    const idx = records.findIndex((r) => r.id === id);
+    if (idx !== -1) {
+      records[idx] = {
+        ...records[idx],
+        amountMinor: newAmountMinor,
+      };
+      await saveLocal(records);
+    }
+  },
 };
 

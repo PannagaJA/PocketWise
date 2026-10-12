@@ -7,6 +7,7 @@ import {
   Alert,
   ActivityIndicator,
   Pressable,
+  TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
   Keyboard,
@@ -37,6 +38,7 @@ import {
   Trash2,
   RefreshCw,
   HandCoins,
+  Pencil,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
@@ -86,6 +88,8 @@ export default function LendsScreen() {
   const [showAdd, setShowAdd] = useState(false);
   const [personName, setPersonName] = useState('');
   const [amount, setAmount] = useState('');
+  const [collectAmount, setCollectAmount] = useState('');
+  const [isCustomCollectAmount, setIsCustomCollectAmount] = useState(false);
   const [notes, setNotes] = useState('');
   const [lentDate, setLentDate] = useState(getTodayISO());
   const [dueDate, setDueDate] = useState(addDays(getTodayISO(), 7));
@@ -94,6 +98,11 @@ export default function LendsScreen() {
   const [showReschedule, setShowReschedule] = useState(false);
   const [rescheduleTarget, setRescheduleTarget] = useState<LendRecord | null>(null);
   const [newDueDate, setNewDueDate] = useState('');
+
+  // Edit Amount modal state
+  const [showEditAmount, setShowEditAmount] = useState(false);
+  const [editAmountTarget, setEditAmountTarget] = useState<LendRecord | null>(null);
+  const [newCollectAmount, setNewCollectAmount] = useState('');
 
   // TanStack Query for reactive data loading
   const { data: lends = [], isLoading: loadingLends } = useQuery({
@@ -117,6 +126,8 @@ export default function LendsScreen() {
   const resetForm = () => {
     setPersonName('');
     setAmount('');
+    setCollectAmount('');
+    setIsCustomCollectAmount(false);
     setNotes('');
     setLentDate(getTodayISO());
     setDueDate(addDays(getTodayISO(), 7));
@@ -127,14 +138,22 @@ export default function LendsScreen() {
     mutationFn: async () => {
       const name = personName.trim();
       if (!name) throw new Error("Please enter the person's name.");
-      const amountMinor = parseMoneyToMinor(amount);
-      if (amountMinor <= 0) throw new Error('Please enter a valid amount greater than ₹0.');
+      const finalCollectStr = collectAmount.trim() || amount.trim();
+      const amountMinor = parseMoneyToMinor(finalCollectStr);
+      if (amountMinor <= 0) throw new Error('Please enter a valid amount to be collected greater than ₹0.');
       if (!dueDate || dueDate < lentDate) throw new Error('Collection date must be on or after lent date.');
+
+      let finalNotes = notes.trim();
+      if (amount.trim() && collectAmount.trim() && amount.trim() !== collectAmount.trim()) {
+        const lentNote = `Lent: ₹${amount.trim()}`;
+        finalNotes = finalNotes ? `${finalNotes} • ${lentNote}` : lentNote;
+      }
+
       return lendService.createLend({
         userId: user?.id,
         personName: name,
         amountMinor,
-        notes: notes.trim() || undefined,
+        notes: finalNotes || undefined,
         lentDate,
         dueDate,
       });
@@ -154,6 +173,32 @@ export default function LendsScreen() {
       Alert.alert('Error', err.message || 'Could not save lend record.');
     },
   });
+
+  const updateAmountMutation = useMutation({
+    mutationFn: async () => {
+      if (!editAmountTarget) return;
+      const amountMinor = parseMoneyToMinor(newCollectAmount);
+      if (amountMinor <= 0) throw new Error('Please enter a valid amount greater than ₹0.');
+      return lendService.updateAmount(editAmountTarget.id, amountMinor, user?.id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lends'] });
+      setShowEditAmount(false);
+      setEditAmountTarget(null);
+      setNewCollectAmount('');
+      try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+    },
+    onError: (err: any) => {
+      Alert.alert('Error', err.message || 'Could not update amount to collect.');
+    },
+  });
+
+  const openEditAmount = (record: LendRecord) => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    setEditAmountTarget(record);
+    setNewCollectAmount((record.amountMinor / 100).toString());
+    setShowEditAmount(true);
+  };
 
   const markCollectedMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -404,10 +449,13 @@ export default function LendsScreen() {
                       </View>
                     </View>
 
-                    <View className="items-end gap-1">
+                    <View className="items-end gap-0.5">
+                      <Text className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
+                        {isCollected ? 'Collected' : 'To Collect'}
+                      </Text>
                       <Text
-                        className={`text-base font-extrabold ${
-                          isCollected ? 'text-emerald-600' : isOverdue ? 'text-rose-600' : 'text-zinc-900'
+                        className={`text-base font-black ${
+                          isCollected ? 'text-emerald-600' : isOverdue ? 'text-rose-600' : 'text-indigo-600'
                         }`}
                       >
                         {formatMoney(record.amountMinor)}
@@ -415,6 +463,28 @@ export default function LendsScreen() {
                       <Badge label={dayBadge.text} variant={dayBadge.badgeVariant} />
                     </View>
                   </View>
+
+                  {/* Explicit Amount to Collect Callout Bar for active lends - Tappable to edit */}
+                  {!isCollected && (
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => openEditAmount(record)}
+                      className="bg-indigo-50/80 border border-indigo-100 rounded-xl px-3 py-2.5 my-1.5 flex-row items-center justify-between"
+                    >
+                      <View className="flex-row items-center gap-1.5">
+                        <HandCoins size={14} color="#6366F1" />
+                        <Text className="text-xs font-semibold text-indigo-950">Amount to be collected</Text>
+                      </View>
+                      <View className="flex-row items-center gap-1.5">
+                        <Text className="text-sm font-black text-indigo-600">
+                          {formatMoney(record.amountMinor)}
+                        </Text>
+                        <View className="w-5 h-5 rounded-full bg-indigo-100 items-center justify-center ml-0.5">
+                          <Pencil size={11} color="#6366F1" />
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  )}
 
                   {/* Date information */}
                   <View className="flex-row items-center justify-between pt-2 pb-1 border-t border-zinc-100">
@@ -438,32 +508,42 @@ export default function LendsScreen() {
 
                   {/* Actions */}
                   {!isCollected ? (
-                    <View className="flex-row gap-2 mt-3 pt-2.5 border-t border-zinc-100">
+                    <View className="flex-row gap-1.5 mt-3 pt-2.5 border-t border-zinc-100">
                       <Button
                         variant="outline"
                         size="sm"
-                        className="flex-1 border-emerald-300 bg-emerald-50/40"
+                        className="flex-1 border-emerald-300 bg-emerald-50/40 px-2"
                         onPress={() => confirmMarkCollected(record)}
                       >
-                        <CheckCircle2 size={14} color="#10B981" />
-                        <Text className="text-emerald-700 font-bold text-xs ml-1.5">Mark Collected</Text>
+                        <CheckCircle2 size={13} color="#10B981" />
+                        <Text className="text-emerald-700 font-bold text-xs ml-1">Collected</Text>
                       </Button>
 
                       <Button
                         variant="outline"
                         size="sm"
-                        className="border-indigo-200 bg-indigo-50/40 px-3"
+                        className="border-indigo-200 bg-indigo-50/40 px-2.5"
+                        onPress={() => openEditAmount(record)}
+                      >
+                        <Pencil size={12} color="#6366F1" />
+                        <Text className="text-indigo-700 font-bold text-xs ml-1">Amount</Text>
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-indigo-200 bg-indigo-50/40 px-2.5"
                         onPress={() => openReschedule(record)}
                       >
-                        <RefreshCw size={14} color="#6366F1" />
-                        <Text className="text-indigo-700 font-bold text-xs ml-1.5">Reschedule</Text>
+                        <RefreshCw size={12} color="#6366F1" />
+                        <Text className="text-indigo-700 font-bold text-xs ml-1">Due</Text>
                       </Button>
 
                       <Pressable
                         onPress={() => confirmDelete(record)}
                         className="p-2.5 rounded-xl border border-rose-200 bg-rose-50/40 items-center justify-center active:bg-rose-100"
                       >
-                        <Trash2 size={15} color="#EF4444" />
+                        <Trash2 size={14} color="#EF4444" />
                       </Pressable>
                     </View>
                   ) : (
@@ -525,6 +605,23 @@ export default function LendsScreen() {
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ paddingBottom: 16 }}
           >
+            {/* Current Total Outstanding to Collect Context */}
+            <View className="bg-zinc-50 border border-zinc-200/80 rounded-2xl p-3.5 mb-4 flex-row items-center justify-between">
+              <View>
+                <Text className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
+                  Total Currently to Collect
+                </Text>
+                <Text className="text-base font-black text-zinc-900 mt-0.5">
+                  {formatMoney(totalOutstanding)}
+                </Text>
+              </View>
+              <View className="bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-xl">
+                <Text className="text-[11px] font-bold text-indigo-700">
+                  {activeRecords.length} pending lend{activeRecords.length !== 1 ? 's' : ''}
+                </Text>
+              </View>
+            </View>
+
             <Input
               label="Person's Name"
               placeholder="e.g. Rahul Sharma, Priya, Amit..."
@@ -537,8 +634,85 @@ export default function LendsScreen() {
               placeholder="e.g. 2,500.00"
               keyboardType="numeric"
               value={amount}
-              onChangeText={setAmount}
+              onChangeText={(val) => {
+                setAmount(val);
+                if (!isCustomCollectAmount) {
+                  setCollectAmount(val);
+                }
+              }}
             />
+
+            {/* Editable Amount to be Collected Input */}
+            <View className="mb-1">
+              <Input
+                label="Amount to be Collected (₹)"
+                placeholder="e.g. 2,500.00"
+                keyboardType="numeric"
+                value={collectAmount}
+                onChangeText={(val) => {
+                  setCollectAmount(val);
+                  setIsCustomCollectAmount(true);
+                }}
+              />
+              {isCustomCollectAmount && amount.trim() !== '' && collectAmount !== amount && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setCollectAmount(amount);
+                    setIsCustomCollectAmount(false);
+                  }}
+                  className="flex-row items-center gap-1 -mt-2.5 mb-2.5 px-1"
+                >
+                  <Text className="text-[11px] text-indigo-600 font-bold">
+                    ↺ Reset to match Amount Lent (₹{amount})
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Live Amount to be Collected Display Card */}
+            <View className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-3.5 mb-4">
+              <View className="flex-row justify-between items-center">
+                <View className="flex-1 pr-2">
+                  <View className="flex-row items-center gap-1.5 mb-1">
+                    <HandCoins size={14} color="#059669" />
+                    <Text className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">
+                      To Be Collected
+                    </Text>
+                  </View>
+                  <Text className="text-2xl font-black text-emerald-700">
+                    {parseMoneyToMinor(collectAmount || amount) > 0
+                      ? formatMoney(parseMoneyToMinor(collectAmount || amount))
+                      : '₹0.00'}
+                  </Text>
+                </View>
+                {personName.trim() ? (
+                  <View className="bg-white/90 border border-emerald-200 px-3 py-1.5 rounded-xl items-end max-w-[50%]">
+                    <Text className="text-[9px] font-bold text-emerald-600 uppercase">Debtor</Text>
+                    <Text className="text-xs font-black text-emerald-950" numberOfLines={1}>
+                      {personName.trim()}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+
+              <View className="mt-2.5 pt-2 border-t border-emerald-200/60 flex-row justify-between items-center">
+                <Text className="text-[11px] text-emerald-800">
+                  {parseMoneyToMinor(collectAmount || amount) > 0 ? (
+                    <>
+                      New Total to Collect:{' '}
+                      <Text className="font-bold">
+                        {formatMoney(totalOutstanding + parseMoneyToMinor(collectAmount || amount))}
+                      </Text>
+                    </>
+                  ) : (
+                    'Enter amount above to preview collection'
+                  )}
+                </Text>
+                <Text className="text-[11px] font-semibold text-emerald-700">
+                  Due: {dueDate ? formatDate(dueDate) : '—'}
+                </Text>
+              </View>
+            </View>
 
             <DatePickerButton
               label="Date Lent"
@@ -562,20 +736,26 @@ export default function LendsScreen() {
                   const target = addDays(lentDate || getTodayISO(), p.days);
                   const isSelected = dueDate === target;
                   return (
-                    <Pressable
+                    <TouchableOpacity
                       key={p.label}
+                      activeOpacity={0.7}
                       onPress={() => {
                         try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                         setDueDate(target);
                       }}
-                      className={`px-3.5 py-2 rounded-2xl border ${
-                        isSelected ? 'bg-indigo-600 border-indigo-600 shadow-sm' : 'bg-zinc-50 border-zinc-200 active:bg-zinc-100'
-                      }`}
+                      style={{
+                        backgroundColor: isSelected ? '#4F46E5' : '#FAFAFA',
+                        borderColor: isSelected ? '#4F46E5' : '#E4E4E7',
+                      }}
+                      className="px-3.5 py-2 rounded-2xl border"
                     >
-                      <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-zinc-700'}`}>
+                      <Text
+                        style={{ color: isSelected ? '#FFFFFF' : '#3F3F46' }}
+                        className="text-xs font-bold"
+                      >
                         +{p.label}
                       </Text>
-                    </Pressable>
+                    </TouchableOpacity>
                   );
                 })}
               </View>
@@ -611,7 +791,11 @@ export default function LendsScreen() {
               className="bg-indigo-600 active:bg-indigo-700 shadow-sm"
               onPress={() => createLendMutation.mutate()}
             >
-              <Text className="text-white font-bold text-sm">Save & Set Reminder</Text>
+              <Text className="text-white font-bold text-sm">
+                {parseMoneyToMinor(collectAmount || amount) > 0
+                  ? `Save & Collect ${formatMoney(parseMoneyToMinor(collectAmount || amount))}`
+                  : 'Save & Set Reminder'}
+              </Text>
             </Button>
           </View>
         </Pressable>
@@ -643,9 +827,17 @@ export default function LendsScreen() {
           </View>
 
           {rescheduleTarget && (
-            <View className="bg-zinc-50 border border-zinc-200 rounded-2xl p-3 mb-4 flex-row items-center justify-between">
-              <Text className="text-xs font-bold text-zinc-800">{rescheduleTarget.personName}</Text>
-              <Text className="text-xs font-extrabold text-indigo-600">{formatMoney(rescheduleTarget.amountMinor)}</Text>
+            <View className="bg-indigo-50/70 border border-indigo-100 rounded-2xl p-3.5 mb-4 flex-row items-center justify-between">
+              <View>
+                <Text className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Debtor</Text>
+                <Text className="text-sm font-bold text-zinc-900 mt-0.5">{rescheduleTarget.personName}</Text>
+              </View>
+              <View className="items-end">
+                <Text className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Amount to Collect</Text>
+                <Text className="text-base font-black text-indigo-600 mt-0.5">
+                  {formatMoney(rescheduleTarget.amountMinor)}
+                </Text>
+              </View>
             </View>
           )}
 
@@ -661,20 +853,26 @@ export default function LendsScreen() {
               const target = addDays(getTodayISO(), p.days);
               const isSelected = newDueDate === target;
               return (
-                <Pressable
+                <TouchableOpacity
                   key={p.label}
+                  activeOpacity={0.7}
                   onPress={() => {
                     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                     setNewDueDate(target);
                   }}
-                  className={`px-3 py-1.5 rounded-full border ${
-                    isSelected ? 'bg-indigo-600 border-indigo-600' : 'bg-zinc-50 border-zinc-200 active:bg-zinc-100'
-                  }`}
+                  style={{
+                    backgroundColor: isSelected ? '#4F46E5' : '#FAFAFA',
+                    borderColor: isSelected ? '#4F46E5' : '#E4E4E7',
+                  }}
+                  className="px-3 py-1.5 rounded-full border"
                 >
-                  <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-zinc-600'}`}>
+                  <Text
+                    style={{ color: isSelected ? '#FFFFFF' : '#52525B' }}
+                    className="text-xs font-bold"
+                  >
                     +{p.label}
                   </Text>
-                </Pressable>
+                </TouchableOpacity>
               );
             })}
           </View>
@@ -697,6 +895,86 @@ export default function LendsScreen() {
               onPress={() => rescheduleMutation.mutate()}
             >
               <Text className="text-white font-bold text-xs">Update Date</Text>
+            </Button>
+          </View>
+        </Pressable>
+      </AppModal>
+
+      {/* ── Edit Amount to Collect Modal ── */}
+      <AppModal
+        visible={showEditAmount}
+        onClose={() => setShowEditAmount(false)}
+        animationType="fade"
+      >
+        <Pressable
+          className="bg-white rounded-3xl p-6 w-full border border-zinc-200 shadow-2xl max-h-[85%]"
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View className="flex-row justify-between items-center mb-4">
+            <View className="flex-row items-center gap-2.5">
+              <View className="w-8 h-8 rounded-full bg-indigo-50 items-center justify-center border border-indigo-100">
+                <HandCoins size={16} color="#6366F1" />
+              </View>
+              <Text className="text-lg font-black text-zinc-900">Edit Amount to Collect</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setShowEditAmount(false)}
+              className="w-7 h-7 rounded-full bg-zinc-100 items-center justify-center"
+            >
+              <X size={14} color="#71717A" />
+            </TouchableOpacity>
+          </View>
+
+          {editAmountTarget && (
+            <View className="bg-zinc-50 border border-zinc-200 rounded-2xl p-3 mb-4 flex-row items-center justify-between">
+              <View>
+                <Text className="text-[10px] font-bold text-zinc-400 uppercase">Debtor</Text>
+                <Text className="text-xs font-bold text-zinc-800 mt-0.5">{editAmountTarget.personName}</Text>
+              </View>
+              <View className="items-end">
+                <Text className="text-[10px] font-bold text-zinc-400 uppercase">Current Amount</Text>
+                <Text className="text-xs font-extrabold text-zinc-600 mt-0.5">
+                  {formatMoney(editAmountTarget.amountMinor)}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          <Input
+            label="Amount to be Collected (₹)"
+            placeholder="e.g. 2,500.00"
+            keyboardType="numeric"
+            value={newCollectAmount}
+            onChangeText={setNewCollectAmount}
+          />
+
+          {parseMoneyToMinor(newCollectAmount) > 0 && (
+            <View className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 mb-5 flex-row justify-between items-center">
+              <Text className="text-xs font-bold text-emerald-800">Updated Amount to Collect</Text>
+              <Text className="text-base font-black text-emerald-700">
+                {formatMoney(parseMoneyToMinor(newCollectAmount))}
+              </Text>
+            </View>
+          )}
+
+          <View className="flex-row gap-3">
+            <Button
+              variant="outline"
+              size="md"
+              className="flex-1 border-zinc-200"
+              onPress={() => setShowEditAmount(false)}
+            >
+              <Text className="text-zinc-700 font-semibold text-xs">Cancel</Text>
+            </Button>
+
+            <Button
+              variant="primary"
+              size="md"
+              className="flex-1 bg-indigo-600 active:bg-indigo-700"
+              loading={updateAmountMutation.isPending}
+              onPress={() => updateAmountMutation.mutate()}
+            >
+              <Text className="text-white font-bold text-xs">Save Amount</Text>
             </Button>
           </View>
         </Pressable>
