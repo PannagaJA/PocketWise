@@ -7,6 +7,7 @@ import {
   BackHandler,
   StyleSheet,
   Dimensions,
+  useWindowDimensions,
   Platform,
   Keyboard,
   KeyboardAvoidingView,
@@ -16,8 +17,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useModalStore } from '../../lib/stores/modalStore';
-
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export interface AppModalProps {
   visible: boolean;
@@ -40,11 +39,12 @@ export const AppModal: React.FC<AppModalProps> = ({
   statusBarTranslucent = true,
 }) => {
   const insets = useSafeAreaInsets();
+  const { height: screenHeight, width: screenWidth } = useWindowDimensions();
   const handleClose = onClose || onRequestClose;
   const [rendered, setRendered] = useState(visible);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const slideAnim = useRef(new Animated.Value(screenHeight)).current;
   const scaleAnim = useRef(new Animated.Value(0.92)).current;
   const keyboardOffsetAnim = useRef(new Animated.Value(0)).current;
   const isDismissingRef = useRef(false);
@@ -69,7 +69,7 @@ export const AppModal: React.FC<AppModalProps> = ({
       try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
       Animated.parallel([
         Animated.timing(slideAnim, {
-          toValue: SCREEN_HEIGHT,
+          toValue: screenHeight,
           duration: 180,
           useNativeDriver: useDriver,
         }),
@@ -113,7 +113,7 @@ export const AppModal: React.FC<AppModalProps> = ({
       onPanResponderMove: (_evt, gestureState) => {
         if (gestureState.dy > 0) {
           slideAnim.setValue(gestureState.dy);
-          fadeAnim.setValue(Math.max(0.1, 1 - gestureState.dy / (SCREEN_HEIGHT * 0.55)));
+          fadeAnim.setValue(Math.max(0.1, 1 - gestureState.dy / (screenHeight * 0.55)));
         } else {
           slideAnim.setValue(gestureState.dy * 0.12);
         }
@@ -142,7 +142,7 @@ export const AppModal: React.FC<AppModalProps> = ({
       onPanResponderMove: (_evt, gestureState) => {
         if (gestureState.dy > 0) {
           slideAnim.setValue(gestureState.dy);
-          fadeAnim.setValue(Math.max(0.1, 1 - gestureState.dy / (SCREEN_HEIGHT * 0.55)));
+          fadeAnim.setValue(Math.max(0.1, 1 - gestureState.dy / (screenHeight * 0.55)));
         } else {
           slideAnim.setValue(gestureState.dy * 0.12);
         }
@@ -204,7 +204,7 @@ export const AppModal: React.FC<AppModalProps> = ({
       setRendered(true);
       keyboardOffsetAnim.setValue(0);
       if (animationType === 'slide') {
-        slideAnim.setValue(SCREEN_HEIGHT);
+        slideAnim.setValue(screenHeight);
         fadeAnim.setValue(0);
         Animated.parallel([
           Animated.timing(fadeAnim, {
@@ -260,7 +260,7 @@ export const AppModal: React.FC<AppModalProps> = ({
             useNativeDriver: useDriver,
           }),
           Animated.timing(slideAnim, {
-            toValue: SCREEN_HEIGHT,
+            toValue: screenHeight,
             duration: 180,
             useNativeDriver: useDriver,
           }),
@@ -289,7 +289,7 @@ export const AppModal: React.FC<AppModalProps> = ({
         isDismissingRef.current = false;
       }
     }
-  }, [visible]);
+  }, [visible, screenHeight]);
 
   // Handle Android hardware back button
   useEffect(() => {
@@ -314,10 +314,33 @@ export const AppModal: React.FC<AppModalProps> = ({
     }
   };
 
-  const visibleSpaceAboveKeyboard = SCREEN_HEIGHT - keyboardHeight - insets.top - (Platform.OS === 'ios' ? 32 : 16);
+  const topInset = Math.max(insets.top, Platform.OS === 'ios' ? 44 : 24);
+  const bottomInset = Math.max(insets.bottom, Platform.OS === 'ios' ? 24 : 16);
+
+  // Maximum allowed bottom-sheet height when keyboard is closed
+  // Capped at 88% of screen (or 740px) to guarantee top backdrop visibility and proper sheet proportions
+  const maxSheetHeightNormal = Math.min(screenHeight * 0.88, 740);
+
+  // When keyboard is open: maximum allowed bottom-sheet height to prevent header cutoff
+  // Leaves safe margin below status bar/notch, capped at maxSheetHeightNormal and available space
+  const availableSpaceAboveKeyboard = Math.max(0, screenHeight - keyboardHeight - topInset - 16);
+  const minSheetHeight = 220;
+  const sheetHeightWithMin = availableSpaceAboveKeyboard >= minSheetHeight
+    ? Math.max(minSheetHeight, availableSpaceAboveKeyboard)
+    : availableSpaceAboveKeyboard;
+  const maxSheetHeightWithKeyboard = Math.min(maxSheetHeightNormal, sheetHeightWithMin);
+  const currentMaxSheetHeight = keyboardHeight > 0 ? maxSheetHeightWithKeyboard : maxSheetHeightNormal;
+
+  // Maximum allowed dialog height for fade modals
+  const maxDialogNormal = Math.min(screenHeight * 0.82, 640);
+  const availableDialogSpace = Math.max(0, screenHeight - keyboardHeight - topInset - 24);
+  const minDialogHeight = 200;
+  const dialogHeightWithMin = availableDialogSpace >= minDialogHeight
+    ? Math.max(minDialogHeight, availableDialogSpace)
+    : availableDialogSpace;
   const maxDialogHeight = keyboardHeight > 0
-    ? Math.min(SCREEN_HEIGHT * 0.85, Math.max(0, visibleSpaceAboveKeyboard))
-    : SCREEN_HEIGHT * 0.85;
+    ? Math.min(maxDialogNormal, dialogHeightWithMin)
+    : maxDialogNormal;
 
   return (
     <Modal
@@ -358,8 +381,9 @@ export const AppModal: React.FC<AppModalProps> = ({
               style={[
                 styles.sheet,
                 {
+                  maxHeight: currentMaxSheetHeight,
                   transform: [{ translateY: combinedSheetTranslateY }],
-                  paddingBottom: Math.max(insets.bottom, Platform.OS === 'ios' ? 24 : 16),
+                  paddingBottom: keyboardHeight > 0 ? 8 : bottomInset,
                   pointerEvents: 'auto' as any,
                 },
               ]}
@@ -369,7 +393,9 @@ export const AppModal: React.FC<AppModalProps> = ({
               <View style={styles.dragPillContainer} {...handleBarPanResponder.panHandlers}>
                 <View style={styles.dragPill} />
               </View>
-              {children}
+              <View style={styles.sheetBody}>
+                {children}
+              </View>
             </Animated.View>
           </View>
         ) : (
@@ -391,7 +417,8 @@ export const AppModal: React.FC<AppModalProps> = ({
               <ScrollView
                 style={{ flexShrink: 1 }}
                 contentContainerStyle={{ flexGrow: 0 }}
-                showsVerticalScrollIndicator={false}
+                showsVerticalScrollIndicator={true}
+                persistentScrollbar={true}
                 bounces={false}
                 keyboardShouldPersistTaps="handled"
               >
@@ -437,17 +464,21 @@ const styles = StyleSheet.create({
   sheet: {
     width: '100%',
     maxWidth: 560,
-    maxHeight: '92%',
     alignSelf: 'center',
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     overflow: 'hidden',
+    flexDirection: 'column',
+  },
+  sheetBody: {
+    width: '100%',
+    flexShrink: 1,
+    maxHeight: '100%',
   },
   dialog: {
     width: '100%',
     maxWidth: 440,
-    maxHeight: '85%',
     alignSelf: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 24,

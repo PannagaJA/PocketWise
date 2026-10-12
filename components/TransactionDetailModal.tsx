@@ -112,7 +112,7 @@ export function TransactionDetailModal({
 
   return (
     <AppModal visible={visible} onClose={onClose} animationType="slide">
-      <Pressable className="flex-col w-full" onPress={(e) => e.stopPropagation()}>
+      <Pressable className="flex-col w-full" style={{ maxHeight: '100%', flexShrink: 1 }} onPress={(e) => e.stopPropagation()}>
         {/* Modal Header */}
         <View className="flex-row items-center justify-between px-6 py-3 border-b border-zinc-100">
           <View className="flex-row items-center gap-2.5">
@@ -152,7 +152,9 @@ export function TransactionDetailModal({
         {/* Content */}
         <ScrollView
           className="px-6 pt-4"
-          showsVerticalScrollIndicator={false}
+          style={{ flexShrink: 1 }}
+          showsVerticalScrollIndicator={true}
+          persistentScrollbar={true}
           contentContainerStyle={{ paddingBottom: 20 }}
         >
           {/* Hero Amount Box */}

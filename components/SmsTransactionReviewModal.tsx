@@ -96,7 +96,7 @@ export function SmsTransactionReviewModal({
 
   return (
     <AppModal visible={visible} animationType="slide" onClose={onClose}>
-      <Pressable className="flex-col w-full px-6 pt-3" onPress={(e) => e.stopPropagation()}>
+      <Pressable className="flex-col w-full px-6 pt-3" style={{ maxHeight: '100%', flexShrink: 1 }} onPress={(e) => e.stopPropagation()}>
         {/* Header */}
         <View className="flex-row justify-between items-center mb-4">
           <View className="flex-row items-center gap-2.5">
@@ -118,7 +118,8 @@ export function SmsTransactionReviewModal({
 
         {step === 'review' ? (
           <ScrollView
-            showsVerticalScrollIndicator={false}
+            showsVerticalScrollIndicator={true}
+            persistentScrollbar={true}
             keyboardShouldPersistTaps="handled"
             style={{ flexShrink: 1 }}
             contentContainerStyle={{ paddingBottom: 24 }}
@@ -215,7 +216,8 @@ export function SmsTransactionReviewModal({
 
             <ScrollView
               style={{ maxHeight: 320 }}
-              showsVerticalScrollIndicator={false}
+              showsVerticalScrollIndicator={true}
+              persistentScrollbar={true}
               className="mb-4"
             >
               {accounts.length > 0 ? (

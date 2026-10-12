@@ -399,7 +399,8 @@ export default function GoalsScreen() {
         animationType="slide"
       >
         <Pressable
-          className="bg-white rounded-t-3xl p-6 pb-6 border-t border-zinc-200 max-h-[90%]"
+          className="bg-white rounded-t-3xl p-6 pb-6 border-t border-zinc-200"
+          style={{ maxHeight: '100%', flexShrink: 1 }}
           onPress={(e) => e.stopPropagation()}
         >
           <View className="flex-row justify-between items-center mb-4">
@@ -410,9 +411,11 @@ export default function GoalsScreen() {
           </View>
 
           <ScrollView 
-            showsVerticalScrollIndicator={false} 
+            style={{ flexShrink: 1 }}
+            showsVerticalScrollIndicator={true}
+            persistentScrollbar={true}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 48 }}
+            contentContainerStyle={{ paddingBottom: 32 }}
           >
             <Input
               label="Goal Name"
@@ -457,7 +460,8 @@ export default function GoalsScreen() {
         animationType="slide"
       >
         <Pressable
-          className="bg-white rounded-t-3xl p-6 pb-6 border-t border-zinc-200 max-h-[90%]"
+          className="bg-white rounded-t-3xl p-6 pb-6 border-t border-zinc-200"
+          style={{ maxHeight: '100%', flexShrink: 1 }}
           onPress={(e) => e.stopPropagation()}
         >
           <View className="flex-row justify-between items-center mb-4">
@@ -468,9 +472,11 @@ export default function GoalsScreen() {
           </View>
 
           <ScrollView 
-            showsVerticalScrollIndicator={false} 
+            style={{ flexShrink: 1 }}
+            showsVerticalScrollIndicator={true}
+            persistentScrollbar={true}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 48 }}
+            contentContainerStyle={{ paddingBottom: 32 }}
           >
             <Input
               label="Contribution Amount (₹)"

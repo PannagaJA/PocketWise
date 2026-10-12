@@ -601,7 +601,8 @@ export default function LendsScreen() {
           <ScrollView 
             className="px-5 pt-3"
             style={{ flexShrink: 1 }}
-            showsVerticalScrollIndicator={false} 
+            showsVerticalScrollIndicator={true}
+            persistentScrollbar={true}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ paddingBottom: 16 }}
           >

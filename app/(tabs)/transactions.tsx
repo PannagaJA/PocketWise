@@ -783,7 +783,7 @@ export default function TransactionsScreen() {
         animationType="slide"
       >
         <Pressable
-          style={{ width: '100%', padding: 24, paddingBottom: 12 }}
+          style={{ width: '100%', maxHeight: '100%', flexShrink: 1, padding: 20, paddingBottom: 12 }}
           onPress={(e) => e.stopPropagation()}
         >
           <View className="flex-row justify-between items-center mb-4">
@@ -798,7 +798,7 @@ export default function TransactionsScreen() {
             </Pressable>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 380 }}>
+          <ScrollView showsVerticalScrollIndicator={true} persistentScrollbar={true} style={{ flexShrink: 1, maxHeight: 380 }}>
             {/* Presets Section */}
             <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5">Quick Presets</Text>
             <View className="flex-row flex-wrap gap-2 mb-4">
@@ -938,7 +938,7 @@ export default function TransactionsScreen() {
         animationType="slide"
       >
         <Pressable
-          style={{ width: '100%', padding: 24, paddingBottom: 12 }}
+          style={{ width: '100%', maxHeight: '100%', flexShrink: 1, padding: 20, paddingBottom: 12 }}
           onPress={(e) => e.stopPropagation()}
         >
           <View className="flex-row justify-between items-center mb-4">
@@ -949,9 +949,11 @@ export default function TransactionsScreen() {
           </View>
 
           <ScrollView 
-            showsVerticalScrollIndicator={false} 
+            style={{ flexShrink: 1 }}
+            showsVerticalScrollIndicator={true} 
+            persistentScrollbar={true}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 48 }}
+            contentContainerStyle={{ paddingBottom: 32 }}
           >
             <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-4">
               <Pressable
@@ -1114,7 +1116,7 @@ export default function TransactionsScreen() {
         animationType="slide"
       >
         <Pressable
-          style={{ width: '100%', padding: 24, paddingBottom: 12 }}
+          style={{ width: '100%', maxHeight: '100%', flexShrink: 1, padding: 20, paddingBottom: 12 }}
           onPress={(e) => e.stopPropagation()}
         >
           <View className="flex-row justify-between items-center mb-4">
@@ -1125,9 +1127,11 @@ export default function TransactionsScreen() {
           </View>
 
           <ScrollView 
-            showsVerticalScrollIndicator={false} 
+            style={{ flexShrink: 1 }}
+            showsVerticalScrollIndicator={true} 
+            persistentScrollbar={true}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 48 }}
+            contentContainerStyle={{ paddingBottom: 32 }}
           >
             <Input
               label="Account Name"
@@ -1164,7 +1168,7 @@ export default function TransactionsScreen() {
         animationType="slide"
       >
         <Pressable
-          style={{ width: '100%', padding: 24, paddingBottom: 12 }}
+          style={{ width: '100%', maxHeight: '100%', flexShrink: 1, padding: 20, paddingBottom: 12 }}
           onPress={(e) => e.stopPropagation()}
         >
           <View className="flex-row justify-between items-center mb-4">
@@ -1180,7 +1184,9 @@ export default function TransactionsScreen() {
           </View>
 
           <ScrollView 
-            showsVerticalScrollIndicator={false}
+            style={{ flexShrink: 1 }}
+            showsVerticalScrollIndicator={true}
+            persistentScrollbar={true}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ paddingBottom: 32 }}
           >

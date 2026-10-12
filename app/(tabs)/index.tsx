@@ -719,7 +719,8 @@ export default function DashboardScreen() {
           </View>
 
           <ScrollView
-            showsVerticalScrollIndicator={false}
+            showsVerticalScrollIndicator={true}
+            persistentScrollbar={true}
             style={{ flexShrink: 1 }}
             className="px-5 pt-3"
             contentContainerStyle={{ paddingBottom: 24 }}
@@ -782,7 +783,8 @@ export default function DashboardScreen() {
           <ScrollView
             className="px-5 pt-3"
             style={{ flexShrink: 1 }}
-            showsVerticalScrollIndicator={false}
+            showsVerticalScrollIndicator={true}
+            persistentScrollbar={true}
             keyboardShouldPersistTaps="always"
             contentContainerStyle={{ paddingBottom: 24 }}
           >

@@ -149,7 +149,7 @@ export function RecordTransactionModal({
   return (
     <AppModal visible={visible} onClose={onClose} animationType="slide">
       <Pressable
-        style={{ width: '100%', padding: 24, paddingBottom: 16 }}
+        style={{ width: '100%', maxHeight: '100%', flexShrink: 1, padding: 20, paddingBottom: 16 }}
         onPress={(e) => e.stopPropagation()}
       >
         <View className="flex-row justify-between items-center mb-4">
@@ -166,7 +166,9 @@ export function RecordTransactionModal({
         </View>
 
         <ScrollView
-          showsVerticalScrollIndicator={false}
+          style={{ flexShrink: 1 }}
+          showsVerticalScrollIndicator={true}
+          persistentScrollbar={true}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ paddingBottom: 24 }}
         >

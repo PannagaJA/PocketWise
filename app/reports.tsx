@@ -461,6 +461,7 @@ export default function ReportsScreen() {
       >
         <Pressable
           className="bg-white rounded-t-3xl p-6 pb-6 border-t border-zinc-200"
+          style={{ maxHeight: '100%', flexShrink: 1 }}
           onPress={(e) => e.stopPropagation()}
         >
           <View className="flex-row justify-between items-center mb-4">
