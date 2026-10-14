@@ -17,10 +17,12 @@ import { notificationService } from '../lib/notifications/notification.service';
 import { Plus, X, ArrowLeft, Calendar, CheckCircle2, Clock, AlertCircle, ShieldAlert, ChevronLeft, ChevronRight, Check, Pencil, Trash2, RotateCcw } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { TimePickerModal, format12HourTime } from '../components/ui/TimePickerModal';
+import { useModuleBack } from '../lib/navigation/moduleBack';
 
 export default function BillsScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const goBackToMore = useModuleBack(4);
   const queryClient = useQueryClient();
   const [modalVisible, setModalVisible] = useState(false);
   const [calendarModalVisible, setCalendarModalVisible] = useState(false);
@@ -215,7 +217,7 @@ export default function BillsScreen() {
         {/* Header */}
         <View className="flex-row justify-between items-center mb-4">
           <View className="flex-row items-center">
-            <Pressable onPress={() => { if (router.canGoBack()) { router.back(); } else { router.replace('/(tabs)/'); } }} className="mr-3 p-1">
+            <Pressable onPress={goBackToMore} className="mr-3 p-1">
               <ArrowLeft size={22} color="#09090B" />
             </Pressable>
             <View>
