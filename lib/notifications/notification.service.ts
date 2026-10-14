@@ -171,7 +171,11 @@ export const notificationService = {
         }, { onConflict: 'fcm_token' });
 
       if (error) {
-        console.error('Error saving device token to Supabase:', error);
+        if (error.code === '42501' || error.message?.includes('row-level security')) {
+          console.log('[NotificationService] Push token is linked to a prior session on this device. Continuing.');
+        } else {
+          console.warn('[NotificationService] Error saving device token to Supabase:', error.message);
+        }
       }
       return token;
     } catch (err) {
