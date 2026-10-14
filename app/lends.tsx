@@ -56,7 +56,7 @@ import { useModuleBack } from '../lib/navigation/moduleBack';
 function getDaysLabel(
   dueDate: string,
   status: string
-): { text: string; badgeVariant: 'income' | 'expense' | 'budget' | 'subscription' } {
+  ): { text: string; badgeVariant: 'income' | 'expense' | 'budget' | 'subscription' } {
   if (status === 'collected') return { text: 'Collected', badgeVariant: 'income' };
 
   const today = new Date();
@@ -1235,156 +1235,150 @@ export default function LendsScreen() {
       <AppModal
         visible={showSmsModal}
         onClose={() => setShowSmsModal(false)}
-        animationType="slide"
+        animationType="fade"
       >
         <Pressable
-          className="bg-white rounded-t-3xl border-t border-zinc-200 flex-col"
-          style={{ maxHeight: '92%' }}
+          className="bg-white rounded-3xl p-5 w-full border border-zinc-200 shadow-2xl max-h-[88%]"
           onPress={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <View className="flex-row justify-between items-center p-5 pb-3 border-b border-zinc-100">
-            <View className="flex-row items-center gap-3">
-              <View className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 items-center justify-center">
-                <MessageSquare size={20} color="#6366F1" />
+          <View className="flex-row justify-between items-center mb-3">
+            <View className="flex-row items-center gap-2.5">
+              <View className="w-8 h-8 rounded-full bg-indigo-50 items-center justify-center border border-indigo-100">
+                <MessageSquare size={16} color="#6366F1" />
               </View>
               <View>
-                <Text className="text-xl font-extrabold text-zinc-900">Send SMS Reminder</Text>
-                <Text className="text-xs text-zinc-500 mt-0.5">Send repayment notice via SMS at any time</Text>
+                <Text className="text-lg font-black text-zinc-900">Send Reminder</Text>
+                <Text className="text-[11px] text-zinc-500">Send notice via WhatsApp or SMS</Text>
               </View>
             </View>
-            <Pressable
+            <TouchableOpacity
               onPress={() => setShowSmsModal(false)}
-              className="w-8 h-8 rounded-full bg-zinc-100 items-center justify-center"
+              className="w-7 h-7 rounded-full bg-zinc-100 items-center justify-center"
             >
-              <X size={16} color="#71717A" />
-            </Pressable>
+              <X size={14} color="#71717A" />
+            </TouchableOpacity>
           </View>
 
-          <ScrollView
-            className="px-5 pt-3"
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 24 }}
-          >
-            {/* Borrower & Amount Snapshot Card */}
-            <View className="bg-zinc-50 border border-zinc-200 rounded-2xl p-3.5 mb-4 flex-row justify-between items-center">
-              <View className="flex-1 pr-2">
-                <Text className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
-                  Borrower
-                </Text>
-                <Text className="text-base font-extrabold text-zinc-900 mt-0.5" numberOfLines={1}>
-                  {smsTarget?.personName}
-                </Text>
-                <Text className="text-xs text-zinc-500">
-                  Due {smsTarget ? formatDate(smsTarget.dueDate) : ''}
-                </Text>
-              </View>
-              <View className="items-end">
-                <Text className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
-                  To Collect
-                </Text>
-                <Text className="text-xl font-black text-indigo-600 mt-0.5">
-                  {smsTarget ? formatMoney(smsTarget.amountMinor) : '₹0'}
-                </Text>
-              </View>
-            </View>
-
-            {/* Recipient Phone Number */}
-            <View className="mb-3">
-              <View className="flex-row justify-between items-center mb-1">
-                <Text className="text-xs font-semibold text-zinc-700">Mobile Number</Text>
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={handlePickContactForSms}
-                  className="flex-row items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 active:bg-indigo-100"
-                >
-                  <BookUser size={12} color="#6366F1" />
-                  <Text className="text-[11px] font-bold text-indigo-700">Choose from Contacts</Text>
-                </TouchableOpacity>
-              </View>
-              <Input
-                placeholder="e.g. +91 98765 43210"
-                keyboardType="phone-pad"
-                value={smsRecipientPhone}
-                onChangeText={setSmsRecipientPhone}
-              />
-              <Text className="text-[10px] text-zinc-400 -mt-2 px-1">
-                Pick contact from your phone or type any number manually.
+          {/* Borrower & Amount Snapshot */}
+          <View className="bg-zinc-50 border border-zinc-200 rounded-2xl p-3 mb-3 flex-row justify-between items-center">
+            <View className="flex-1 pr-2">
+              <Text className="text-[10px] font-bold text-zinc-400 uppercase">Borrower</Text>
+              <Text className="text-xs font-bold text-zinc-900 mt-0.5" numberOfLines={1}>
+                {smsTarget?.personName}
               </Text>
             </View>
+            <View className="items-end">
+              <Text className="text-[10px] font-bold text-zinc-400 uppercase">To Collect</Text>
+              <Text className="text-sm font-black text-indigo-600 mt-0.5">
+                {smsTarget ? formatMoney(smsTarget.amountMinor) : '₹0'}
+              </Text>
+            </View>
+          </View>
 
-            {/* Quick Template Presets */}
-            <View className="mb-3">
-              <Text className="text-xs font-semibold text-zinc-700 mb-2">Message Template</Text>
-              <View className="flex-row gap-2 flex-wrap">
-                {[
-                  { id: 'friendly', label: '💬 Friendly' },
-                  { id: 'due', label: '⏰ Due Today' },
-                  { id: 'overdue', label: '⚠️ Overdue' },
-                ].map((tmpl) => {
-                  const isSelected = smsTemplate === tmpl.id;
-                  return (
-                    <TouchableOpacity
-                      key={tmpl.id}
-                      activeOpacity={0.7}
-                      onPress={() => handleSelectTemplate(tmpl.id as any)}
-                      style={{
-                        backgroundColor: isSelected ? '#EEF2FF' : '#F4F4F5',
-                        borderColor: isSelected ? '#6366F1' : '#E4E4E7',
-                      }}
-                      className="px-3.5 py-1.5 rounded-full border"
+          {/* Recipient Phone Number */}
+          <View className="mb-2.5">
+            <View className="flex-row justify-between items-center mb-1">
+              <Text className="text-xs font-bold text-zinc-700">Mobile Number</Text>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={handlePickContactForSms}
+                className="flex-row items-center gap-1 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100"
+              >
+                <BookUser size={11} color="#6366F1" />
+                <Text className="text-[10px] font-bold text-indigo-700">Choose from Contacts</Text>
+              </TouchableOpacity>
+            </View>
+            <Input
+              placeholder="e.g. +91 98765 43210"
+              keyboardType="phone-pad"
+              value={smsRecipientPhone}
+              onChangeText={setSmsRecipientPhone}
+            />
+          </View>
+
+          {/* Quick Template Presets */}
+          <View className="mb-2.5">
+            <Text className="text-xs font-bold text-zinc-700 mb-1.5">Template</Text>
+            <View className="flex-row gap-1.5 flex-wrap">
+              {[
+                { id: 'friendly', emoji: '💬', label: 'Friendly' },
+                { id: 'due', emoji: '⏰', label: 'Due Today' },
+                { id: 'overdue', emoji: '⚠️', label: 'Overdue' },
+              ].map((tmpl) => {
+                const isSelected = smsTemplate === tmpl.id;
+                return (
+                  <TouchableOpacity
+                    key={tmpl.id}
+                    activeOpacity={0.7}
+                    onPress={() => handleSelectTemplate(tmpl.id as any)}
+                    style={{
+                      backgroundColor: isSelected ? '#EEF2FF' : '#F4F4F5',
+                      borderColor: isSelected ? '#6366F1' : '#E4E4E7',
+                    }}
+                    className="px-2.5 py-1 rounded-full border flex-row items-center gap-1"
+                  >
+                    <Text className="text-[11px]">{tmpl.emoji}</Text>
+                    <Text
+                      style={{ color: isSelected ? '#4F46E5' : '#52525B' }}
+                      className="text-[11px] font-bold"
                     >
-                      <Text
-                        style={{ color: isSelected ? '#4F46E5' : '#52525B' }}
-                        className="text-xs font-bold"
-                      >
-                        {tmpl.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+                      {tmpl.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
+          </View>
 
-            {/* Editable Message Content */}
-            <View className="mb-4">
-              <Text className="text-xs font-semibold text-zinc-700 mb-1.5">Reminder Message</Text>
-              <TextInput
-                multiline
-                numberOfLines={4}
-                value={smsMessage}
-                onChangeText={setSmsMessage}
-                textAlignVertical="top"
-                className="border border-zinc-200 rounded-2xl p-3.5 text-zinc-900 text-sm bg-zinc-50 min-h-[96px]"
-                placeholder="Type your reminder message..."
-              />
-              <Text className="text-[10px] text-zinc-400 mt-1 px-1">
-                You can customize this message before launching WhatsApp or SMS.
-              </Text>
-            </View>
-          </ScrollView>
+          {/* Editable Message Content */}
+          <View className="mb-3.5">
+            <Text className="text-xs font-bold text-zinc-700 mb-1">Message</Text>
+            <TextInput
+              multiline
+              numberOfLines={3}
+              value={smsMessage}
+              onChangeText={setSmsMessage}
+              textAlignVertical="top"
+              className="border border-zinc-200 rounded-xl p-2.5 text-zinc-900 text-xs bg-zinc-50 min-h-[72px]"
+              placeholder="Type your reminder message..."
+            />
+          </View>
 
-          {/* Bottom Action Bar: Direct WhatsApp & Direct SMS buttons */}
-          <View className="p-5 pt-3 pb-8 border-t border-zinc-100 bg-white gap-2.5">
+          {/* Bottom Action Bar: Side-by-Side Send Buttons */}
+          <View className="flex-row gap-2 pt-1">
             <TouchableOpacity
               activeOpacity={0.8}
               disabled={sendingSms}
               onPress={handleSendWhatsApp}
-              className="bg-[#25D366] active:bg-[#1EBE5D] py-3.5 px-4 rounded-2xl flex-row items-center justify-center gap-2 shadow-sm"
+              className="flex-1 bg-[#25D366] active:bg-[#1EBE5D] py-3 px-2 rounded-xl flex-row items-center justify-center gap-1.5"
             >
-              <MessageSquare size={17} color="#FFFFFF" />
-              <Text className="text-white font-black text-sm">Send via WhatsApp</Text>
+              <MessageSquare size={14} color="#FFFFFF" strokeWidth={2.5} />
+              <Text className="text-white font-bold text-xs">
+                {sendingSms ? 'Opening...' : 'WhatsApp'}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               activeOpacity={0.8}
               disabled={sendingSms}
               onPress={handleSendSms}
-              className="bg-indigo-600 active:bg-indigo-700 py-3.5 px-4 rounded-2xl flex-row items-center justify-center gap-2 shadow-sm"
+              className="flex-1 bg-indigo-600 active:bg-indigo-700 py-3 px-2 rounded-xl flex-row items-center justify-center gap-1.5"
             >
-              <Send size={16} color="#FFFFFF" />
-              <Text className="text-white font-black text-sm">Send via SMS</Text>
+              <Send size={13} color="#FFFFFF" strokeWidth={2.5} />
+              <Text className="text-white font-bold text-xs">
+                {sendingSms ? 'Opening...' : 'Send SMS'}
+              </Text>
             </TouchableOpacity>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-zinc-200 px-3 py-2.5 rounded-xl"
+              onPress={() => setShowSmsModal(false)}
+            >
+              <Text className="text-zinc-600 font-bold text-xs">Cancel</Text>
+            </Button>
           </View>
         </Pressable>
       </AppModal>
