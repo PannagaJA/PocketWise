@@ -29,8 +29,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        profileService.ensureProfile(session.user.id, session.user.email?.split('@')[0]).catch(console.error);
-        notificationService.registerDeviceToken(session.user.id).catch(console.error);
+        const displayName =
+          session.user.user_metadata?.display_name ||
+          session.user.user_metadata?.phone_number ||
+          session.user.email?.split('@')[0];
+        profileService
+          .ensureProfile(session.user.id, displayName)
+          .then(() => notificationService.registerDeviceToken(session.user.id))
+          .catch(console.error);
       }
       setLoading(false);
     });
@@ -40,8 +46,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(session?.user ?? null);
       if (session?.user) {
         if (event !== 'INITIAL_SESSION') {
-          profileService.ensureProfile(session.user.id, session.user.email?.split('@')[0]).catch(console.error);
-          notificationService.registerDeviceToken(session.user.id).catch(console.error);
+          const displayName =
+            session.user.user_metadata?.display_name ||
+            session.user.user_metadata?.phone_number ||
+            session.user.email?.split('@')[0];
+          profileService
+            .ensureProfile(session.user.id, displayName)
+            .then(() => notificationService.registerDeviceToken(session.user.id))
+            .catch(console.error);
         }
         shakeService.init(session.user.id).catch(console.error);
       } else {
@@ -54,6 +66,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signOut = async () => {
+    try {
+      if (user?.id) {
+        await supabase.from('devices').delete().eq('user_id', user.id);
+      }
+    } catch {}
     await shakeService.clearUserSession().catch(console.error);
     await supabase.auth.signOut();
   };
