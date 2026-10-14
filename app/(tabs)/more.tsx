@@ -133,7 +133,9 @@ export default function MoreScreen() {
             <Text className="text-lg font-extrabold text-zinc-900">
               {user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Authenticated User'}
             </Text>
-            <Text className="text-xs text-zinc-500 mt-0.5" numberOfLines={1}>{user?.email}</Text>
+            <Text className="text-xs text-zinc-500 mt-0.5" numberOfLines={1}>
+              {user?.user_metadata?.phone_number || (user?.email?.includes('@pocketwise.internal') ? 'Mobile Account' : user?.email)}
+            </Text>
             <View className="mt-2 flex-row items-center gap-1.5">
               <Badge label="Verified Account" variant="income" />
             </View>
