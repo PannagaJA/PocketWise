@@ -9,9 +9,11 @@ import { shakeService } from '../lib/shake/shakeService';
 import { shakeStorage, ShakeSensitivity } from '../lib/shake/storage/shakeStore';
 import { ArrowLeft, Zap, Shield, Smartphone, Layers, CheckCircle2, AlertCircle } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { useModuleBack } from '../lib/navigation/moduleBack';
 
 export default function ShakeSettingsScreen() {
   const router = useRouter();
+  const goBackToMore = useModuleBack(4);
 
   const [loading, setLoading] = useState(true);
   const [enabled, setEnabled] = useState(true);
@@ -104,7 +106,7 @@ export default function ShakeSettingsScreen() {
       <View className="flex-row items-center justify-between px-5 py-3 border-b border-zinc-200 bg-white">
         <TouchableOpacity
           activeOpacity={0.7}
-          onPress={() => { if (router.canGoBack()) { router.back(); } else { router.replace('/(tabs)/'); } }}
+          onPress={goBackToMore}
           className="w-10 h-10 items-center justify-center rounded-full bg-zinc-100"
         >
           <ArrowLeft size={20} color="#18181B" />
