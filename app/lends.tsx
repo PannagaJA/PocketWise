@@ -51,6 +51,7 @@ import {
   openSmsComposer,
   openWhatsAppComposer,
 } from '../lib/services/sms-reminder.service';
+import { useModuleBack } from '../lib/navigation/moduleBack';
 
 function getDaysLabel(
   dueDate: string,
@@ -90,6 +91,7 @@ const DATE_PRESETS = [
 export default function LendsScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const goBackToMore = useModuleBack(4);
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<'active' | 'collected'>('active');
@@ -474,7 +476,7 @@ export default function LendsScreen() {
         {/* Header */}
         <View className="flex-row justify-between items-center mb-4">
           <View className="flex-row items-center">
-            <Pressable onPress={() => { if (router.canGoBack()) { router.back(); } else { router.replace('/(tabs)/'); } }} className="mr-3 p-1">
+            <Pressable onPress={goBackToMore} className="mr-3 p-1">
               <ArrowLeft size={22} color="#09090B" />
             </Pressable>
             <View>
