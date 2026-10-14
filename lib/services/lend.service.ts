@@ -9,6 +9,7 @@ export interface LendRecord {
   id: string;
   user_id?: string;
   personName: string;
+  phoneNumber?: string;
   amountMinor: number; // in paise (e.g. ₹500 = 50000)
   type?: LendType;
   notes?: string;
@@ -28,13 +29,23 @@ function mapFromSupabase(row: any): LendRecord {
   const status: LendStatus =
     row.status === 'active' && row.due_date < now ? 'overdue' : row.status;
 
+  let phoneNumber: string | undefined = row.phone_number || row.phone;
+  const notes = row.notes || undefined;
+  if (!phoneNumber && notes) {
+    const phoneMatch = notes.match(/(?:^|\n|•\s*)Phone:\s*([+\d\s\-()]+)/i);
+    if (phoneMatch) {
+      phoneNumber = phoneMatch[1].trim();
+    }
+  }
+
   return {
     id: row.id,
     user_id: row.user_id,
     personName: row.person_name,
+    phoneNumber,
     amountMinor: Number(row.amount_minor),
     type: row.type || 'lend',
-    notes: row.notes || undefined,
+    notes,
     lentDate: row.lent_date,
     dueDate: row.due_date,
     status,
@@ -146,6 +157,7 @@ export const lendService = {
   async createLend(params: {
     userId?: string;
     personName: string;
+    phoneNumber?: string;
     amountMinor: number;
     type?: LendType;
     notes?: string;
@@ -172,6 +184,14 @@ export const lendService = {
       console.warn('[LendService] Could not schedule notification:', err);
     }
 
+    let finalNotes = params.notes?.trim() || '';
+    if (params.phoneNumber?.trim()) {
+      const phoneTag = `Phone: ${params.phoneNumber.trim()}`;
+      if (!finalNotes.includes(phoneTag)) {
+        finalNotes = finalNotes ? `${finalNotes} • ${phoneTag}` : phoneTag;
+      }
+    }
+
     if (params.userId) {
       const { data, error } = await supabase
         .from('lends')
@@ -180,7 +200,7 @@ export const lendService = {
           person_name: params.personName.trim(),
           amount_minor: params.amountMinor,
           type: params.type || 'lend',
-          notes: params.notes?.trim() || null,
+          notes: finalNotes || null,
           lent_date: params.lentDate,
           due_date: params.dueDate,
           status: 'active',
@@ -190,7 +210,11 @@ export const lendService = {
         .single();
 
       if (!error && data) {
-        return mapFromSupabase(data);
+        const mapped = mapFromSupabase(data);
+        if (params.phoneNumber?.trim()) {
+          mapped.phoneNumber = params.phoneNumber.trim();
+        }
+        return mapped;
       }
     }
 
@@ -200,9 +224,10 @@ export const lendService = {
       id: `lend_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       user_id: params.userId,
       personName: params.personName.trim(),
+      phoneNumber: params.phoneNumber?.trim() || undefined,
       amountMinor: params.amountMinor,
       type: params.type || 'lend',
-      notes: params.notes?.trim() || undefined,
+      notes: finalNotes || undefined,
       lentDate: params.lentDate,
       dueDate: params.dueDate,
       status: 'active',
@@ -326,6 +351,47 @@ export const lendService = {
         amountMinor: newAmountMinor,
       };
       await saveLocal(records);
+    }
+  },
+
+  /**
+   * Update or set phone number for a lend record (for SMS reminders).
+   */
+  async updatePhoneNumber(id: string, phoneNumber: string, userId?: string): Promise<void> {
+    const cleanPhone = phoneNumber.trim();
+
+    const records = await loadLocal();
+    const idx = records.findIndex((r) => r.id === id);
+    let updatedNotes: string | undefined;
+
+    if (idx !== -1) {
+      const record = records[idx];
+      let currNotes = record.notes || '';
+      if (currNotes.match(/(?:^|\n|•\s*)Phone:\s*[+\d\s\-()]+/i)) {
+        currNotes = currNotes.replace(/Phone:\s*[+\d\s\-()]+/i, `Phone: ${cleanPhone}`);
+      } else {
+        currNotes = currNotes ? `${currNotes} • Phone: ${cleanPhone}` : `Phone: ${cleanPhone}`;
+      }
+      updatedNotes = currNotes;
+      records[idx] = {
+        ...record,
+        phoneNumber: cleanPhone,
+        notes: currNotes,
+      };
+      await saveLocal(records);
+    }
+
+    if (userId) {
+      if (!updatedNotes) {
+        updatedNotes = `Phone: ${cleanPhone}`;
+      }
+      await supabase
+        .from('lends')
+        .update({
+          notes: updatedNotes,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
     }
   },
 };
