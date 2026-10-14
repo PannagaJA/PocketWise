@@ -7,9 +7,11 @@ import { Button } from '../components/ui/Button';
 import { ChevronLeft, Bell, Shield, Moon, DollarSign, Wallet, TrendingUp, Calendar, Target } from 'lucide-react-native';
 import { notificationEngine, NotificationPreferenceState } from '../lib/notifications/notification.engine';
 import { notificationService } from '../lib/notifications/notification.service';
+import { useModuleBack } from '../lib/navigation/moduleBack';
 
 export default function NotificationSettingsScreen() {
   const router = useRouter();
+  const goBackToMore = useModuleBack(4);
   const [prefs, setPrefs] = useState<NotificationPreferenceState | null>(null);
 
   useEffect(() => {
@@ -39,7 +41,7 @@ export default function NotificationSettingsScreen() {
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       {/* Header */}
       <View className="px-4 py-3 flex-row items-center border-b border-zinc-100 bg-white">
-        <Pressable onPress={() => { if (router.canGoBack()) { router.back(); } else { router.replace('/(tabs)/'); } }} className="p-2 -ml-2 mr-2">
+        <Pressable onPress={goBackToMore} className="p-2 -ml-2 mr-2">
           <ChevronLeft size={24} color="#09090B" />
         </Pressable>
         <View>
