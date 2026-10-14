@@ -104,8 +104,11 @@ export async function pickContactFromDevice(): Promise<PickedContactResult> {
   }
 }
 
+export const POCKETWISE_PREVIEW_LINK = 'https://github.com/PannagaJA/PocketWise';
+
 /**
- * Generates customizable reminder messages for borrower repayment.
+ * Generates customizable reminder messages for borrower repayment with automatic
+ * rich preview card banner on WhatsApp & Messages.
  */
 export function getReminderMessage(
   templateType: 'friendly' | 'due' | 'overdue' | 'custom',
@@ -119,15 +122,16 @@ export function getReminderMessage(
   const name = params.personName.trim() || 'there';
   const amountStr = formatMoney(params.amountMinor);
   const dueFormatted = formatDate(params.dueDate);
+  const cardLink = `\n\n📲 PocketWise Payment Reminder:\n${POCKETWISE_PREVIEW_LINK}`;
 
   switch (templateType) {
     case 'due':
-      return `Hi ${name}, this is a gentle reminder that the ${amountStr} is due today (${dueFormatted}). Please transfer when convenient. Thank you! - via PocketWise`;
+      return `Hi ${name}, this is a gentle reminder that the ${amountStr} is due today (${dueFormatted}). Please transfer when convenient. Thank you!${cardLink}`;
     case 'overdue':
-      return `Hi ${name}, following up regarding the ${amountStr} that was due on ${dueFormatted}. Please arrange to settle it at your earliest convenience. Thank you! - via PocketWise`;
+      return `Hi ${name}, following up regarding the ${amountStr} that was due on ${dueFormatted}. Please arrange to settle it at your earliest convenience. Thank you!${cardLink}`;
     case 'friendly':
     default:
-      return `Hi ${name}, hope you are doing well! Just a quick reminder about the ${amountStr} due on ${dueFormatted}. Please let me know once settled. Thank you! - via PocketWise`;
+      return `Hi ${name}, hope you are doing well! Just a quick reminder about the ${amountStr} due on ${dueFormatted}. Please let me know once settled. Thank you!${cardLink}`;
   }
 }
 
