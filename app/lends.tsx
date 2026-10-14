@@ -186,6 +186,13 @@ export default function LendsScreen() {
 
   // Open SMS Reminder modal for a lend record
   const openSmsModal = (record: LendRecord) => {
+    if (record.status === 'collected') {
+      Alert.alert(
+        'Already Collected',
+        `This lend for ${record.personName} has already been marked as collected. Reminders cannot be sent for settled lends.`
+      );
+      return;
+    }
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     setSmsTarget(record);
     setSmsRecipientPhone(record.phoneNumber || '');
@@ -243,6 +250,11 @@ export default function LendsScreen() {
 
   const handleSendSms = async () => {
     if (!smsTarget) return;
+    if (smsTarget.status === 'collected') {
+      Alert.alert('Already Collected', 'This lend has already been marked as collected.');
+      setShowSmsModal(false);
+      return;
+    }
     const phone = smsRecipientPhone.trim();
     if (!phone) {
       Alert.alert('Phone Number Required', 'Please enter a mobile number or choose from contacts to send an SMS reminder.');
@@ -273,6 +285,11 @@ export default function LendsScreen() {
 
   const handleSendWhatsApp = async () => {
     if (!smsTarget) return;
+    if (smsTarget.status === 'collected') {
+      Alert.alert('Already Collected', 'This lend has already been marked as collected.');
+      setShowSmsModal(false);
+      return;
+    }
     const phone = smsRecipientPhone.trim();
     if (!phone) {
       Alert.alert('Phone Number Required', 'Please enter a mobile number or choose from contacts.');
@@ -372,8 +389,12 @@ export default function LendsScreen() {
     mutationFn: async (id: string) => {
       return lendService.markCollected(id, user?.id);
     },
-    onSuccess: () => {
+    onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ['lends'] });
+      if (smsTarget?.id === id) {
+        setShowSmsModal(false);
+        setSmsTarget(null);
+      }
       try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
     },
     onError: () => {
@@ -616,14 +637,21 @@ export default function LendsScreen() {
                             Lent on {formatDate(record.lentDate)}
                           </Text>
                           {record.phoneNumber ? (
-                            <TouchableOpacity
-                              activeOpacity={0.7}
-                              onPress={() => openSmsModal(record)}
-                              className="flex-row items-center gap-1 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full"
-                            >
-                              <Phone size={10} color="#6366F1" />
-                              <Text className="text-[10px] font-bold text-indigo-700">{record.phoneNumber}</Text>
-                            </TouchableOpacity>
+                            !isCollected ? (
+                              <TouchableOpacity
+                                activeOpacity={0.7}
+                                onPress={() => openSmsModal(record)}
+                                className="flex-row items-center gap-1 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full"
+                              >
+                                <Phone size={10} color="#6366F1" />
+                                <Text className="text-[10px] font-bold text-indigo-700">{record.phoneNumber}</Text>
+                              </TouchableOpacity>
+                            ) : (
+                              <View className="flex-row items-center gap-1 bg-zinc-100 border border-zinc-200 px-2 py-0.5 rounded-full">
+                                <Phone size={10} color="#71717A" />
+                                <Text className="text-[10px] font-medium text-zinc-500">{record.phoneNumber}</Text>
+                              </View>
+                            )
                           ) : null}
                         </View>
                       </View>
