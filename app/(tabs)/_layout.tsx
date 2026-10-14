@@ -33,14 +33,15 @@ const SCREENS = [
 
 export default function TabLayout() {
   const { width: screenWidth } = useWindowDimensions();
-  const [activeIndex, setActiveIndex] = useState(0);
+  const initialIndex = useTabStore.getState().activeTabIndex;
+  const [activeIndex, setActiveIndex] = useState(initialIndex);
 
   // Pre-mount all tabs so swiping is instantaneous and buttery smooth
   const [mountedTabs] = useState<Set<number>>(() => new Set([0, 1, 2, 3, 4]));
 
-  const translateX = useSharedValue(0);
+  const translateX = useSharedValue(-initialIndex * screenWidth);
   const startX = useSharedValue(0);
-  const activeIndexShared = useSharedValue(0);
+  const activeIndexShared = useSharedValue(initialIndex);
 
   // Realign translateX whenever screenWidth changes for the currently active tab
   useEffect(() => {
