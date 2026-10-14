@@ -43,8 +43,6 @@ import {
   MessageSquare,
   Send,
   BookUser,
-  Wallet,
-  Sparkles,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import {
@@ -1345,22 +1343,6 @@ export default function LendsScreen() {
                     </TouchableOpacity>
                   );
                 })}
-              </View>
-            </View>
-
-            {/* Rich Link Preview Card indicator */}
-            <View className="mb-3.5 bg-indigo-50/70 border border-indigo-100 rounded-2xl p-3 flex-row items-center gap-3">
-              <View className="w-10 h-10 rounded-xl bg-zinc-900 items-center justify-center">
-                <Wallet size={18} color="#FFFFFF" strokeWidth={2} />
-              </View>
-              <View className="flex-1">
-                <View className="flex-row items-center gap-1.5">
-                  <Sparkles size={12} color="#6366F1" />
-                  <Text className="text-xs font-bold text-zinc-900">PocketWise Image Card Included</Text>
-                </View>
-                <Text className="text-[11px] text-zinc-500 mt-0.5">
-                  WhatsApp & Messages will automatically load the PocketWise logo & reminder card banner.
-                </Text>
               </View>
             </View>
 
