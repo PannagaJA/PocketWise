@@ -15,14 +15,14 @@ import { supabase } from '../supabase';
 
 const isExpoGo = Constants?.executionEnvironment === ExecutionEnvironment.StoreClient;
 
-// Only load expo-notifications in real native builds (dev-client or production APK).
-// Skip on Web and Expo Go where native background notification services are not linked.
+// Load expo-notifications whenever available on native platforms (Android / iOS).
 let Notifications: any = null;
-if (!isExpoGo && Platform.OS !== 'web') {
+if (Platform.OS !== 'web') {
   try {
     Notifications = require('expo-notifications');
     Notifications.setNotificationHandler({
       handleNotification: async () => ({
+        shouldShowAlert: true,
         shouldPlaySound: true,
         shouldSetBadge: true,
         shouldShowBanner: true,
@@ -253,10 +253,10 @@ export const notificationService = {
             reference_id: id,
           },
         },
-        // Android requires the date as a milliseconds timestamp; iOS accepts a Date object directly.
+        // Android requires the date as a milliseconds timestamp and channelId on the trigger for background wakeups; iOS accepts a Date object.
         trigger: Platform.OS === 'android'
-          ? { type: 'date', date: targetDate.getTime() }
-          : { date: targetDate },
+          ? { type: 'date', date: targetDate.getTime(), channelId: 'pocketwise-reminders' }
+          : { type: 'date', date: targetDate },
       });
 
       console.log(`[NotificationService] Successfully scheduled local notification (ID: ${id}) for ${targetDate.toISOString()}`);
@@ -275,8 +275,9 @@ export const notificationService = {
             channelId: 'pocketwise-reminders',
             data: { reminderId: id, type: type, reference_id: id },
           },
-          // channelId must NOT be in trigger — it belongs in content only
-          trigger: { seconds: diffSeconds },
+          trigger: Platform.OS === 'android'
+            ? { type: 'timeInterval', seconds: diffSeconds, channelId: 'pocketwise-reminders' }
+            : { type: 'timeInterval', seconds: diffSeconds },
         });
         return fallbackId;
       } catch (fallbackErr) {
@@ -378,7 +379,9 @@ export const notificationService = {
           channelId: 'pocketwise-reminders',
           data: { type: 'test' },
         },
-        trigger: { seconds: delaySeconds },
+        trigger: Platform.OS === 'android'
+          ? { type: 'timeInterval', seconds: delaySeconds, channelId: 'pocketwise-reminders' }
+          : { type: 'timeInterval', seconds: delaySeconds },
       });
       return true;
     } catch (err) {

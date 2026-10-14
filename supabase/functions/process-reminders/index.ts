@@ -182,12 +182,18 @@ serve(async (_req) => {
               data: {
                 type: String(reminder.type || 'reminder'),
                 reference_id: String(reminder.reference_id || ''),
+                title: String(reminder.title || ''),
+                body: String(reminder.body || ''),
+                channel_id: 'pocketwise-reminders',
               },
               android: {
                 priority: 'HIGH',
                 notification: {
                   channel_id: 'pocketwise-reminders',
                   sound: 'default',
+                  priority: 'PRIORITY_HIGH',
+                  default_sound: true,
+                  default_vibrate_timings: true,
                 },
               },
               apns: {

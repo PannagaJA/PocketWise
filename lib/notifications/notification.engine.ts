@@ -146,11 +146,11 @@ class NotificationEngine {
     }
   }
 
-  public isQuietHoursActive(): boolean {
+  public isQuietHoursActive(targetDate?: Date): boolean {
     if (!this.preferences.quietHoursEnabled) return false;
     try {
-      const now = new Date();
-      const currentMin = now.getHours() * 60 + now.getMinutes();
+      const checkDate = targetDate || new Date();
+      const currentMin = checkDate.getHours() * 60 + checkDate.getMinutes();
 
       const [startH, startM] = this.preferences.quietHoursStart.split(':').map(Number);
       const [endH, endM] = this.preferences.quietHoursEnd.split(':').map(Number);
@@ -191,18 +191,20 @@ class NotificationEngine {
       return null;
     }
 
-    // 2. Quiet Hours Check (for non-HIGH priority alerts)
-    if (priority !== 'high' && this.isQuietHoursActive()) {
-      console.log(`[NotificationEngine] Suppressed event ${eventId}: Quiet Hours active.`);
+    // 2. Quiet Hours Check (for non-HIGH priority alerts, evaluate against the actual alarm trigger time)
+    if (priority !== 'high' && this.isQuietHoursActive(triggerDate || undefined)) {
+      console.log(`[NotificationEngine] Suppressed event ${eventId}: Quiet Hours active at trigger time.`);
       return null;
     }
 
-    // 3. Persistent Event Deduplication (Synchronous lock to prevent concurrent races)
-    if (this.sentEventIds.has(eventId)) {
+    // 3. Persistent Event Deduplication for instant alerts (do not block future scheduled reminders)
+    if (!triggerDate && this.sentEventIds.has(eventId)) {
       console.log(`[NotificationEngine] Duplicate event ${eventId} suppressed.`);
       return null;
     }
-    this.sentEventIds.add(eventId);
+    if (!triggerDate) {
+      this.sentEventIds.add(eventId);
+    }
 
     // 4. Send/Schedule via Native Notification Service
     const payload = {
@@ -228,10 +230,10 @@ class NotificationEngine {
       resultId = await notificationService.sendSystemAlert(payload);
     }
 
-    if (resultId) {
+    if (resultId && !triggerDate) {
       await this.markEventSent(eventId, category);
-    } else {
-      // Revert in-memory mark if scheduling failed completely
+    } else if (!resultId && !triggerDate) {
+      // Revert in-memory mark if immediate dispatch failed completely
       this.sentEventIds.delete(eventId);
     }
 
