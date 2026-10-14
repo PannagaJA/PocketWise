@@ -1238,7 +1238,7 @@ export default function LendsScreen() {
         animationType="fade"
       >
         <Pressable
-          className="bg-white rounded-3xl p-5 w-full border border-zinc-200 shadow-2xl max-h-[88%]"
+          className="p-5 w-full bg-white"
           onPress={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -1345,13 +1345,22 @@ export default function LendsScreen() {
             />
           </View>
 
-          {/* Bottom Action Bar: Side-by-Side Send Buttons */}
-          <View className="flex-row gap-2 pt-1">
+          {/* Bottom Action Bar */}
+          <View className="flex-row gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="px-3.5 border-zinc-200 rounded-xl"
+              onPress={() => setShowSmsModal(false)}
+            >
+              <Text className="text-zinc-700 font-bold text-xs">Cancel</Text>
+            </Button>
+
             <TouchableOpacity
               activeOpacity={0.8}
               disabled={sendingSms}
               onPress={handleSendWhatsApp}
-              className="flex-1 bg-[#25D366] active:bg-[#1EBE5D] py-3 px-2 rounded-xl flex-row items-center justify-center gap-1.5"
+              className="flex-1 bg-[#25D366] active:bg-[#1EBE5D] py-3 px-2 rounded-xl flex-row items-center justify-center gap-1.5 shadow-xs"
             >
               <MessageSquare size={14} color="#FFFFFF" strokeWidth={2.5} />
               <Text className="text-white font-bold text-xs">
@@ -1363,22 +1372,13 @@ export default function LendsScreen() {
               activeOpacity={0.8}
               disabled={sendingSms}
               onPress={handleSendSms}
-              className="flex-1 bg-indigo-600 active:bg-indigo-700 py-3 px-2 rounded-xl flex-row items-center justify-center gap-1.5"
+              className="flex-1 bg-indigo-600 active:bg-indigo-700 py-3 px-2 rounded-xl flex-row items-center justify-center gap-1.5 shadow-xs"
             >
               <Send size={13} color="#FFFFFF" strokeWidth={2.5} />
               <Text className="text-white font-bold text-xs">
                 {sendingSms ? 'Opening...' : 'Send SMS'}
               </Text>
             </TouchableOpacity>
-
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-zinc-200 px-3 py-2.5 rounded-xl"
-              onPress={() => setShowSmsModal(false)}
-            >
-              <Text className="text-zinc-600 font-bold text-xs">Cancel</Text>
-            </Button>
           </View>
         </Pressable>
       </AppModal>

@@ -415,10 +415,9 @@ export const AppModal: React.FC<AppModalProps> = ({
               ]}
             >
               <ScrollView
-                style={{ flexShrink: 1 }}
+                style={{ flexGrow: 0, flexShrink: 1 }}
                 contentContainerStyle={{ flexGrow: 0 }}
-                showsVerticalScrollIndicator={true}
-                persistentScrollbar={true}
+                showsVerticalScrollIndicator={false}
                 bounces={false}
                 keyboardShouldPersistTaps="handled"
               >
