@@ -10,9 +10,11 @@ import { smsStorage } from '../lib/sms/storage/smsStore';
 import { smsListenerService } from '../lib/sms/service/smsListenerService';
 import { AccountMapping, SmsTrackingSettings, ParsedSmsTransaction } from '../lib/sms/types';
 import { SmsTransactionReviewModal } from '../components/SmsTransactionReviewModal';
+import { useModuleBack } from '../lib/navigation/moduleBack';
 
 export default function SmsSettingsScreen() {
   const router = useRouter();
+  const goBackToMore = useModuleBack(4);
 
   const [settings, setSettings] = useState<SmsTrackingSettings>({
     autoTrackingEnabled: false,
@@ -61,7 +63,7 @@ export default function SmsSettingsScreen() {
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       {/* Header */}
       <View className="px-4 py-3 flex-row items-center border-b border-zinc-100 bg-white">
-        <Pressable onPress={() => { if (router.canGoBack()) { router.back(); } else { router.replace('/(tabs)/'); } }} className="p-2 -ml-2 mr-2">
+        <Pressable onPress={goBackToMore} className="p-2 -ml-2 mr-2">
           <ChevronLeft size={24} color="#09090B" />
         </Pressable>
         <View>
