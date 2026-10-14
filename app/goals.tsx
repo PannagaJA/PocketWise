@@ -167,24 +167,25 @@ export default function GoalsScreen() {
       <View className="px-4 pt-2 flex-1">
         {/* Header */}
         <View className="flex-row justify-between items-center mb-4">
-          <View className="flex-row items-center">
+          <View className="flex-row items-center flex-1 mr-3">
             <Pressable onPress={goBackToMore} className="mr-3 p-1">
               <ArrowLeft size={22} color="#09090B" />
             </Pressable>
-            <View>
+            <View className="flex-1">
               <Text className="text-2xl font-black text-zinc-900">Savings Goals</Text>
-              <Text className="text-xs text-zinc-500 mt-0.5">Track real-time target milestones</Text>
+              <Text className="text-xs text-zinc-500 mt-0.5" numberOfLines={1} ellipsizeMode="tail">Track real-time target milestones</Text>
             </View>
           </View>
 
           <Button
             variant="primary"
             size="sm"
-            className="flex-row space-x-1"
+            style={{ flexShrink: 0 }}
+            className="flex-row items-center gap-1.5 px-3.5 py-2.5"
             onPress={() => setModalVisible(true)}
           >
             <Plus size={16} color="#FFF" />
-            <Text className="text-white font-semibold text-xs">Add Goal</Text>
+            <Text className="text-white font-bold text-xs">Add Goal</Text>
           </Button>
         </View>
 

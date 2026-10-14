@@ -231,19 +231,20 @@ export default function SubscriptionsScreen() {
       <View className="px-4 pt-2 flex-1">
         {/* Header */}
         <View className="flex-row justify-between items-center mb-4">
-          <View>
+          <View className="flex-1 mr-3">
             <Text className="text-2xl font-black text-zinc-900">Subscriptions</Text>
-            <Text className="text-xs text-zinc-500 mt-0.5">Push notifications alert before renewal</Text>
+            <Text className="text-xs text-zinc-500 mt-0.5" numberOfLines={1} ellipsizeMode="tail">Push notifications alert before renewal</Text>
           </View>
 
           <Button
             variant="primary"
             size="sm"
-            className="flex-row space-x-1"
+            style={{ flexShrink: 0 }}
+            className="flex-row items-center gap-1.5 px-3.5 py-2.5"
             onPress={() => setModalVisible(true)}
           >
             <Plus size={16} color="#FFF" />
-            <Text className="text-white font-semibold text-xs">Add Sub</Text>
+            <Text className="text-white font-bold text-xs">Add Sub</Text>
           </Button>
         </View>
 
