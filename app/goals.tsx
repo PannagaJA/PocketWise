@@ -15,10 +15,12 @@ import { formatMoney, parseMoneyToMinor } from '../lib/finance/core';
 import { supabase } from '../lib/supabase';
 import { Plus, X, ArrowLeft, Target, Trash2, Bookmark, CheckCircle2 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { useModuleBack } from '../lib/navigation/moduleBack';
 
 export default function GoalsScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const goBackToMore = useModuleBack(4);
   const queryClient = useQueryClient();
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -166,7 +168,7 @@ export default function GoalsScreen() {
         {/* Header */}
         <View className="flex-row justify-between items-center mb-4">
           <View className="flex-row items-center">
-            <Pressable onPress={() => { if (router.canGoBack()) { router.back(); } else { router.replace('/(tabs)/'); } }} className="mr-3 p-1">
+            <Pressable onPress={goBackToMore} className="mr-3 p-1">
               <ArrowLeft size={22} color="#09090B" />
             </Pressable>
             <View>
