@@ -39,8 +39,18 @@ import {
   RefreshCw,
   HandCoins,
   Pencil,
+  Phone,
+  MessageSquare,
+  Send,
+  BookUser,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import {
+  pickContactFromDevice,
+  getReminderMessage,
+  openSmsComposer,
+  openWhatsAppComposer,
+} from '../lib/services/sms-reminder.service';
 
 function getDaysLabel(
   dueDate: string,
@@ -87,6 +97,8 @@ export default function LendsScreen() {
   // Add modal state
   const [showAdd, setShowAdd] = useState(false);
   const [personName, setPersonName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [pickingContact, setPickingContact] = useState(false);
   const [amount, setAmount] = useState('');
   const [collectAmount, setCollectAmount] = useState('');
   const [isCustomCollectAmount, setIsCustomCollectAmount] = useState(false);
@@ -103,6 +115,14 @@ export default function LendsScreen() {
   const [showEditAmount, setShowEditAmount] = useState(false);
   const [editAmountTarget, setEditAmountTarget] = useState<LendRecord | null>(null);
   const [newCollectAmount, setNewCollectAmount] = useState('');
+
+  // SMS Reminder modal state
+  const [showSmsModal, setShowSmsModal] = useState(false);
+  const [smsTarget, setSmsTarget] = useState<LendRecord | null>(null);
+  const [smsRecipientPhone, setSmsRecipientPhone] = useState('');
+  const [smsMessage, setSmsMessage] = useState('');
+  const [smsTemplate, setSmsTemplate] = useState<'friendly' | 'due' | 'overdue'>('friendly');
+  const [sendingSms, setSendingSms] = useState(false);
 
   // TanStack Query for reactive data loading
   const { data: lends = [], isLoading: loadingLends } = useQuery({
@@ -125,12 +145,159 @@ export default function LendsScreen() {
 
   const resetForm = () => {
     setPersonName('');
+    setPhoneNumber('');
     setAmount('');
     setCollectAmount('');
     setIsCustomCollectAmount(false);
     setNotes('');
     setLentDate(getTodayISO());
     setDueDate(addDays(getTodayISO(), 7));
+  };
+
+  // Pick contact from phone address book
+  const handlePickContactForAdd = async () => {
+    try {
+      setPickingContact(true);
+      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+      const result = await pickContactFromDevice();
+      if (result.success) {
+        if (result.name) setPersonName(result.name);
+        if (result.phone) setPhoneNumber(result.phone);
+        try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+      } else if (result.reason === 'permission_denied') {
+        Alert.alert(
+          'Contacts Permission',
+          'PocketWise needs permission to access your contacts to pick names & numbers automatically. You can also type them in manually below.'
+        );
+      } else if (result.reason === 'unavailable') {
+        Alert.alert(
+          'Manual Entry',
+          result.error || 'Contact picker requires a development build. You can enter the customer name and number manually below.'
+        );
+      } else if (result.reason === 'error') {
+        Alert.alert('Contacts', result.error || 'Could not access contacts.');
+      }
+    } catch (err: any) {
+      Alert.alert('Contacts', err?.message || 'Could not open contact picker.');
+    } finally {
+      setPickingContact(false);
+    }
+  };
+
+  // Open SMS Reminder modal for a lend record
+  const openSmsModal = (record: LendRecord) => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    setSmsTarget(record);
+    setSmsRecipientPhone(record.phoneNumber || '');
+
+    const isOverdue = record.status === 'overdue';
+    const isToday = record.dueDate === getTodayISO();
+    const initialType: 'friendly' | 'due' | 'overdue' = isOverdue ? 'overdue' : isToday ? 'due' : 'friendly';
+    setSmsTemplate(initialType);
+
+    const msg = getReminderMessage(initialType, {
+      personName: record.personName,
+      amountMinor: record.amountMinor,
+      dueDate: record.dueDate,
+      lentDate: record.lentDate,
+    });
+    setSmsMessage(msg);
+    setShowSmsModal(true);
+  };
+
+  const handleSelectTemplate = (type: 'friendly' | 'due' | 'overdue') => {
+    if (!smsTarget) return;
+    setSmsTemplate(type);
+    const msg = getReminderMessage(type, {
+      personName: smsTarget.personName,
+      amountMinor: smsTarget.amountMinor,
+      dueDate: smsTarget.dueDate,
+      lentDate: smsTarget.lentDate,
+    });
+    setSmsMessage(msg);
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+  };
+
+  const handlePickContactForSms = async () => {
+    try {
+      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+      const result = await pickContactFromDevice();
+      if (result.success) {
+        if (result.phone) setSmsRecipientPhone(result.phone);
+        try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+      } else if (result.reason === 'permission_denied') {
+        Alert.alert(
+          'Contacts Permission',
+          'Please allow contact access to pick a number, or enter the number manually.'
+        );
+      } else if (result.reason === 'unavailable') {
+        Alert.alert(
+          'Manual Entry',
+          result.error || 'Contact picker requires a development build. You can enter the customer number manually below.'
+        );
+      }
+    } catch (err: any) {
+      Alert.alert('Contacts', err?.message || 'Could not open contacts.');
+    }
+  };
+
+  const handleSendSms = async () => {
+    if (!smsTarget) return;
+    const phone = smsRecipientPhone.trim();
+    if (!phone) {
+      Alert.alert('Phone Number Required', 'Please enter a mobile number or choose from contacts to send an SMS reminder.');
+      return;
+    }
+    if (!smsMessage.trim()) {
+      Alert.alert('Message Required', 'Please enter a message to send.');
+      return;
+    }
+
+    try {
+      setSendingSms(true);
+      // If phone number was added or changed, update the lend record so it is remembered
+      if (phone !== smsTarget.phoneNumber) {
+        await lendService.updatePhoneNumber(smsTarget.id, phone, user?.id);
+        queryClient.invalidateQueries({ queryKey: ['lends'] });
+      }
+
+      await openSmsComposer(phone, smsMessage);
+      setShowSmsModal(false);
+      try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+    } catch (err: any) {
+      Alert.alert('SMS Error', err?.message || 'Could not launch SMS composer.');
+    } finally {
+      setSendingSms(false);
+    }
+  };
+
+  const handleSendWhatsApp = async () => {
+    if (!smsTarget) return;
+    const phone = smsRecipientPhone.trim();
+    if (!phone) {
+      Alert.alert('Phone Number Required', 'Please enter a mobile number or choose from contacts.');
+      return;
+    }
+    if (!smsMessage.trim()) {
+      Alert.alert('Message Required', 'Please enter a message to send.');
+      return;
+    }
+
+    try {
+      setSendingSms(true);
+      if (phone !== smsTarget.phoneNumber) {
+        await lendService.updatePhoneNumber(smsTarget.id, phone, user?.id);
+        queryClient.invalidateQueries({ queryKey: ['lends'] });
+      }
+
+      await openWhatsAppComposer(phone, smsMessage);
+      setShowSmsModal(false);
+      try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+    } catch (err: any) {
+      Alert.alert('WhatsApp Error', err?.message || 'Could not launch WhatsApp.');
+    } finally {
+      setSendingSms(false);
+    }
   };
 
   // Mutations
@@ -152,6 +319,7 @@ export default function LendsScreen() {
       return lendService.createLend({
         userId: user?.id,
         personName: name,
+        phoneNumber: phoneNumber.trim() || undefined,
         amountMinor,
         notes: finalNotes || undefined,
         lentDate,
@@ -443,9 +611,21 @@ export default function LendsScreen() {
                         <Text className="text-base font-bold text-zinc-900" numberOfLines={1}>
                           {record.personName}
                         </Text>
-                        <Text className="text-xs text-zinc-500 mt-0.5">
-                          Lent on {formatDate(record.lentDate)}
-                        </Text>
+                        <View className="flex-row items-center gap-1.5 mt-0.5 flex-wrap">
+                          <Text className="text-xs text-zinc-500">
+                            Lent on {formatDate(record.lentDate)}
+                          </Text>
+                          {record.phoneNumber ? (
+                            <TouchableOpacity
+                              activeOpacity={0.7}
+                              onPress={() => openSmsModal(record)}
+                              className="flex-row items-center gap-1 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full"
+                            >
+                              <Phone size={10} color="#6366F1" />
+                              <Text className="text-[10px] font-bold text-indigo-700">{record.phoneNumber}</Text>
+                            </TouchableOpacity>
+                          ) : null}
+                        </View>
                       </View>
                     </View>
 
@@ -522,7 +702,17 @@ export default function LendsScreen() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="border-indigo-200 bg-indigo-50/40 px-2.5"
+                        className="border-indigo-300 bg-indigo-50/50 px-2.5"
+                        onPress={() => openSmsModal(record)}
+                      >
+                        <MessageSquare size={12} color="#6366F1" />
+                        <Text className="text-indigo-700 font-bold text-xs ml-1">SMS</Text>
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-indigo-200 bg-indigo-50/40 px-2"
                         onPress={() => openEditAmount(record)}
                       >
                         <Pencil size={12} color="#6366F1" />
@@ -532,7 +722,7 @@ export default function LendsScreen() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="border-indigo-200 bg-indigo-50/40 px-2.5"
+                        className="border-indigo-200 bg-indigo-50/40 px-2"
                         onPress={() => openReschedule(record)}
                       >
                         <RefreshCw size={12} color="#6366F1" />
@@ -623,12 +813,42 @@ export default function LendsScreen() {
               </View>
             </View>
 
-            <Input
-              label="Person's Name"
-              placeholder="e.g. Rahul Sharma, Priya, Amit..."
-              value={personName}
-              onChangeText={setPersonName}
-            />
+            {/* Person's Name with Contact Picker Button */}
+            <View className="mb-1">
+              <View className="flex-row justify-between items-center mb-1">
+                <Text className="text-xs font-semibold text-zinc-700">Person's Name</Text>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={handlePickContactForAdd}
+                  disabled={pickingContact}
+                  className="flex-row items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 active:bg-indigo-100"
+                >
+                  <BookUser size={12} color="#6366F1" />
+                  <Text className="text-[11px] font-bold text-indigo-700">
+                    {pickingContact ? 'Opening...' : 'Choose from Contacts'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <Input
+                placeholder="e.g. Rahul Sharma, Priya, Amit..."
+                value={personName}
+                onChangeText={setPersonName}
+              />
+            </View>
+
+            {/* Mobile Number Input for manual entry or auto-filled */}
+            <View className="mb-1">
+              <Input
+                label="Mobile Number (Optional — for SMS reminders)"
+                placeholder="e.g. +91 98765 43210"
+                keyboardType="phone-pad"
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+              />
+              <Text className="text-[10px] text-zinc-400 -mt-2.5 mb-3 px-1">
+                💡 Pick from phone contacts or enter any customer's name & number manually.
+              </Text>
+            </View>
 
             <Input
               label="Amount Lent (₹)"
@@ -977,6 +1197,164 @@ export default function LendsScreen() {
             >
               <Text className="text-white font-bold text-xs">Save Amount</Text>
             </Button>
+          </View>
+        </Pressable>
+      </AppModal>
+
+      {/* ── SMS Reminder Modal ── */}
+      <AppModal
+        visible={showSmsModal}
+        onClose={() => setShowSmsModal(false)}
+        animationType="slide"
+      >
+        <Pressable
+          className="bg-white rounded-t-3xl border-t border-zinc-200 flex-col"
+          style={{ maxHeight: '92%' }}
+          onPress={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <View className="flex-row justify-between items-center p-5 pb-3 border-b border-zinc-100">
+            <View className="flex-row items-center gap-3">
+              <View className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 items-center justify-center">
+                <MessageSquare size={20} color="#6366F1" />
+              </View>
+              <View>
+                <Text className="text-xl font-extrabold text-zinc-900">Send SMS Reminder</Text>
+                <Text className="text-xs text-zinc-500 mt-0.5">Send repayment notice via SMS at any time</Text>
+              </View>
+            </View>
+            <Pressable
+              onPress={() => setShowSmsModal(false)}
+              className="w-8 h-8 rounded-full bg-zinc-100 items-center justify-center"
+            >
+              <X size={16} color="#71717A" />
+            </Pressable>
+          </View>
+
+          <ScrollView
+            className="px-5 pt-3"
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 24 }}
+          >
+            {/* Borrower & Amount Snapshot Card */}
+            <View className="bg-zinc-50 border border-zinc-200 rounded-2xl p-3.5 mb-4 flex-row justify-between items-center">
+              <View className="flex-1 pr-2">
+                <Text className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
+                  Borrower
+                </Text>
+                <Text className="text-base font-extrabold text-zinc-900 mt-0.5" numberOfLines={1}>
+                  {smsTarget?.personName}
+                </Text>
+                <Text className="text-xs text-zinc-500">
+                  Due {smsTarget ? formatDate(smsTarget.dueDate) : ''}
+                </Text>
+              </View>
+              <View className="items-end">
+                <Text className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
+                  To Collect
+                </Text>
+                <Text className="text-xl font-black text-indigo-600 mt-0.5">
+                  {smsTarget ? formatMoney(smsTarget.amountMinor) : '₹0'}
+                </Text>
+              </View>
+            </View>
+
+            {/* Recipient Phone Number */}
+            <View className="mb-3">
+              <View className="flex-row justify-between items-center mb-1">
+                <Text className="text-xs font-semibold text-zinc-700">Mobile Number</Text>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={handlePickContactForSms}
+                  className="flex-row items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 active:bg-indigo-100"
+                >
+                  <BookUser size={12} color="#6366F1" />
+                  <Text className="text-[11px] font-bold text-indigo-700">Choose from Contacts</Text>
+                </TouchableOpacity>
+              </View>
+              <Input
+                placeholder="e.g. +91 98765 43210"
+                keyboardType="phone-pad"
+                value={smsRecipientPhone}
+                onChangeText={setSmsRecipientPhone}
+              />
+              <Text className="text-[10px] text-zinc-400 -mt-2 px-1">
+                Pick contact from your phone or type any number manually.
+              </Text>
+            </View>
+
+            {/* Quick Template Presets */}
+            <View className="mb-3">
+              <Text className="text-xs font-semibold text-zinc-700 mb-2">Message Template</Text>
+              <View className="flex-row gap-2 flex-wrap">
+                {[
+                  { id: 'friendly', label: '💬 Friendly' },
+                  { id: 'due', label: '⏰ Due Today' },
+                  { id: 'overdue', label: '⚠️ Overdue' },
+                ].map((tmpl) => {
+                  const isSelected = smsTemplate === tmpl.id;
+                  return (
+                    <TouchableOpacity
+                      key={tmpl.id}
+                      activeOpacity={0.7}
+                      onPress={() => handleSelectTemplate(tmpl.id as any)}
+                      style={{
+                        backgroundColor: isSelected ? '#EEF2FF' : '#F4F4F5',
+                        borderColor: isSelected ? '#6366F1' : '#E4E4E7',
+                      }}
+                      className="px-3.5 py-1.5 rounded-full border"
+                    >
+                      <Text
+                        style={{ color: isSelected ? '#4F46E5' : '#52525B' }}
+                        className="text-xs font-bold"
+                      >
+                        {tmpl.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Editable Message Content */}
+            <View className="mb-4">
+              <Text className="text-xs font-semibold text-zinc-700 mb-1.5">Reminder Message</Text>
+              <TextInput
+                multiline
+                numberOfLines={4}
+                value={smsMessage}
+                onChangeText={setSmsMessage}
+                textAlignVertical="top"
+                className="border border-zinc-200 rounded-2xl p-3.5 text-zinc-900 text-sm bg-zinc-50 min-h-[96px]"
+                placeholder="Type your reminder message..."
+              />
+              <Text className="text-[10px] text-zinc-400 mt-1 px-1">
+                You can customize this message before launching WhatsApp or SMS.
+              </Text>
+            </View>
+          </ScrollView>
+
+          {/* Bottom Action Bar: Direct WhatsApp & Direct SMS buttons */}
+          <View className="p-5 pt-3 pb-8 border-t border-zinc-100 bg-white gap-2.5">
+            <TouchableOpacity
+              activeOpacity={0.8}
+              disabled={sendingSms}
+              onPress={handleSendWhatsApp}
+              className="bg-[#25D366] active:bg-[#1EBE5D] py-3.5 px-4 rounded-2xl flex-row items-center justify-center gap-2 shadow-sm"
+            >
+              <MessageSquare size={17} color="#FFFFFF" />
+              <Text className="text-white font-black text-sm">Send via WhatsApp</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              disabled={sendingSms}
+              onPress={handleSendSms}
+              className="bg-indigo-600 active:bg-indigo-700 py-3.5 px-4 rounded-2xl flex-row items-center justify-center gap-2 shadow-sm"
+            >
+              <Send size={16} color="#FFFFFF" />
+              <Text className="text-white font-black text-sm">Send via SMS</Text>
+            </TouchableOpacity>
           </View>
         </Pressable>
       </AppModal>
