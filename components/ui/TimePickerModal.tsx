@@ -60,7 +60,7 @@ export function TimePickerModal({ visible, onClose, selectedTime24, onSelectTime
       animationType="fade"
     >
       <Pressable
-        className="bg-white rounded-3xl p-6 border border-zinc-200 w-full max-w-sm shadow-xl"
+        className="p-6 w-full bg-white"
         onPress={(e) => e.stopPropagation()}
       >
         {/* Header */}

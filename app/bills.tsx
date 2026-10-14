@@ -466,7 +466,7 @@ export default function BillsScreen() {
         animationType="fade"
       >
         <Pressable
-          className="bg-white rounded-3xl p-6 border border-zinc-200 w-full max-w-sm items-center shadow-xl"
+          className="p-6 w-full bg-white items-center"
           onPress={(e) => e.stopPropagation()}
         >
           <View className="w-16 h-16 rounded-full bg-emerald-50 border border-emerald-100 items-center justify-center mb-4">
@@ -597,7 +597,7 @@ export default function BillsScreen() {
         animationType="fade"
       >
         <Pressable
-          className="bg-white rounded-3xl p-5 w-full border border-zinc-200 shadow-xl"
+          className="p-5 w-full bg-white"
           onPress={(e) => e.stopPropagation()}
         >
           {/* Calendar Header */}

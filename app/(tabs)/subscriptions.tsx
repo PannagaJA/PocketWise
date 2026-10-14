@@ -471,7 +471,7 @@ export default function SubscriptionsScreen() {
         animationType="fade"
       >
         <Pressable
-          className="bg-white rounded-3xl p-6 border border-zinc-200 w-full max-w-sm items-center shadow-xl"
+          className="p-6 w-full bg-white items-center"
           onPress={(e) => e.stopPropagation()}
         >
           <View className="w-16 h-16 rounded-full bg-rose-50 border border-rose-100 items-center justify-center mb-4">
@@ -627,7 +627,7 @@ export default function SubscriptionsScreen() {
         animationType="fade"
       >
         <Pressable
-          className="bg-white rounded-3xl p-5 border border-zinc-200 w-full max-w-sm shadow-xl"
+          className="p-5 w-full bg-white"
           onPress={(e) => e.stopPropagation()}
         >
           {/* Calendar Header */}

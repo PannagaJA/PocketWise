@@ -1059,7 +1059,7 @@ export default function LendsScreen() {
         animationType="fade"
       >
         <Pressable
-          className="bg-white rounded-3xl p-6 w-full border border-zinc-200 shadow-2xl max-h-[85%]"
+          className="p-6 w-full bg-white"
           onPress={(e) => e.stopPropagation()}
         >
           <View className="flex-row justify-between items-center mb-4">
@@ -1158,7 +1158,7 @@ export default function LendsScreen() {
         animationType="fade"
       >
         <Pressable
-          className="bg-white rounded-3xl p-6 w-full border border-zinc-200 shadow-2xl max-h-[85%]"
+          className="p-6 w-full bg-white"
           onPress={(e) => e.stopPropagation()}
         >
           <View className="flex-row justify-between items-center mb-4">
