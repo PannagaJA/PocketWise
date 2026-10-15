@@ -42,11 +42,11 @@
   - [x] 06-01: Create illustrated banknote SVG artwork & animated splash screen component (`AnimatedSplashScreen.tsx`).
   - [x] 06-02: Wire startup orchestration in root `app/_layout.tsx` / `index.tsx` with genuine readiness tracking and smooth route reveal.
 
-### Phase 7: Dashboard Visual Redesign & Layered Card-Stack Motion
+### Phase 7: Dashboard Visual Redesign & Layered Card-Stack Motion (Completed)
 - **Goal:** Redesign Dashboard with warm off-white canvas, greeting/profile header, overlapping payment-card stack (teal, orange, magenta, purple gradient) with spring motion, circular quick actions, and clean transaction panel.
 - **Plans:**
-  - [ ] 07-01: Implement layered card stack component with spring entrance motion, balance typography, and multi-card visual accents.
-  - [ ] 07-02: Redesign Dashboard layout, action buttons, and transaction list while preserving 100% of underlying hooks, queries, and mutations.
+  - [x] 07-01: Implement layered card stack component with spring entrance motion, balance typography, and multi-card visual accents.
+  - [x] 07-02: Redesign Dashboard layout, action buttons, and transaction list while preserving 100% of underlying hooks, queries, and mutations.
 
 ### Phase 8: Floating Pill Navigation, Transitions & Global Loading Skeletons
 - **Goal:** Modernize bottom tab navigation into floating pill style and replace generic spinners with component-matched skeleton loaders.
