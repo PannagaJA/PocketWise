@@ -22,7 +22,7 @@ type PeriodOption = 'this_month' | '3_months' | '6_months' | 'this_year';
 export default function ReportsScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  const goBackToMore = useModuleBack(4);
+  const goBack = useModuleBack();
   const [period, setPeriod] = useState<PeriodOption>('this_month');
   const [refreshing, setRefreshing] = useState(false);
   const [exportModalVisible, setExportModalVisible] = useState(false);
@@ -144,7 +144,7 @@ export default function ReportsScreen() {
           <View className="flex-row items-center flex-1">
             <TouchableOpacity
               activeOpacity={0.7}
-              onPress={goBackToMore}
+              onPress={goBack}
               className="p-2 -ml-2 mr-2 rounded-full"
             >
               <ArrowLeft size={20} color="#09090B" />

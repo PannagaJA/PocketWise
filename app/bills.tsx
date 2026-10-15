@@ -22,7 +22,7 @@ import { useModuleBack } from '../lib/navigation/moduleBack';
 export default function BillsScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  const goBackToMore = useModuleBack(4);
+  const goBack = useModuleBack();
   const queryClient = useQueryClient();
   const [modalVisible, setModalVisible] = useState(false);
   const [calendarModalVisible, setCalendarModalVisible] = useState(false);
@@ -217,7 +217,7 @@ export default function BillsScreen() {
         {/* Header */}
         <View className="flex-row justify-between items-center mb-4">
           <View className="flex-row items-center flex-1 mr-3">
-            <Pressable onPress={goBackToMore} className="mr-3 p-1">
+            <Pressable onPress={goBack} className="mr-3 p-1">
               <ArrowLeft size={22} color="#09090B" />
             </Pressable>
             <View className="flex-1">

@@ -145,7 +145,7 @@ export default function MoreScreen() {
         {/* Modules */}
         <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3 ml-1">Financial Modules</Text>
         <Card className="mb-6 p-0 bg-white border border-zinc-200 divide-y divide-zinc-100">
-          <Pressable onPress={() => router.push('/reports')} className="p-4 flex-row items-center justify-between">
+          <Pressable onPress={() => router.push({ pathname: '/reports', params: { from: 'more' } } as any)} className="p-4 flex-row items-center justify-between">
             <View className="flex-row items-center">
               <View className="w-9 h-9 rounded-xl bg-purple-50 items-center justify-center mr-3">
                 <PieChart size={20} color="#A855F7" />
@@ -158,7 +158,7 @@ export default function MoreScreen() {
             <ChevronRight size={18} color="#A1A1AA" />
           </Pressable>
 
-          <Pressable onPress={() => router.push('/bills')} className="p-4 flex-row items-center justify-between">
+          <Pressable onPress={() => router.push({ pathname: '/bills', params: { from: 'more' } } as any)} className="p-4 flex-row items-center justify-between">
             <View className="flex-row items-center">
               <View className="w-9 h-9 rounded-xl bg-amber-50 items-center justify-center mr-3">
                 <Calendar size={20} color="#F59E0B" />
@@ -171,7 +171,7 @@ export default function MoreScreen() {
             <ChevronRight size={18} color="#A1A1AA" />
           </Pressable>
 
-          <Pressable onPress={() => router.push('/goals')} className="p-4 flex-row items-center justify-between">
+          <Pressable onPress={() => router.push({ pathname: '/goals', params: { from: 'more' } } as any)} className="p-4 flex-row items-center justify-between">
             <View className="flex-row items-center">
               <View className="w-9 h-9 rounded-xl bg-indigo-50 items-center justify-center mr-3">
                 <Target size={20} color="#6366F1" />
@@ -184,7 +184,7 @@ export default function MoreScreen() {
             <ChevronRight size={18} color="#A1A1AA" />
           </Pressable>
 
-          <Pressable onPress={() => router.push('/lends')} className="p-4 flex-row items-center justify-between">
+          <Pressable onPress={() => router.push({ pathname: '/lends', params: { from: 'more' } } as any)} className="p-4 flex-row items-center justify-between">
             <View className="flex-row items-center">
               <View className="w-9 h-9 rounded-xl bg-violet-50 items-center justify-center mr-3">
                 <HandCoins size={20} color="#7C3AED" />
@@ -278,7 +278,7 @@ export default function MoreScreen() {
             </>
           )}
 
-          <Pressable onPress={() => router.push('/sms-settings')} className="p-4 flex-row items-center justify-between">
+          <Pressable onPress={() => router.push({ pathname: '/sms-settings', params: { from: 'more' } } as any)} className="p-4 flex-row items-center justify-between">
             <View className="flex-row items-center">
               <View className="w-9 h-9 rounded-xl bg-indigo-50 items-center justify-center mr-3">
                 <Smartphone size={20} color="#6366F1" />
@@ -291,7 +291,7 @@ export default function MoreScreen() {
             <ChevronRight size={18} color="#A1A1AA" />
           </Pressable>
 
-          <Pressable onPress={() => router.push('/shake-settings')} className="p-4 flex-row items-center justify-between">
+          <Pressable onPress={() => router.push({ pathname: '/shake-settings', params: { from: 'more' } } as any)} className="p-4 flex-row items-center justify-between">
             <View className="flex-row items-center">
               <View className="w-9 h-9 rounded-xl bg-emerald-50 items-center justify-center mr-3">
                 <Zap size={20} color="#10B981" />
@@ -304,7 +304,7 @@ export default function MoreScreen() {
             <ChevronRight size={18} color="#A1A1AA" />
           </Pressable>
 
-          <Pressable onPress={() => router.push('/notification-settings')} className="p-4 flex-row items-center justify-between">
+          <Pressable onPress={() => router.push({ pathname: '/notification-settings', params: { from: 'more' } } as any)} className="p-4 flex-row items-center justify-between">
             <View className="flex-row items-center">
               <View className="w-9 h-9 rounded-xl bg-indigo-50 items-center justify-center mr-3">
                 <Bell size={20} color="#6366F1" />

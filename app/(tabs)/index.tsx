@@ -442,9 +442,9 @@ export default function DashboardScreen() {
             onPress={() => {
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
               try {
-                router.push('/reports' as any);
+                router.push({ pathname: '/reports', params: { from: 'dashboard' } } as any);
               } catch {
-                router.navigate('/reports' as any);
+                router.navigate({ pathname: '/reports', params: { from: 'dashboard' } } as any);
               }
             }}
             className="items-center"
@@ -466,9 +466,9 @@ export default function DashboardScreen() {
             onPress={() => {
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
               try {
-                router.push('/lends' as any);
+                router.push({ pathname: '/lends', params: { from: 'dashboard' } } as any);
               } catch {
-                router.navigate('/lends' as any);
+                router.navigate({ pathname: '/lends', params: { from: 'dashboard' } } as any);
               }
             }}
             className="items-center"
@@ -490,9 +490,9 @@ export default function DashboardScreen() {
             onPress={() => {
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
               try {
-                router.push('/goals' as any);
+                router.push({ pathname: '/goals', params: { from: 'dashboard' } } as any);
               } catch {
-                router.navigate('/goals' as any);
+                router.navigate({ pathname: '/goals', params: { from: 'dashboard' } } as any);
               }
             }}
             className="items-center"
@@ -514,9 +514,9 @@ export default function DashboardScreen() {
             onPress={() => {
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
               try {
-                router.push('/bills' as any);
+                router.push({ pathname: '/bills', params: { from: 'dashboard' } } as any);
               } catch {
-                router.navigate('/bills' as any);
+                router.navigate({ pathname: '/bills', params: { from: 'dashboard' } } as any);
               }
             }}
             className="items-center"
@@ -663,7 +663,7 @@ export default function DashboardScreen() {
         <View className="mb-6">
           <View className="flex-row justify-between items-center mb-3">
             <Text className="text-base font-bold text-zinc-900">Upcoming Bills</Text>
-            <Pressable onPress={() => router.push('/bills')}>
+            <Pressable onPress={() => router.push({ pathname: '/bills', params: { from: 'dashboard' } } as any)}>
               <Text className="text-xs font-bold text-indigo-600">See All</Text>
             </Pressable>
           </View>
@@ -697,7 +697,7 @@ export default function DashboardScreen() {
         <View className="mb-8">
           <View className="flex-row justify-between items-center mb-3">
             <Text className="text-base font-bold text-zinc-900">Savings Goals</Text>
-            <Pressable onPress={() => router.push('/goals')}>
+            <Pressable onPress={() => router.push({ pathname: '/goals', params: { from: 'dashboard' } } as any)}>
               <Text className="text-xs font-bold text-indigo-600">See All</Text>
             </Pressable>
           </View>
