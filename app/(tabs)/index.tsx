@@ -18,7 +18,7 @@ import { goalService } from '../../lib/services/goal.service';
 import { reminderService, Reminder } from '../../lib/services/reminder.service';
 import { financialAnalyticsEngine } from '../../lib/finance/analyticsEngine';
 import { formatMoney, formatDate, formatDateTime, parseSignedMoneyToMinor } from '../../lib/finance/core';
-import { Plus, ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight, ChevronDown, Check, Building2, ShieldCheck, TrendingUp, TrendingDown, ArrowRightLeft, X, Clock, Trash2, LogOut, Pencil, RotateCcw } from 'lucide-react-native';
+import { ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight, ChevronDown, Check, Building2, ShieldCheck, TrendingUp, TrendingDown, ArrowRightLeft, X, Clock, Trash2, LogOut, Pencil, RotateCcw } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTabStore } from '../../lib/stores/tabStore';
 
@@ -385,30 +385,18 @@ export default function DashboardScreen() {
             </View>
           </View>
 
-          <View className="flex-row items-center gap-2">
-            <Pressable
-              onPress={() => {
-                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
-                setRecordTxModalVisible(true);
-              }}
-              className="w-10 h-10 bg-zinc-950 rounded-full items-center justify-center shadow-xs active:bg-zinc-800"
-            >
-              <Plus size={18} color="#FFFFFF" strokeWidth={2.5} />
-            </Pressable>
-
-            <Pressable
-              onPress={() => {
-                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                setNotifModalVisible(true);
-              }}
-              className="w-10 h-10 bg-white border border-zinc-200 rounded-full items-center justify-center shadow-xs relative active:bg-zinc-50"
-            >
-              <Bell size={18} color="#09090B" />
-              {reminders.length > 0 && (
-                <View className="w-2.5 h-2.5 bg-violet-600 rounded-full absolute top-1.5 right-1.5 border border-white" />
-              )}
-            </Pressable>
-          </View>
+          <Pressable
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              setNotifModalVisible(true);
+            }}
+            className="w-10 h-10 bg-white border border-zinc-200 rounded-full items-center justify-center shadow-xs relative active:bg-zinc-50"
+          >
+            <Bell size={18} color="#09090B" />
+            {reminders.length > 0 && (
+              <View className="w-2.5 h-2.5 bg-violet-600 rounded-full absolute top-1.5 right-1.5 border border-white" />
+            )}
+          </Pressable>
         </View>
 
         {/* Overlapping Authentic ATM Card Stack with Motion */}
