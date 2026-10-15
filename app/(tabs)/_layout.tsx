@@ -36,8 +36,17 @@ export default function TabLayout() {
   const initialIndex = useTabStore.getState().activeTabIndex;
   const [activeIndex, setActiveIndex] = useState(initialIndex);
 
-  // Pre-mount all tabs so swiping is instantaneous and buttery smooth
-  const [mountedTabs] = useState<Set<number>>(() => new Set([0, 1, 2, 3, 4]));
+  // Lazy-mount tabs on demand to eliminate cold boot CPU lag
+  const [mountedTabs, setMountedTabs] = useState<Set<number>>(() => new Set([initialIndex]));
+
+  const markTabMounted = useCallback((idx: number) => {
+    setMountedTabs((prev) => {
+      if (prev.has(idx)) return prev;
+      const next = new Set(prev);
+      next.add(idx);
+      return next;
+    });
+  }, []);
 
   const translateX = useSharedValue(-initialIndex * screenWidth);
   const startX = useSharedValue(0);
@@ -51,10 +60,11 @@ export default function TabLayout() {
   const { tabScrollRequested, clearScrollRequest } = useTabStore();
 
   const onTabChanged = useCallback((index: number) => {
+    markTabMounted(index);
     setActiveIndex(index);
     useTabStore.getState().setActiveTabIndex(index);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, []);
+  }, [markTabMounted]);
 
   const goToTab = useCallback(
     (index: number) => {
@@ -63,6 +73,7 @@ export default function TabLayout() {
       }
       const prevIndex = activeIndexShared.value;
       activeIndexShared.value = index;
+      markTabMounted(index);
       setActiveIndex(index);
       useTabStore.getState().setActiveTabIndex(index);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -209,7 +220,7 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: '#FAF8FD',
   },
   pagerContainer: {
     flex: 1,
@@ -221,6 +232,6 @@ const styles = StyleSheet.create({
   },
   screenPlaceholder: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: '#FAF8FD',
   },
 });
