@@ -1,3 +1,8 @@
+import * as SplashScreen from 'expo-splash-screen';
+
+// Hold native splash screen immediately on app boot to prevent any white screen flash
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
 import 'expo-router/entry';
 
 // Register background headless handler for Firebase Cloud Messaging (FCM) when app is closed / killed
