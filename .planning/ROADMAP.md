@@ -34,3 +34,28 @@
   - [x] 05-01: CSV/PDF export for transactions & reports.
   - [x] 05-02: EAS build test and release validation.
 
+## Milestone 2: Faithful UI, Splash Animation & Loading Redesign (Active)
+
+### Phase 6: Splash Sequence & Startup Transition Architecture (Completed)
+- **Goal:** Recreate faithful animated splash with original illustrated banknote artwork, orange rays, PocketWise branding, progress indicator, and seamless route transition without blank white flash.
+- **Plans:**
+  - [x] 06-01: Create illustrated banknote SVG artwork & animated splash screen component (`AnimatedSplashScreen.tsx`).
+  - [x] 06-02: Wire startup orchestration in root `app/_layout.tsx` / `index.tsx` with genuine readiness tracking and smooth route reveal.
+
+### Phase 7: Dashboard Visual Redesign & Layered Card-Stack Motion
+- **Goal:** Redesign Dashboard with warm off-white canvas, greeting/profile header, overlapping payment-card stack (teal, orange, magenta, purple gradient) with spring motion, circular quick actions, and clean transaction panel.
+- **Plans:**
+  - [ ] 07-01: Implement layered card stack component with spring entrance motion, balance typography, and multi-card visual accents.
+  - [ ] 07-02: Redesign Dashboard layout, action buttons, and transaction list while preserving 100% of underlying hooks, queries, and mutations.
+
+### Phase 8: Floating Pill Navigation, Transitions & Global Loading Skeletons
+- **Goal:** Modernize bottom tab navigation into floating pill style and replace generic spinners with component-matched skeleton loaders.
+- **Plans:**
+  - [ ] 08-01: Implement floating black pill bottom navigation bar with active state indicators and safe area handling.
+  - [ ] 08-02: Create coordinated skeleton loaders matching redesigned dashboard and transaction cards.
+
+### Phase 9: Verification, Polish & Regression Defense Gate
+- **Goal:** Complete regression testing across all financial features, auth, biometric lock, push notifications, offline outbox, and run TypeScript/test/doctor suites.
+- **Plans:**
+  - [ ] 09-01: Full test suite verification, TypeScript clean check, and visual QA across Android and responsive views.
+
