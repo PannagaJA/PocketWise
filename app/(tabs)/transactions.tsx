@@ -16,6 +16,7 @@ import { categoryService } from '../../lib/services/category.service';
 import { formatMoney, formatDate, parseMoneyToMinor } from '../../lib/finance/core';
 import { DatePickerButton } from '../../components/ui/DatePickerModal';
 import { TransactionDetailModal } from '../../components/TransactionDetailModal';
+import { SpendChartCard } from '../../components/NetBalanceChartCard';
 import { Plus, ArrowUpRight, ArrowDownLeft, X, ArrowRightLeft, ChevronDown, Check, Wallet, BarChart2, Filter, Search, Calendar, SlidersHorizontal, Pencil, Trash2 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
@@ -538,64 +539,12 @@ export default function TransactionsScreen() {
           <Text className="text-2xl font-black text-zinc-900">Transactions</Text>
           <Text className="text-xs text-zinc-500 mt-0.5 mb-3">Real-time financial activity</Text>
 
-          {/* Unique Cashflow Breakdown Card with Dual Bar Chart */}
-          <Card className="bg-zinc-900 border-zinc-800 p-5 mb-3.5 rounded-3xl overflow-hidden shadow-md">
-            <View className="flex-row justify-between items-center mb-4">
-              <View className="flex-row items-center gap-2.5">
-                <View className="w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-500/30 items-center justify-center">
-                  <BarChart2 size={16} color="#818CF8" />
-                </View>
-                <Text className="text-xs font-bold text-indigo-300 uppercase tracking-widest">
-                  Cashflow Ratio
-                </Text>
-              </View>
-
-              <View className="flex-row items-center gap-3">
-                <View className="flex-row items-center gap-1.5">
-                  <View className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                  <Text className="text-[11px] font-bold text-emerald-400">Income</Text>
-                </View>
-                <View className="flex-row items-center gap-1.5">
-                  <View className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-                  <Text className="text-[11px] font-bold text-rose-400">Expenses</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Custom SVG Dual Volume Bar Chart */}
-            <View className="flex-row items-center justify-between bg-zinc-950/60 p-4 rounded-2xl border border-zinc-800/80 gap-3">
-              <View className="flex-1 pr-2">
-                <Text className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Inflow vs Outflow</Text>
-                <View className="flex-row justify-between items-center gap-2">
-                  <View>
-                    <Text className="text-[10px] text-zinc-500">Inflow</Text>
-                    <Text className="text-sm font-black text-emerald-400">{formatMoney(incomeTotal)}</Text>
-                  </View>
-                  <View className="items-end">
-                    <Text className="text-[10px] text-zinc-500">Outflow</Text>
-                    <Text className="text-sm font-black text-rose-400">{formatMoney(expenseTotal)}</Text>
-                  </View>
-                </View>
-              </View>
-
-              <View className="w-24 h-12 flex-row justify-around items-end">
-                <Svg height="48" width="80" viewBox="0 0 80 48">
-                  <Defs>
-                    <LinearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
-                      <Stop offset="0%" stopColor="#10B981" stopOpacity="1" />
-                      <Stop offset="100%" stopColor="#059669" stopOpacity="0.8" />
-                    </LinearGradient>
-                    <LinearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
-                      <Stop offset="0%" stopColor="#EF4444" stopOpacity="1" />
-                      <Stop offset="100%" stopColor="#DC2626" stopOpacity="0.8" />
-                    </LinearGradient>
-                  </Defs>
-                  <Rect x="12" y={48 - incomeHeight} width="22" height={incomeHeight} rx="6" fill="url(#incomeGrad)" />
-                  <Rect x="46" y={48 - expenseHeight} width="22" height={expenseHeight} rx="6" fill="url(#expenseGrad)" />
-                </Svg>
-              </View>
-            </View>
-          </Card>
+          {/* Spend Graph based on Spend with Dashboard Balance */}
+          <SpendChartCard
+            accounts={accounts}
+            transactions={transactions}
+            selectedAccountId={selectedAccountFilterId}
+          />
 
           {/* Search Bar Input & Custom Date/Month Filter Button on the Same Line */}
           <View className="flex-row items-center gap-2 mb-3">

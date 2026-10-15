@@ -5,7 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { Card } from './ui/Card';
 import { formatMoney, formatDateTime } from '../lib/finance/core';
 import { Transaction } from '../lib/services/transaction.service';
-import { TrendingUp, TrendingDown } from 'lucide-react-native';
+import { TrendingDown, TrendingUp, Wallet, Flame } from 'lucide-react-native';
 
 export type TimePeriod = 'Day' | 'Month' | 'Year';
 
@@ -15,7 +15,7 @@ interface AccountItem {
   balance: number;
 }
 
-interface NetBalanceChartCardProps {
+export interface SpendChartCardProps {
   accounts: AccountItem[];
   transactions: Transaction[];
   selectedAccountId?: string;
@@ -23,16 +23,16 @@ interface NetBalanceChartCardProps {
 }
 
 const SVG_WIDTH = 340;
-const SVG_HEIGHT = 100;
-const PADDING_Y = 14;
+const SVG_HEIGHT = 110;
+const PADDING_Y = 16;
 const PADDING_X = 12;
-const DWELL_HOLD_MS = 1000; // Hold readout for 1 second on touch release
+const DWELL_HOLD_MS = 1200; // Hold readout for 1.2 seconds on touch release
 
-export const NetBalanceChartCard = memo(function NetBalanceChartCard({
+export const SpendChartCard = memo(function SpendChartCard({
   accounts,
   transactions,
   selectedAccountId,
-}: NetBalanceChartCardProps) {
+}: SpendChartCardProps) {
   const [period, setPeriod] = useState<TimePeriod>('Month');
   const [activeTouchPos, setActiveTouchPos] = useState<number | null>(null);
   const chartLayoutWidthRef = useRef<number>(SVG_WIDTH);
@@ -53,7 +53,7 @@ export const NetBalanceChartCard = memo(function NetBalanceChartCard({
     return accounts.find((a) => a.id === selectedAccountId) || null;
   }, [accounts, selectedAccountId]);
 
-  // 1. Compute Current Net Balance (Selected Bank vs All Accounts)
+  // Current Dashboard Balance (Selected Bank vs All Accounts Combined)
   const totalBalance = useMemo(() => {
     if (selectedAccount) {
       return selectedAccount.balance || 0;
@@ -61,7 +61,7 @@ export const NetBalanceChartCard = memo(function NetBalanceChartCard({
     return accounts.reduce((sum, a) => sum + (a.balance || 0), 0);
   }, [accounts, selectedAccount]);
 
-  // Filter transactions for selected account and precompute timestamps once
+  // Filter transactions for selected account and parse timestamps
   const sortedTxs = useMemo(() => {
     const list = selectedAccountId && selectedAccountId !== 'all'
       ? transactions.filter((t) => t.account_id === selectedAccountId)
@@ -76,7 +76,7 @@ export const NetBalanceChartCard = memo(function NetBalanceChartCard({
       .sort((a, b) => a.time - b.time);
   }, [transactions, selectedAccountId]);
 
-  // 2. Build Time Series Data Points (Net Balance + Red Spent Graph)
+  // Build Time Series Data Points STRICTLY BASED ON SPEND
   const chartPoints = useMemo(() => {
     const now = new Date();
     const nowTime = now.getTime();
@@ -84,48 +84,45 @@ export const NetBalanceChartCard = memo(function NetBalanceChartCard({
     const currentMonth = now.getMonth();
     const currentDate = now.getDate();
 
-    let rawPoints: { timestamp: number; dateLabel: string; subLabel: string; balance: number; spent: number; delta: number }[] = [];
+    let rawPoints: {
+      timestamp: number;
+      dateLabel: string;
+      subLabel: string;
+      spent: number;
+      deltaSpent: number;
+      txCount: number;
+    }[] = [];
 
     if (period === 'Day') {
       const startOfDay = new Date(currentYear, currentMonth, currentDate, 0, 0, 0, 0);
       const startOfDayTime = startOfDay.getTime();
       const endOfDayTime = new Date(currentYear, currentMonth, currentDate, 23, 59, 59, 999).getTime();
 
-      const todayTxs = sortedTxs.filter((t) => t.time >= startOfDayTime && t.time <= endOfDayTime);
+      const todayExpenseTxs = sortedTxs.filter(
+        (t) => t.type === 'expense' && t.time >= startOfDayTime && t.time <= endOfDayTime
+      );
 
-      const netToday = todayTxs.reduce((sum, t) => {
-        if (t.type === 'income') return sum + t.amount_minor;
-        if (t.type === 'expense') return sum - t.amount_minor;
-        return sum;
-      }, 0);
+      let cumulativeSpent = 0;
 
-      const startBalance = totalBalance - netToday;
-      let runningBalance = startBalance;
-      let runningSpent = 0;
-
+      // Start of day baseline
       rawPoints.push({
         timestamp: startOfDayTime,
         dateLabel: `${startOfDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, 12:00 AM`,
         subLabel: 'Start of Day',
-        balance: startBalance,
         spent: 0,
-        delta: 0,
+        deltaSpent: 0,
+        txCount: 0,
       });
 
-      todayTxs.forEach((tx) => {
-        const delta = tx.type === 'income' ? tx.amount_minor : tx.type === 'expense' ? -tx.amount_minor : 0;
-        runningBalance += delta;
-        if (tx.type === 'expense') {
-          runningSpent += tx.amount_minor;
-        }
-
+      todayExpenseTxs.forEach((tx) => {
+        cumulativeSpent += tx.amount_minor;
         rawPoints.push({
           timestamp: tx.time,
           dateLabel: formatDateTime(tx.date),
-          subLabel: tx.description || (tx.type === 'income' ? 'Income' : 'Expense'),
-          balance: runningBalance,
-          spent: runningSpent,
-          delta,
+          subLabel: tx.description || 'Expense',
+          spent: cumulativeSpent,
+          deltaSpent: tx.amount_minor,
+          txCount: 1,
         });
       });
 
@@ -133,39 +130,33 @@ export const NetBalanceChartCard = memo(function NetBalanceChartCard({
         rawPoints.push({
           timestamp: nowTime,
           dateLabel: formatDateTime(now.toISOString()),
-          subLabel: 'Current Balance',
-          balance: totalBalance,
-          spent: runningSpent,
-          delta: 0,
+          subLabel: 'Now',
+          spent: cumulativeSpent,
+          deltaSpent: 0,
+          txCount: todayExpenseTxs.length,
         });
       }
 
-      if (todayTxs.length === 0) {
+      if (todayExpenseTxs.length === 0) {
         rawPoints = [0, 6, 12, 18, now.getHours()].map((h) => {
           const ptDate = new Date(currentYear, currentMonth, currentDate, Math.min(h, now.getHours()), 0);
           return {
             timestamp: ptDate.getTime(),
             dateLabel: formatDateTime(ptDate.toISOString()),
-            subLabel: 'No activity',
-            balance: totalBalance,
+            subLabel: 'No spending yet',
             spent: 0,
-            delta: 0,
+            deltaSpent: 0,
+            txCount: 0,
           };
         });
       }
     } else if (period === 'Month') {
       const startOfMonthTime = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0).getTime();
-      const monthTxs = sortedTxs.filter((t) => t.time >= startOfMonthTime && t.time <= nowTime);
+      const monthExpenseTxs = sortedTxs.filter(
+        (t) => t.type === 'expense' && t.time >= startOfMonthTime && t.time <= nowTime
+      );
 
-      const netMonth = monthTxs.reduce((sum, t) => {
-        if (t.type === 'income') return sum + t.amount_minor;
-        if (t.type === 'expense') return sum - t.amount_minor;
-        return sum;
-      }, 0);
-
-      const startBalance = totalBalance - netMonth;
       const daysInMonthSoFar = currentDate;
-      let cumulativeBalance = startBalance;
       let cumulativeSpent = 0;
       let txIdx = 0;
 
@@ -174,45 +165,34 @@ export const NetBalanceChartCard = memo(function NetBalanceChartCard({
         const dayEnd = new Date(currentYear, currentMonth, day, 23, 59, 59, 999);
         const dayEndTime = dayEnd.getTime();
 
-        let dayDelta = 0;
         let daySpent = 0;
-        let txCount = 0;
+        let dayTxCount = 0;
 
-        while (txIdx < monthTxs.length && monthTxs[txIdx].time <= dayEndTime) {
-          const tx = monthTxs[txIdx];
-          if (tx.type === 'income') dayDelta += tx.amount_minor;
-          if (tx.type === 'expense') {
-            dayDelta -= tx.amount_minor;
-            daySpent += tx.amount_minor;
-          }
-          txCount++;
+        while (txIdx < monthExpenseTxs.length && monthExpenseTxs[txIdx].time <= dayEndTime) {
+          const tx = monthExpenseTxs[txIdx];
+          daySpent += tx.amount_minor;
+          dayTxCount++;
           txIdx++;
         }
 
-        cumulativeBalance += dayDelta;
         cumulativeSpent += daySpent;
 
         rawPoints.push({
           timestamp: dayEndTime,
-          dateLabel: dayStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-          subLabel: txCount > 0 ? `${txCount} transaction${txCount > 1 ? 's' : ''}` : 'No activity',
-          balance: cumulativeBalance,
+          dateLabel: dayStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          subLabel: dayTxCount > 0 ? `+${formatMoney(daySpent)} spent (${dayTxCount} tx)` : 'No expenses',
           spent: cumulativeSpent,
-          delta: dayDelta,
+          deltaSpent: daySpent,
+          txCount: dayTxCount,
         });
       }
     } else {
+      // Year Period
       const startOfYearTime = new Date(currentYear, 0, 1, 0, 0, 0, 0).getTime();
-      const yearTxs = sortedTxs.filter((t) => t.time >= startOfYearTime && t.time <= nowTime);
+      const yearExpenseTxs = sortedTxs.filter(
+        (t) => t.type === 'expense' && t.time >= startOfYearTime && t.time <= nowTime
+      );
 
-      const netYear = yearTxs.reduce((sum, t) => {
-        if (t.type === 'income') return sum + t.amount_minor;
-        if (t.type === 'expense') return sum - t.amount_minor;
-        return sum;
-      }, 0);
-
-      const startBalance = totalBalance - netYear;
-      let cumulativeBalance = startBalance;
       let cumulativeSpent = 0;
       let txIdx = 0;
 
@@ -222,57 +202,46 @@ export const NetBalanceChartCard = memo(function NetBalanceChartCard({
         const monthEnd = new Date(currentYear, m, daysInM, 23, 59, 59, 999);
         const monthEndTime = monthEnd.getTime();
 
-        let monthDelta = 0;
         let monthSpent = 0;
-        let txCount = 0;
+        let monthTxCount = 0;
 
-        while (txIdx < yearTxs.length && yearTxs[txIdx].time <= monthEndTime) {
-          const tx = yearTxs[txIdx];
-          if (tx.type === 'income') monthDelta += tx.amount_minor;
-          if (tx.type === 'expense') {
-            monthDelta -= tx.amount_minor;
-            monthSpent += tx.amount_minor;
-          }
-          txCount++;
+        while (txIdx < yearExpenseTxs.length && yearExpenseTxs[txIdx].time <= monthEndTime) {
+          const tx = yearExpenseTxs[txIdx];
+          monthSpent += tx.amount_minor;
+          monthTxCount++;
           txIdx++;
         }
 
-        cumulativeBalance += monthDelta;
         cumulativeSpent += monthSpent;
-
         const monthName = monthStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
 
         rawPoints.push({
           timestamp: monthEndTime,
           dateLabel: monthName,
-          subLabel: txCount > 0 ? `${txCount} transactions` : 'No activity',
-          balance: cumulativeBalance,
+          subLabel: monthTxCount > 0 ? `+${formatMoney(monthSpent)} (${monthTxCount} tx)` : 'No expenses',
           spent: cumulativeSpent,
-          delta: monthDelta,
+          deltaSpent: monthSpent,
+          txCount: monthTxCount,
         });
       }
     }
 
     const uniquePoints = rawPoints.filter((pt, idx, arr) => idx === 0 || pt.timestamp !== arr[idx - 1].timestamp);
 
-    // Scaling for Net Balance Y
-    const balances = uniquePoints.map((p) => p.balance);
-    let minB = Math.min(...balances);
-    let maxB = Math.max(...balances);
-
-    if (minB === maxB) {
-      const padding = Math.max(1000, Math.abs(minB) * 0.1);
-      minB -= padding;
-      maxB += padding;
-    } else {
-      const diff = maxB - minB;
-      minB -= diff * 0.08;
-      maxB += diff * 0.08;
-    }
-
-    // Scaling for Red Spent Y
+    // Y-Axis Scaling: STRICTLY SCALED ON SPEND
     const spents = uniquePoints.map((p) => p.spent);
-    let maxS = Math.max(...spents, 1000);
+    let minS = Math.min(...spents);
+    let maxS = Math.max(...spents);
+
+    if (minS === maxS) {
+      minS = 0;
+      maxS = Math.max(1000, maxS);
+    } else {
+      // Give headroom at the top so the curve doesn't clip
+      const diff = maxS - minS;
+      minS = Math.max(0, minS - diff * 0.05);
+      maxS += diff * 0.12;
+    }
 
     const count = uniquePoints.length;
     const chartW = SVG_WIDTH - 2 * PADDING_X;
@@ -280,61 +249,41 @@ export const NetBalanceChartCard = memo(function NetBalanceChartCard({
 
     return uniquePoints.map((pt, i) => {
       const x = count === 1 ? SVG_WIDTH / 2 : PADDING_X + (i / (count - 1)) * chartW;
-      const bRatio = (pt.balance - minB) / (maxB - minB);
-      const y = PADDING_Y + chartH * (1 - bRatio);
-
-      const sRatio = pt.spent / maxS;
-      const spentY = PADDING_Y + chartH * (1 - sRatio * 0.85);
+      const sRatio = (pt.spent - minS) / (maxS - minS || 1);
+      const y = PADDING_Y + chartH * (1 - sRatio);
 
       return {
         ...pt,
         x: Math.round(x * 100) / 100,
         y: Math.round(y * 100) / 100,
-        spentY: Math.round(spentY * 100) / 100,
       };
     });
-  }, [totalBalance, period, sortedTxs]);
+  }, [period, sortedTxs]);
 
-  // 3. Total Spent in Current Period
+  // Total Spent in Selected Period
   const totalSpentPeriod = useMemo(() => {
     if (chartPoints.length === 0) return 0;
     return chartPoints[chartPoints.length - 1].spent;
   }, [chartPoints]);
 
-  const periodChange = useMemo(() => {
-    if (chartPoints.length < 2) return 0;
-    const firstB = chartPoints[0].balance;
-    const lastB = chartPoints[chartPoints.length - 1].balance;
-    return lastB - firstB;
-  }, [chartPoints]);
-
-  const isPositive = periodChange >= 0 && totalBalance >= 0;
-  const netStrokeColor = isPositive ? '#10B981' : '#EF4444';
-  const spentStrokeColor = '#EF4444';
-
-  // 4. Generate SVG Paths for BOTH Net Balance & Red Spent Graph
+  // Generate Smooth Cubic Bezier Curves for SPEND
   const svgPaths = useMemo(() => {
     if (chartPoints.length === 0) {
       return {
-        netLine: `M 0 50 L ${SVG_WIDTH} 50`,
-        netArea: `M 0 50 L ${SVG_WIDTH} 50 L ${SVG_WIDTH} ${SVG_HEIGHT} L 0 ${SVG_HEIGHT} Z`,
-        spentLine: `M 0 85 L ${SVG_WIDTH} 85`,
-        spentArea: `M 0 85 L ${SVG_WIDTH} 85 L ${SVG_WIDTH} ${SVG_HEIGHT} L 0 ${SVG_HEIGHT} Z`,
-      };
-    }
-    if (chartPoints.length === 1) {
-      const y = chartPoints[0].y;
-      const sY = chartPoints[0].spentY;
-      return {
-        netLine: `M 0 ${y} L ${SVG_WIDTH} ${y}`,
-        netArea: `M 0 ${y} L ${SVG_WIDTH} ${y} L ${SVG_WIDTH} ${SVG_HEIGHT} L 0 ${SVG_HEIGHT} Z`,
-        spentLine: `M 0 ${sY} L ${SVG_WIDTH} ${sY}`,
-        spentArea: `M 0 ${sY} L ${SVG_WIDTH} ${sY} L ${SVG_WIDTH} ${SVG_HEIGHT} L 0 ${SVG_HEIGHT} Z`,
+        line: `M 0 ${SVG_HEIGHT - PADDING_Y} L ${SVG_WIDTH} ${SVG_HEIGHT - PADDING_Y}`,
+        area: `M 0 ${SVG_HEIGHT - PADDING_Y} L ${SVG_WIDTH} ${SVG_HEIGHT - PADDING_Y} L ${SVG_WIDTH} ${SVG_HEIGHT} L 0 ${SVG_HEIGHT} Z`,
       };
     }
 
-    let netD = `M ${chartPoints[0].x} ${chartPoints[0].y}`;
-    let spentD = `M ${chartPoints[0].x} ${chartPoints[0].spentY}`;
+    if (chartPoints.length === 1) {
+      const y = chartPoints[0].y;
+      return {
+        line: `M 0 ${y} L ${SVG_WIDTH} ${y}`,
+        area: `M 0 ${y} L ${SVG_WIDTH} ${y} L ${SVG_WIDTH} ${SVG_HEIGHT} L 0 ${SVG_HEIGHT} Z`,
+      };
+    }
+
+    let d = `M ${chartPoints[0].x} ${chartPoints[0].y}`;
 
     for (let i = 0; i < chartPoints.length - 1; i++) {
       const p0 = chartPoints[i === 0 ? i : i - 1];
@@ -346,26 +295,19 @@ export const NetBalanceChartCard = memo(function NetBalanceChartCard({
       const cp1y = p1.y + (p2.y - p0.y) / 6;
       const cp2x = p2.x - (p3.x - p1.x) / 6;
       const cp2y = p2.y - (p3.y - p1.y) / 6;
-      netD += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
-
-      const scp1y = p1.spentY + (p2.spentY - p0.spentY) / 6;
-      const scp2y = p2.spentY - (p3.spentY - p1.spentY) / 6;
-      spentD += ` C ${cp1x.toFixed(1)} ${scp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${scp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.spentY.toFixed(1)}`;
+      d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
     }
 
     const lastX = chartPoints[chartPoints.length - 1].x;
-    const netAreaD = `${netD} L ${lastX} ${SVG_HEIGHT} L ${chartPoints[0].x} ${SVG_HEIGHT} Z`;
-    const spentAreaD = `${spentD} L ${lastX} ${SVG_HEIGHT} L ${chartPoints[0].x} ${SVG_HEIGHT} Z`;
+    const areaD = `${d} L ${lastX} ${SVG_HEIGHT} L ${chartPoints[0].x} ${SVG_HEIGHT} Z`;
 
     return {
-      netLine: netD,
-      netArea: netAreaD,
-      spentLine: spentD,
-      spentArea: spentAreaD,
+      line: d,
+      area: areaD,
     };
   }, [chartPoints]);
 
-  // 5. Magnetic Point Snapping + Sub-Pixel Interpolated Touch Calculation
+  // Magnetic Point Snapping + Sub-Pixel Interpolated Touch
   const activeInterpolatedState = useMemo(() => {
     if (activeTouchPos === null || chartPoints.length === 0) return null;
 
@@ -378,29 +320,25 @@ export const NetBalanceChartCard = memo(function NetBalanceChartCard({
       return {
         x: targetX,
         y: chartPoints[0].y,
-        spentY: chartPoints[0].spentY,
-        balance: chartPoints[0].balance,
         spent: chartPoints[0].spent,
-        delta: chartPoints[0].delta,
+        deltaSpent: chartPoints[0].deltaSpent,
         dateLabel: chartPoints[0].dateLabel,
         subLabel: chartPoints[0].subLabel,
         closestIdx: 0,
       };
     }
 
-    const MAGNETIC_SNAP_RADIUS = 16;
+    const MAGNETIC_SNAP_RADIUS = 18;
     for (let idx = 0; idx < chartPoints.length; idx++) {
       const pt = chartPoints[idx];
       const dist = Math.abs(pt.x - targetX);
-      const isKeyDiffPt = pt.delta !== 0 || idx === 0 || idx === chartPoints.length - 1;
-      if (dist < (isKeyDiffPt ? MAGNETIC_SNAP_RADIUS : MAGNETIC_SNAP_RADIUS * 0.5)) {
+      const isKeyPt = pt.deltaSpent > 0 || idx === 0 || idx === chartPoints.length - 1;
+      if (dist < (isKeyPt ? MAGNETIC_SNAP_RADIUS : MAGNETIC_SNAP_RADIUS * 0.5)) {
         return {
           x: pt.x,
           y: pt.y,
-          spentY: pt.spentY,
-          balance: pt.balance,
           spent: pt.spent,
-          delta: pt.delta,
+          deltaSpent: pt.deltaSpent,
           dateLabel: pt.dateLabel,
           subLabel: pt.subLabel,
           closestIdx: idx,
@@ -420,8 +358,6 @@ export const NetBalanceChartCard = memo(function NetBalanceChartCard({
     const t = Math.max(0, Math.min(1, (targetX - pA.x) / segmentW));
 
     const interpY = pA.y + t * (pB.y - pA.y);
-    const interpSpentY = pA.spentY + t * (pB.spentY - pA.spentY);
-    const interpBalance = Math.round(pA.balance + t * (pB.balance - pA.balance));
     const interpSpent = Math.round(pA.spent + t * (pB.spent - pA.spent));
 
     const closestIdx = t > 0.5 ? i + 1 : i;
@@ -430,10 +366,8 @@ export const NetBalanceChartCard = memo(function NetBalanceChartCard({
     return {
       x: targetX,
       y: interpY,
-      spentY: interpSpentY,
-      balance: interpBalance,
       spent: interpSpent,
-      delta: closestNode.delta,
+      deltaSpent: closestNode.deltaSpent,
       dateLabel: closestNode.dateLabel,
       subLabel: closestNode.subLabel,
       closestIdx,
@@ -449,7 +383,7 @@ export const NetBalanceChartCard = memo(function NetBalanceChartCard({
     }
   }, [activeInterpolatedState]);
 
-  // 6. Smooth Pan Gesture Handler with 1-second Dwell Hold on Touch Release
+  // Pan Responder for Touch Scrubber
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -484,158 +418,171 @@ export const NetBalanceChartCard = memo(function NetBalanceChartCard({
   ).current;
 
   return (
-    <Card className="bg-zinc-900 border-zinc-800 p-6 mb-6 rounded-3xl overflow-hidden relative">
-      {/* Header & Balance / Spent Display */}
-      <View className="flex-row justify-between items-start mb-2">
+    <Card className="bg-zinc-900 border-zinc-800 p-5 mb-5 rounded-3xl overflow-hidden relative shadow-sm">
+      {/* Top Header: Readout on Left, Period Selector on Right */}
+      <View className="flex-row justify-between items-start mb-3">
         <View className="flex-1 mr-2">
-          <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
-            {activeInterpolatedState
-              ? activeInterpolatedState.dateLabel
-              : selectedAccount
-                ? `${selectedAccount.name || 'Bank'} Balance`
-                : 'Net Total Balance'}
-          </Text>
-
-          <View className="flex-row items-baseline gap-2 mt-1">
-            <Text className="text-3xl font-extrabold text-white">
-              {formatMoney(activeInterpolatedState ? activeInterpolatedState.balance : totalBalance)}
+          {/* Label / Scrub Date */}
+          <View className="flex-row items-center gap-1.5 mb-1">
+            <View className="w-2 h-2 rounded-full bg-rose-500" />
+            <Text className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+              {activeInterpolatedState
+                ? activeInterpolatedState.dateLabel
+                : selectedAccount
+                ? `${selectedAccount.name || 'Bank'} Spend`
+                : `Total Spend (${period})`}
             </Text>
           </View>
 
-          {/* Red Spent Readout indicator */}
-          <View className="flex-row items-center gap-1.5 mt-1">
-            <View className="w-2 h-2 rounded-full bg-rose-500" />
-            <Text className="text-xs font-semibold text-rose-400">
-              Spent {period}: {formatMoney(activeInterpolatedState ? activeInterpolatedState.spent : totalSpentPeriod)}
-            </Text>
-          </View>
-        </View>
-
-        {/* Change Indicator / Trend Pill */}
-        <View
-          className={`px-3 py-1.5 rounded-full flex-row items-center gap-1.5 border ${(activeInterpolatedState ? activeInterpolatedState.delta >= 0 : isPositive)
-              ? 'bg-emerald-500/20 border-emerald-500/30'
-              : 'bg-rose-500/20 border-rose-500/30'
-            }`}
-        >
-          {(activeInterpolatedState ? activeInterpolatedState.delta >= 0 : isPositive) ? (
-            <TrendingUp size={13} color="#10B981" />
-          ) : (
-            <TrendingDown size={13} color="#EF4444" />
-          )}
-          <Text
-            className={`text-xs font-extrabold ${(activeInterpolatedState ? activeInterpolatedState.delta >= 0 : isPositive) ? 'text-emerald-400' : 'text-rose-400'
-              }`}
-          >
-            {activeInterpolatedState
-              ? `${activeInterpolatedState.delta >= 0 ? '+' : ''}${formatMoney(activeInterpolatedState.delta)}`
-              : `${periodChange >= 0 ? '+' : ''}${formatMoney(periodChange)}`}
+          {/* Primary Big Metric: SPEND */}
+          <Text className="text-3xl font-black text-white tracking-tight">
+            {formatMoney(activeInterpolatedState ? activeInterpolatedState.spent : totalSpentPeriod)}
           </Text>
-        </View>
-      </View>
 
-      {/* Dynamic Interactive Dual SVG Curve (Net Balance + Red Spent Graph) */}
-      <View
-        className="my-2 h-28 w-full justify-center"
-        onLayout={(e) => {
-          chartLayoutWidthRef.current = e.nativeEvent.layout.width || SVG_WIDTH;
-        }}
-        {...panResponder.panHandlers}
-      >
-        <Svg height="100%" width="100%" viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`} preserveAspectRatio="none">
-          <Defs>
-            <LinearGradient id="balanceGradient" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0%" stopColor={netStrokeColor} stopOpacity="0.35" />
-              <Stop offset="100%" stopColor={netStrokeColor} stopOpacity="0.0" />
-            </LinearGradient>
-            <LinearGradient id="spentGradient" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0%" stopColor={spentStrokeColor} stopOpacity="0.25" />
-              <Stop offset="100%" stopColor={spentStrokeColor} stopOpacity="0.0" />
-            </LinearGradient>
-          </Defs>
+          {/* Subrow: Dashboard Balance Pill + Scrub Details */}
+          <View className="flex-row items-center gap-2 mt-2 flex-wrap">
+            {/* Dashboard Balance Pill */}
+            <View className="flex-row items-center gap-1.5 bg-zinc-800/80 px-2.5 py-1 rounded-full border border-zinc-700/60">
+              <Wallet size={11} color="#DDD6FE" />
+              <Text className="text-[11px] font-bold text-zinc-300">
+                Balance: {formatMoney(totalBalance)}
+              </Text>
+            </View>
 
-          {/* Net Balance Area Fill & Line */}
-          <Path d={svgPaths.netArea} fill="url(#balanceGradient)" />
-          <Path d={svgPaths.netLine} fill="none" stroke={netStrokeColor} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-
-          {/* Red Spent Graph Area Fill & Solid Line */}
-          <Path d={svgPaths.spentArea} fill="url(#spentGradient)" />
-          <Path d={svgPaths.spentLine} fill="none" stroke={spentStrokeColor} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-
-          {/* Render visual node points for amount changes on Net Balance */}
-          {chartPoints.map((pt, idx) => {
-            const hasDiff = pt.delta !== 0;
-            if (!hasDiff && idx !== 0 && idx !== chartPoints.length - 1) return null;
-            return (
-              <React.Fragment key={`pt-grp-${idx}`}>
-                {/* Net Balance Node */}
-                <Circle cx={pt.x} cy={pt.y} r={hasDiff ? 3.5 : 2} fill={hasDiff ? netStrokeColor : '#A1A1AA'} stroke="#18181B" strokeWidth="1" />
-                {/* Spent Node */}
-                {hasDiff && <Circle cx={pt.x} cy={pt.spentY} r="2.5" fill={spentStrokeColor} stroke="#18181B" strokeWidth="1" />}
-              </React.Fragment>
-            );
-          })}
-
-          {/* Touch Crosshair, Net Balance Ring, and Red Spent Point Indicator */}
-          {activeInterpolatedState && (
-            <>
-              <Line
-                x1={activeInterpolatedState.x}
-                y1="0"
-                x2={activeInterpolatedState.x}
-                y2={SVG_HEIGHT}
-                stroke="#A1A1AA"
-                strokeWidth="1.5"
-                strokeDasharray="4, 4"
-              />
-              {/* Net Balance Dot */}
-              <Circle cx={activeInterpolatedState.x} cy={activeInterpolatedState.y} r="7" fill={netStrokeColor} opacity="0.35" />
-              <Circle cx={activeInterpolatedState.x} cy={activeInterpolatedState.y} r="4" fill="#FFFFFF" stroke={netStrokeColor} strokeWidth="2.5" />
-
-              {/* Red Spent Dot */}
-              <Circle cx={activeInterpolatedState.x} cy={activeInterpolatedState.spentY} r="6" fill={spentStrokeColor} opacity="0.4" />
-              <Circle cx={activeInterpolatedState.x} cy={activeInterpolatedState.spentY} r="3.5" fill="#EF4444" stroke="#FFFFFF" strokeWidth="2" />
-            </>
-          )}
-        </Svg>
-      </View>
-
-      {/* Time Period Selector & Legend Bar */}
-      <View className="flex-row items-center justify-between pt-3 border-t border-zinc-800/80 mt-1">
-        <View className="flex-row items-center gap-3">
-          <View className="flex-row items-center gap-1">
-            <View className="w-2 h-2 rounded-full" style={{ backgroundColor: netStrokeColor }} />
-            <Text className="text-[11px] font-semibold text-zinc-400">Balance</Text>
-          </View>
-          <View className="flex-row items-center gap-1">
-            <View className="w-2 h-2 rounded-full bg-rose-500" />
-            <Text className="text-[11px] font-semibold text-rose-400">Spent</Text>
+            {/* Sub-label during scrub (e.g. +₹450 on this day) */}
+            {activeInterpolatedState && activeInterpolatedState.subLabel ? (
+              <View className="bg-rose-500/20 px-2 py-0.5 rounded-full border border-rose-500/30">
+                <Text className="text-[10px] font-bold text-rose-300">
+                  {activeInterpolatedState.subLabel}
+                </Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
-        <View className="flex-row bg-zinc-800/80 p-1 rounded-xl gap-1">
+        {/* Time Period Selector: Day | Month | Year */}
+        <View className="flex-row bg-zinc-800/90 p-1 rounded-2xl border border-zinc-700/60">
           {(['Day', 'Month', 'Year'] as TimePeriod[]).map((p) => {
             const isSelected = period === p;
             return (
               <TouchableOpacity
                 key={p}
                 onPress={() => {
-                  clearReleaseTimer();
                   try {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  } catch { }
+                  } catch {}
                   setPeriod(p);
                   setActiveTouchPos(null);
                 }}
-                className={`px-3.5 py-1.5 rounded-lg ${isSelected ? 'bg-zinc-700' : 'bg-transparent'}`}
-                activeOpacity={0.7}
+                className={`px-2.5 py-1 rounded-xl ${
+                  isSelected ? 'bg-violet-600 shadow-xs' : 'bg-transparent'
+                }`}
               >
-                <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-zinc-400'}`}>{p}</Text>
+                <Text
+                  className={`text-[11px] font-bold ${
+                    isSelected ? 'text-white' : 'text-zinc-400'
+                  }`}
+                >
+                  {p}
+                </Text>
               </TouchableOpacity>
             );
           })}
         </View>
       </View>
+
+      {/* SVG Interactive Spend Curve Area */}
+      <View
+        className="h-[110px] w-full justify-center relative mt-1"
+        onLayout={(e) => {
+          chartLayoutWidthRef.current = e.nativeEvent.layout.width;
+        }}
+        {...panResponder.panHandlers}
+      >
+        <Svg width="100%" height={SVG_HEIGHT} viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}>
+          <Defs>
+            {/* Rich Violet-to-Rose Gradient for the Spend Line */}
+            <LinearGradient id="spendLineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <Stop offset="0%" stopColor="#8B5CF6" />
+              <Stop offset="50%" stopColor="#EC4899" />
+              <Stop offset="100%" stopColor="#F43F5E" />
+            </LinearGradient>
+
+            {/* Glowing Translucent Gradient Area Beneath Curve */}
+            <LinearGradient id="spendAreaGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <Stop offset="0%" stopColor="#EC4899" stopOpacity="0.32" />
+              <Stop offset="60%" stopColor="#8B5CF6" stopOpacity="0.08" />
+              <Stop offset="100%" stopColor="#8B5CF6" stopOpacity="0.0" />
+            </LinearGradient>
+          </Defs>
+
+          {/* Baseline Subtle Reference Grid Lines */}
+          <Line
+            x1={0}
+            y1={SVG_HEIGHT - PADDING_Y}
+            x2={SVG_WIDTH}
+            y2={SVG_HEIGHT - PADDING_Y}
+            stroke="#27272A"
+            strokeWidth="1"
+            strokeDasharray="4, 4"
+          />
+          <Line
+            x1={0}
+            y1={PADDING_Y}
+            x2={SVG_WIDTH}
+            y2={PADDING_Y}
+            stroke="#27272A"
+            strokeWidth="1"
+            strokeDasharray="4, 4"
+          />
+
+          {/* Area Fill Under Spend Curve */}
+          <Path d={svgPaths.area} fill="url(#spendAreaGrad)" />
+
+          {/* Primary Spend Curve */}
+          <Path
+            d={svgPaths.line}
+            stroke="url(#spendLineGrad)"
+            strokeWidth="3.2"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+
+          {/* Active Touch Scrubber Vertical Line & Magnetic Point */}
+          {activeInterpolatedState && (
+            <>
+              <Line
+                x1={activeInterpolatedState.x}
+                y1={0}
+                x2={activeInterpolatedState.x}
+                y2={SVG_HEIGHT}
+                stroke="#F43F5E"
+                strokeWidth="1.5"
+                strokeDasharray="3, 3"
+              />
+              <Circle
+                cx={activeInterpolatedState.x}
+                cy={activeInterpolatedState.y}
+                r="7"
+                fill="#F43F5E"
+                opacity={0.3}
+              />
+              <Circle
+                cx={activeInterpolatedState.x}
+                cy={activeInterpolatedState.y}
+                r="4.5"
+                fill="#FFFFFF"
+                stroke="#F43F5E"
+                strokeWidth="2.5"
+              />
+            </>
+          )}
+        </Svg>
+      </View>
     </Card>
   );
 });
+
+// Backwards-compatibility alias
+export const NetBalanceChartCard = SpendChartCard;
