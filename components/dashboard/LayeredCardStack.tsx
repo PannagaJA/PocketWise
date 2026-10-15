@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform, Dimensions } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -84,6 +84,9 @@ export function LayeredCardStack({
   const backCardOpacity = useSharedValue(0.96);
 
   const isSwiping = useSharedValue(false);
+  const lastReportedDir = useSharedValue<'next' | 'prev'>('next');
+  const isShufflingRef = useRef(false);
+  const [swipeDirection, setSwipeDirection] = useState<'next' | 'prev'>('next');
 
   // Array of bank navigation options: ['all', ...accountIds]
   const bankOptions = useMemo(() => {
@@ -115,21 +118,8 @@ export function LayeredCardStack({
     heroCardTranslateY.value = withDelay(280, withSpring(0, { damping: 15, stiffness: 120 }));
   }, []);
 
-  // When card shuffle completes, commit state change and reset loop values
-  const finalizeSwipe = (direction: 'next' | 'prev') => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
-
-    const newIdx =
-      direction === 'next'
-        ? (currentIndex + 1) % bankOptions.length
-        : (currentIndex - 1 + bankOptions.length) % bankOptions.length;
-
-    const nextBankId = bankOptions[newIdx];
-    if (onSelectAccount) {
-      onSelectAccount(nextBankId);
-    }
-
-    // Reset loop variables seamlessly for the next interaction
+  const resetDeckLayers = () => {
+    isShufflingRef.current = false;
     frontCardZIndex.value = 10;
     frontCardScale.value = 1;
     frontCardX.value = 0;
@@ -143,6 +133,43 @@ export function LayeredCardStack({
     isSwiping.value = false;
   };
 
+  // When selectedBankId updates in props, React has updated the cards in the DOM!
+  // Slot 1 (frontCard) is now rendering the newly selected bank!
+  // Now we can instantaneously reset the layer zIndexes with ZERO visual flash.
+  useEffect(() => {
+    if (isShufflingRef.current) {
+      resetDeckLayers();
+    }
+  }, [selectedBankId]);
+
+  // When card shuffle completes, commit state change and prepare seamless slot handover
+  const finalizeSwipe = (direction: 'next' | 'prev') => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+
+    const newIdx =
+      direction === 'next'
+        ? (currentIndex + 1) % bankOptions.length
+        : (currentIndex - 1 + bankOptions.length) % bankOptions.length;
+
+    const nextBankId = bankOptions[newIdx];
+
+    // Hold frontCard in the rear (zIndex: 2) and backCard in front (zIndex: 10)
+    // until React re-renders with the new selectedBankId.
+    // This prevents the old front card from momentarily flashing back on top.
+    isShufflingRef.current = true;
+
+    if (onSelectAccount) {
+      onSelectAccount(nextBankId);
+    }
+
+    // Safety timeout in case selectedBankId prop doesn't change
+    setTimeout(() => {
+      if (isShufflingRef.current) {
+        resetDeckLayers();
+      }
+    }, 600);
+  };
+
   // Pan Gesture: drag top card out, loop it to the back, bring back card to the front
   const panGesture = Gesture.Pan()
     .activeOffsetX([-10, 10])
@@ -150,12 +177,22 @@ export function LayeredCardStack({
     .onStart(() => {
       'worklet';
       isSwiping.value = true;
+      lastReportedDir.value = 'next';
     })
     .onUpdate((event) => {
       'worklet';
       frontCardX.value = event.translationX;
       frontCardY.value = event.translationY * 0.12;
       frontCardRotate.value = (event.translationX / SCREEN_WIDTH) * 22;
+
+      // Update back card direction if crossed threshold so correct card is displayed behind
+      if (event.translationX < -15 && lastReportedDir.value !== 'next') {
+        lastReportedDir.value = 'next';
+        runOnJS(setSwipeDirection)('next');
+      } else if (event.translationX > 15 && lastReportedDir.value !== 'prev') {
+        lastReportedDir.value = 'prev';
+        runOnJS(setSwipeDirection)('prev');
+      }
 
       // As front card is dragged, back card visibly scales and moves forward
       const dragProgress = Math.min(Math.abs(event.translationX) / 140, 1);
@@ -173,6 +210,11 @@ export function LayeredCardStack({
           event.translationX < 0 || event.velocityX < -420 ? 'next' : 'prev';
         const flyOutX =
           direction === 'next' ? -SCREEN_WIDTH * 0.72 : SCREEN_WIDTH * 0.72;
+
+        if (lastReportedDir.value !== direction) {
+          lastReportedDir.value = direction;
+          runOnJS(setSwipeDirection)(direction);
+        }
 
         // 1. Slide front card out to the side
         frontCardX.value = withTiming(
@@ -292,21 +334,25 @@ export function LayeredCardStack({
     ? getDeterministicCardLast4(frontAccount.id || frontAccount.name)
     : '8892';
 
-  // Resolve Back Card (Next bank in circular sequence)
-  const nextBankOptionId =
-    bankOptionsCount > 1
-      ? bankOptions[(currentIndex + 1) % bankOptions.length]
-      : selectedBankId;
+  // Resolve Back Card (Next or prev bank depending on swipe direction)
+  const targetBackOptionId = useMemo(() => {
+    if (bankOptionsCount <= 1) return selectedBankId;
+    const targetIdx =
+      swipeDirection === 'next'
+        ? (currentIndex + 1) % bankOptions.length
+        : (currentIndex - 1 + bankOptions.length) % bankOptions.length;
+    return bankOptions[targetIdx];
+  }, [bankOptions, bankOptionsCount, currentIndex, swipeDirection, selectedBankId]);
 
   const backAccount =
-    nextBankOptionId !== 'all'
-      ? accounts.find((a) => a.id === nextBankOptionId)
+    targetBackOptionId !== 'all'
+      ? accounts.find((a) => a.id === targetBackOptionId)
       : accounts.length > 0
       ? accounts[0]
       : null;
 
   const backTheme =
-    nextBankOptionId === 'all'
+    targetBackOptionId === 'all'
       ? getAtmCardTheme('All Accounts Combined')
       : getAtmCardTheme(
           backAccount?.name || 'Selected Bank',
@@ -315,10 +361,10 @@ export function LayeredCardStack({
         );
 
   const backBalance =
-    nextBankOptionId === 'all' ? totalBalance : backAccount?.balance || 0;
+    targetBackOptionId === 'all' ? totalBalance : backAccount?.balance || 0;
 
   const backAccountName =
-    nextBankOptionId === 'all' ? 'All Accounts Combined' : backAccount?.name || 'Bank';
+    targetBackOptionId === 'all' ? 'All Accounts Combined' : backAccount?.name || 'Bank';
 
   const backLast4 = backAccount
     ? getDeterministicCardLast4(backAccount.id || backAccount.name)
