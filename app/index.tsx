@@ -1,21 +1,27 @@
+import React from 'react';
+import { View, StyleSheet } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
-import { View, ActivityIndicator } from 'react-native';
 
 export default function Index() {
   const { session, loading } = useAuth();
 
+  // Keep a warm lavender-tinted background while auth initializes behind the splash overlay
   if (loading) {
-    return (
-      <View className="flex-1 bg-background justify-center items-center">
-        <ActivityIndicator size="large" color="#09090B" />
-      </View>
-    );
+    return <View style={styles.container} />;
   }
 
+  // Smoothly redirect underneath the splash overlay
   if (!session) {
     return <Redirect href="/(auth)/login" />;
   }
 
   return <Redirect href="/(tabs)" />;
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#FAF8FD', // Warm near-white with subtle lavender tint
+  },
+});
