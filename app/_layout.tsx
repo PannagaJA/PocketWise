@@ -1,12 +1,14 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import * as SplashScreen from 'expo-splash-screen';
 import { QueryClient, QueryCache, MutationCache } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { AppLockGate } from '../components/AppLockGate';
+import { AnimatedSplashScreen } from '../components/splash/AnimatedSplashScreen';
 import { deepLinkService } from '../lib/notifications/deep-link.service';
 import { notificationService } from '../lib/notifications/notification.service';
 import { financialAnalyticsEngine } from '../lib/finance/analyticsEngine';
@@ -106,9 +108,39 @@ function GlobalRealtimeSync() {
   return null;
 }
 
+function RootSplashOverlay() {
+  const { loading: authLoading } = useAuth();
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    // Hide OS native splash screen once our React AnimatedSplashScreen is painted
+    SplashScreen.hideAsync().catch(() => {});
+  }, []);
+
+  const handleAnimationComplete = React.useCallback(() => {
+    // The splash container is already completely faded out (opacity 0) and pointerEvents is none.
+    // We delay unmounting by 1200ms so that React does NOT unmount or garbage-collect views
+    // during the visual handoff to the Dashboard!
+    setTimeout(() => {
+      setShowSplash(false);
+    }, 1200);
+  }, []);
+
+  if (!showSplash) {
+    return null;
+  }
+
+  return (
+    <AnimatedSplashScreen
+      isReady={!authLoading}
+      onAnimationComplete={handleAnimationComplete}
+    />
+  );
+}
+
 export default function RootLayout() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#FAF8FD' }}>
       <SafeAreaProvider>
         <PersistQueryClientProvider
           client={queryClient}
@@ -127,7 +159,7 @@ export default function RootLayout() {
               <Stack
                 screenOptions={{
                   headerShown: false,
-                  contentStyle: { backgroundColor: '#FAFAFA' },
+                  contentStyle: { backgroundColor: '#FAF8FD' },
                   animation: 'none',
                 }}
               >
@@ -145,6 +177,9 @@ export default function RootLayout() {
               {/* QuickExpenseModal is a screen-agnostic overlay — rendered after Stack so it floats above all screens */}
               <QuickExpenseModal />
             </AppLockGate>
+
+            {/* Seamless Animated Splash Screen Overlay: mounts immediately, covers route loading */}
+            <RootSplashOverlay />
           </AuthProvider>
         </PersistQueryClientProvider>
       </SafeAreaProvider>
