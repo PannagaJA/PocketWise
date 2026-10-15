@@ -29,7 +29,7 @@ import { TransactionDetailModal } from '../../components/TransactionDetailModal'
 import { smsStorage } from '../../lib/sms/storage/smsStore';
 import { smsListenerService } from '../../lib/sms/service/smsListenerService';
 import { ParsedSmsTransaction } from '../../lib/sms/types';
-import { NetBalanceChartCard } from '../../components/NetBalanceChartCard';
+import { LayeredCardStack } from '../../components/dashboard/LayeredCardStack';
 
 import { shakeService } from '../../lib/shake/shakeService';
 
@@ -359,100 +359,134 @@ export default function DashboardScreen() {
     );
   };
 
+  const getTimeGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Morning';
+    if (hour < 17) return 'Afternoon';
+    return 'Evening';
+  };
+
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       <ScrollView className="flex-1 px-4 pt-2" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 110 }}>
-        {/* Header */}
-        <View className="flex-row justify-between items-center mb-5">
-          <View>
-            <Text className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Welcome back</Text>
-            <Text className="text-2xl font-black text-zinc-900 mt-0.5">
-              {user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'User'} 👋
-            </Text>
+        {/* Modern Header: Avatar Monogram, Greeting, Notifications */}
+        <View className="flex-row justify-between items-center mb-3 pt-1">
+          <View className="flex-row items-center gap-3">
+            <View className="w-11 h-11 rounded-full bg-violet-100 border border-violet-200 items-center justify-center shadow-xs">
+              <Text className="text-base font-black text-violet-800">
+                {(user?.user_metadata?.display_name || user?.email || 'U')[0].toUpperCase()}
+              </Text>
+            </View>
+            <View>
+              <Text className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Good {getTimeGreeting()}</Text>
+              <Text className="text-xl font-black text-zinc-900 tracking-tight">
+                {user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'User'}
+              </Text>
+            </View>
           </View>
+
           <Pressable
             onPress={() => {
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
               setNotifModalVisible(true);
             }}
-            className="w-10 h-10 bg-white border border-zinc-200 rounded-full items-center justify-center shadow-sm relative active:bg-zinc-50"
+            className="w-10 h-10 bg-white border border-zinc-200 rounded-full items-center justify-center shadow-xs relative active:bg-zinc-50"
           >
             <Bell size={18} color="#09090B" />
             {reminders.length > 0 && (
-              <View className="w-2.5 h-2.5 bg-indigo-600 rounded-full absolute top-1.5 right-1.5 border border-white" />
+              <View className="w-2.5 h-2.5 bg-violet-600 rounded-full absolute top-1.5 right-1.5 border border-white" />
             )}
           </Pressable>
         </View>
 
-        {/* Bank Account Dropdown Selector */}
-        {accounts.length > 0 && (
-          <View className="mb-4">
-            <Pressable
-              onPress={() => {
-                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                setBankSelectModalVisible(true);
-              }}
-              className="flex-row items-center justify-between p-3.5 bg-white border border-zinc-200 rounded-2xl shadow-sm active:bg-zinc-50"
-            >
-              <View className="flex-row items-center gap-3 flex-1 mr-2">
-                <View
-                  style={{ backgroundColor: selectedBankId === 'all' ? '#09090B' : (selectedAccount?.color || '#6366F1') }}
-                  className="w-9 h-9 rounded-xl items-center justify-center shadow-sm"
-                >
-                  {selectedBankId === 'all' ? (
-                    <Wallet size={16} color="#10B981" />
-                  ) : (
-                    <Building2 size={16} color="#FFFFFF" />
-                  )}
-                </View>
-                <View className="flex-1">
-                  <Text className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Active Account Filter</Text>
-                  <Text className="text-sm font-extrabold text-zinc-900" numberOfLines={1}>
-                    {selectedBankId === 'all' ? 'All Accounts Combined' : selectedAccount?.name || 'Selected Bank'}
-                  </Text>
-                </View>
-              </View>
-
-              <View className="flex-row items-center gap-2">
-                <View
-                  className={`px-2.5 py-1 ${
-                    activeFilteredBalance < 0
-                      ? 'bg-rose-50 border border-rose-200'
-                      : 'bg-emerald-50 border border-emerald-200'
-                  } rounded-xl`}
-                >
-                  <Text
-                    className={`text-xs font-black ${
-                      activeFilteredBalance < 0
-                        ? 'text-rose-700'
-                        : 'text-emerald-700'
-                    }`}
-                  >
-                    {formatMoney(activeFilteredBalance)}
-                  </Text>
-                </View>
-                <ChevronDown size={18} color="#71717A" />
-              </View>
-            </Pressable>
-          </View>
-        )}
-
-        {/* Net Total Balance Interactive Live Growth Chart Card */}
-        <NetBalanceChartCard
+        {/* Overlapping Authentic ATM Card Stack with Motion */}
+        <LayeredCardStack
           accounts={accounts}
-          transactions={transactions}
-          selectedAccountId={selectedBankId}
-          isLoading={loadingAcc}
+          selectedBankId={selectedBankId}
+          totalBalance={activeFilteredBalance}
+          monthlyIncome={monthlyIncome}
+          monthlyExpense={monthlyExpense}
+          selectedAccountName={selectedBankId === 'all' ? 'All Accounts Combined' : selectedAccount?.name || 'Selected Bank'}
+          accountCount={accounts.length}
+          userName={user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Cardholder'}
+          onPressAccountSelect={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+            setBankSelectModalVisible(true);
+          }}
+          onSelectAccount={(bankId) => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+            setSelectedBankId(bankId);
+          }}
+          formatMoney={formatMoney}
         />
+
+        {/* Circular Quick Action Buttons */}
+        <View className="flex-row justify-around items-center my-4 px-1">
+          {/* Action 1: Add Expense */}
+          <Pressable
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+              setRecordTxModalVisible(true);
+            }}
+            className="items-center"
+          >
+            <View className="w-14 h-14 rounded-full bg-zinc-950 items-center justify-center shadow-sm active:bg-zinc-800">
+              <Plus size={22} color="#FFFFFF" strokeWidth={2.5} />
+            </View>
+            <Text className="text-[11px] font-bold text-zinc-800 mt-2">Add</Text>
+          </Pressable>
+
+          {/* Action 2: Analytics */}
+          <Pressable
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              router.push('/reports' as any);
+            }}
+            className="items-center"
+          >
+            <View className="w-14 h-14 rounded-full bg-white border border-zinc-200 items-center justify-center shadow-xs active:bg-zinc-50">
+              <TrendingUp size={20} color="#6366F1" />
+            </View>
+            <Text className="text-[11px] font-bold text-zinc-800 mt-2">Analytics</Text>
+          </Pressable>
+
+          {/* Action 3: Bills */}
+          <Pressable
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              router.push('/bills' as any);
+            }}
+            className="items-center"
+          >
+            <View className="w-14 h-14 rounded-full bg-white border border-zinc-200 items-center justify-center shadow-xs active:bg-zinc-50">
+              <Calendar size={20} color="#EA580C" />
+            </View>
+            <Text className="text-[11px] font-bold text-zinc-800 mt-2">Bills</Text>
+          </Pressable>
+
+          {/* Action 4: Accounts */}
+          <Pressable
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              setBankSelectModalVisible(true);
+            }}
+            className="items-center"
+          >
+            <View className="w-14 h-14 rounded-full bg-white border border-zinc-200 items-center justify-center shadow-xs active:bg-zinc-50">
+              <Wallet size={20} color="#0D9488" />
+            </View>
+            <Text className="text-[11px] font-bold text-zinc-800 mt-2">Accounts</Text>
+          </Pressable>
+        </View>
 
         {/* Pending SMS Transaction Review Alert Banner */}
         {pendingReviews.length > 0 && (
           <Pressable
             onPress={() => setSelectedReviewTx(pendingReviews[0])}
-            className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex-row items-center justify-between"
+            className="mb-5 p-4 bg-amber-50 border border-amber-200 rounded-3xl flex-row items-center justify-between shadow-xs"
           >
             <View className="flex-row items-center gap-3">
-              <View className="w-10 h-10 rounded-xl bg-amber-500/20 items-center justify-center">
+              <View className="w-10 h-10 rounded-2xl bg-amber-500/20 items-center justify-center">
                 <Clock size={20} color="#D97706" />
               </View>
               <View>
@@ -470,37 +504,12 @@ export default function DashboardScreen() {
           </Pressable>
         )}
 
-        {/* Action Buttons */}
-        <View className="flex-row gap-3 mb-6">
-          <Button
-            variant="outline"
-            size="md"
-            className="flex-1 flex-row items-center justify-center gap-2 bg-white border-zinc-200"
-            onPress={() => router.push('/reports' as any)}
-          >
-            <TrendingUp size={18} color="#09090B" />
-            <Text className="text-zinc-900 font-bold text-xs">Analytics</Text>
-          </Button>
 
-          <Button
-            variant="primary"
-            size="md"
-            className="flex-1 flex-row items-center justify-center gap-2"
-            onPress={() => {
-              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
-              setRecordTxModalVisible(true);
-            }}
-          >
-            <Plus size={18} color="#FFF" />
-            <Text className="text-white font-bold text-xs">Add Transaction</Text>
-          </Button>
-        </View>
-
-        {/* Recent 5 Transactions Widget */}
-        <View className="mb-6">
-          <View className="flex-row justify-between items-center mb-3">
+        {/* Clean Rounded Recent Transactions Panel */}
+        <View className="bg-white border border-zinc-200 rounded-3xl p-5 shadow-xs mb-6 mt-4">
+          <View className="flex-row justify-between items-center mb-4">
             <View className="flex-row items-center gap-2">
-              <Text className="text-base font-bold text-zinc-900">Recent Transactions</Text>
+              <Text className="text-base font-black text-zinc-900 tracking-tight">Recent Transactions</Text>
               {selectedBankId !== 'all' && (
                 <View className="px-2 py-0.5 bg-zinc-100 rounded-full">
                   <Text className="text-[10px] font-bold text-zinc-600">
@@ -515,12 +524,14 @@ export default function DashboardScreen() {
                 useTabStore.getState().requestScrollToTab(1);
               }}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              className="px-2.5 py-1 bg-violet-50 rounded-full"
             >
-              <Text className="text-xs font-bold text-indigo-600">See All</Text>
+              <Text className="text-xs font-bold text-violet-700">See All</Text>
             </Pressable>
           </View>
+
           {filteredRecentTxs.length === 0 ? (
-            <Card className="p-6 bg-white border border-zinc-200 items-center rounded-2xl">
+            <View className="py-6 items-center">
               <Text className="text-sm font-semibold text-zinc-700">No transactions found</Text>
               <Text className="text-xs text-zinc-400 mt-0.5 mb-3 text-center">
                 {selectedBankId === 'all'
@@ -537,9 +548,9 @@ export default function DashboardScreen() {
               >
                 <Text className="text-white font-semibold text-xs">Add Transaction</Text>
               </Button>
-            </Card>
+            </View>
           ) : (
-            filteredRecentTxs.map((tx) => {
+            filteredRecentTxs.map((tx, idx) => {
               const accountName =
                 tx.account?.name ||
                 (Array.isArray(tx.account) && (tx.account as any)[0]?.name) ||
@@ -550,47 +561,46 @@ export default function DashboardScreen() {
                 (Array.isArray(tx.category) && (tx.category as any)[0]?.name) ||
                 'General';
 
+              const isLast = idx === filteredRecentTxs.length - 1;
+
               return (
                 <TouchableOpacity
                   key={tx.id}
                   activeOpacity={0.7}
                   delayPressIn={0}
                   onPress={() => handleOpenDetailTx(tx)}
+                  className={`flex-row items-center justify-between py-3 ${!isLast ? 'border-b border-zinc-100' : ''}`}
                 >
-                  <Card className="mb-2.5 p-3.5 bg-white border border-zinc-200 rounded-2xl active:bg-zinc-50">
-                    <View className="flex-row items-center justify-between">
-                      <View className="flex-row items-center flex-1 pr-3">
-                        <View className={`w-10 h-10 rounded-xl items-center justify-center mr-3 ${
-                          tx.type === 'income' ? 'bg-emerald-50' : tx.type === 'expense' ? 'bg-rose-50' : 'bg-indigo-50'
-                        }`}>
-                          {tx.type === 'income' ? (
-                            <ArrowDownLeft size={18} color="#10B981" />
-                          ) : tx.type === 'expense' ? (
-                            <ArrowUpRight size={18} color="#EF4444" />
-                          ) : (
-                            <ArrowRightLeft size={18} color="#6366F1" />
-                          )}
-                        </View>
-                        <View className="flex-1">
-                          <Text className="text-sm font-bold text-zinc-900" numberOfLines={1}>
-                            {cleanTransactionDescription(tx.description, categoryName, tx.type)}
-                          </Text>
-                          <Text className="text-[11px] text-zinc-500 mt-0.5">
-                            {categoryName} • {accountName}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View className="items-end">
-                        <Text className={`text-sm font-extrabold ${
-                          tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-zinc-900' : 'text-indigo-600'
-                        }`}>
-                          {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{formatMoney(tx.amount_minor)}
-                        </Text>
-                        <Text className="text-[10px] text-zinc-400 mt-0.5">{formatDate(tx.date)}</Text>
-                      </View>
+                  <View className="flex-row items-center flex-1 pr-3">
+                    <View className={`w-10 h-10 rounded-2xl items-center justify-center mr-3 ${
+                      tx.type === 'income' ? 'bg-emerald-50 border border-emerald-100' : tx.type === 'expense' ? 'bg-zinc-50 border border-zinc-200' : 'bg-indigo-50 border border-indigo-100'
+                    }`}>
+                      {tx.type === 'income' ? (
+                        <ArrowDownLeft size={16} color="#059669" />
+                      ) : tx.type === 'expense' ? (
+                        <ArrowUpRight size={16} color="#EF4444" />
+                      ) : (
+                        <ArrowRightLeft size={16} color="#6366F1" />
+                      )}
                     </View>
-                  </Card>
+                    <View className="flex-1">
+                      <Text className="text-sm font-bold text-zinc-900" numberOfLines={1}>
+                        {cleanTransactionDescription(tx.description, categoryName, tx.type)}
+                      </Text>
+                      <Text className="text-[11px] font-semibold text-zinc-400 mt-0.5">
+                        {categoryName} • {accountName}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View className="items-end">
+                    <Text className={`text-sm font-black ${
+                      tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-zinc-900' : 'text-indigo-600'
+                    }`}>
+                      {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{formatMoney(tx.amount_minor)}
+                    </Text>
+                    <Text className="text-[10px] font-medium text-zinc-400 mt-0.5">{formatDate(tx.date)}</Text>
+                  </View>
                 </TouchableOpacity>
               );
             })
