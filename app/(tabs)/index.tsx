@@ -385,18 +385,30 @@ export default function DashboardScreen() {
             </View>
           </View>
 
-          <Pressable
-            onPress={() => {
-              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-              setNotifModalVisible(true);
-            }}
-            className="w-10 h-10 bg-white border border-zinc-200 rounded-full items-center justify-center shadow-xs relative active:bg-zinc-50"
-          >
-            <Bell size={18} color="#09090B" />
-            {reminders.length > 0 && (
-              <View className="w-2.5 h-2.5 bg-violet-600 rounded-full absolute top-1.5 right-1.5 border border-white" />
-            )}
-          </Pressable>
+          <View className="flex-row items-center gap-2">
+            <Pressable
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+                setRecordTxModalVisible(true);
+              }}
+              className="w-10 h-10 bg-zinc-950 rounded-full items-center justify-center shadow-xs active:bg-zinc-800"
+            >
+              <Plus size={18} color="#FFFFFF" strokeWidth={2.5} />
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                setNotifModalVisible(true);
+              }}
+              className="w-10 h-10 bg-white border border-zinc-200 rounded-full items-center justify-center shadow-xs relative active:bg-zinc-50"
+            >
+              <Bell size={18} color="#09090B" />
+              {reminders.length > 0 && (
+                <View className="w-2.5 h-2.5 bg-violet-600 rounded-full absolute top-1.5 right-1.5 border border-white" />
+              )}
+            </Pressable>
+          </View>
         </View>
 
         {/* Overlapping Authentic ATM Card Stack with Motion */}
@@ -420,63 +432,103 @@ export default function DashboardScreen() {
           formatMoney={formatMoney}
         />
 
-        {/* Circular Quick Action Buttons */}
+        {/* Core Financial Models Quick Actions */}
         <View className="flex-row justify-around items-center my-4 px-1">
-          {/* Action 1: Add Expense */}
-          <Pressable
-            onPress={() => {
-              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
-              setRecordTxModalVisible(true);
-            }}
-            className="items-center"
-          >
-            <View className="w-14 h-14 rounded-full bg-zinc-950 items-center justify-center shadow-sm active:bg-zinc-800">
-              <Plus size={22} color="#FFFFFF" strokeWidth={2.5} />
-            </View>
-            <Text className="text-[11px] font-bold text-zinc-800 mt-2">Add</Text>
-          </Pressable>
-
-          {/* Action 2: Analytics */}
-          <Pressable
+          {/* Financial Model 1: Analytics & Reports */}
+          <TouchableOpacity
+            activeOpacity={0.65}
+            delayPressIn={0}
+            hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
             onPress={() => {
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-              router.push('/reports' as any);
+              try {
+                router.push('/reports' as any);
+              } catch {
+                router.navigate('/reports' as any);
+              }
             }}
             className="items-center"
           >
-            <View className="w-14 h-14 rounded-full bg-white border border-zinc-200 items-center justify-center shadow-xs active:bg-zinc-50">
-              <TrendingUp size={20} color="#6366F1" />
+            <View
+              pointerEvents="none"
+              className="w-14 h-14 rounded-full bg-indigo-50 border border-indigo-200/80 items-center justify-center shadow-xs active:bg-indigo-100"
+            >
+              <TrendingUp size={22} color="#6366F1" strokeWidth={2.2} />
             </View>
-            <Text className="text-[11px] font-bold text-zinc-800 mt-2">Analytics</Text>
-          </Pressable>
+            <Text pointerEvents="none" className="text-[11px] font-bold text-zinc-800 mt-2">Analytics</Text>
+          </TouchableOpacity>
 
-          {/* Action 3: Bills */}
-          <Pressable
+          {/* Financial Model 2: Lend & Borrow Tracker */}
+          <TouchableOpacity
+            activeOpacity={0.65}
+            delayPressIn={0}
+            hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
             onPress={() => {
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-              router.push('/bills' as any);
+              try {
+                router.push('/lends' as any);
+              } catch {
+                router.navigate('/lends' as any);
+              }
             }}
             className="items-center"
           >
-            <View className="w-14 h-14 rounded-full bg-white border border-zinc-200 items-center justify-center shadow-xs active:bg-zinc-50">
-              <Calendar size={20} color="#EA580C" />
+            <View
+              pointerEvents="none"
+              className="w-14 h-14 rounded-full bg-teal-50 border border-teal-200/80 items-center justify-center shadow-xs active:bg-teal-100"
+            >
+              <ArrowRightLeft size={22} color="#0D9488" strokeWidth={2.2} />
             </View>
-            <Text className="text-[11px] font-bold text-zinc-800 mt-2">Bills</Text>
-          </Pressable>
+            <Text pointerEvents="none" className="text-[11px] font-bold text-zinc-800 mt-2">Lends</Text>
+          </TouchableOpacity>
 
-          {/* Action 4: Accounts */}
-          <Pressable
+          {/* Financial Model 3: Savings Goals */}
+          <TouchableOpacity
+            activeOpacity={0.65}
+            delayPressIn={0}
+            hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
             onPress={() => {
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-              setBankSelectModalVisible(true);
+              try {
+                router.push('/goals' as any);
+              } catch {
+                router.navigate('/goals' as any);
+              }
             }}
             className="items-center"
           >
-            <View className="w-14 h-14 rounded-full bg-white border border-zinc-200 items-center justify-center shadow-xs active:bg-zinc-50">
-              <Wallet size={20} color="#0D9488" />
+            <View
+              pointerEvents="none"
+              className="w-14 h-14 rounded-full bg-purple-50 border border-purple-200/80 items-center justify-center shadow-xs active:bg-purple-100"
+            >
+              <Target size={22} color="#8B5CF6" strokeWidth={2.2} />
             </View>
-            <Text className="text-[11px] font-bold text-zinc-800 mt-2">Accounts</Text>
-          </Pressable>
+            <Text pointerEvents="none" className="text-[11px] font-bold text-zinc-800 mt-2">Goals</Text>
+          </TouchableOpacity>
+
+          {/* Financial Model 4: Bills & Utilities */}
+          <TouchableOpacity
+            activeOpacity={0.65}
+            delayPressIn={0}
+            hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              try {
+                router.push('/bills' as any);
+              } catch {
+                router.navigate('/bills' as any);
+              }
+            }}
+            className="items-center"
+          >
+            <View
+              pointerEvents="none"
+              className="w-14 h-14 rounded-full bg-orange-50 border border-orange-200/80 items-center justify-center shadow-xs active:bg-orange-100"
+            >
+              <Calendar size={22} color="#EA580C" strokeWidth={2.2} />
+            </View>
+            <Text pointerEvents="none" className="text-[11px] font-bold text-zinc-800 mt-2">Bills</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Pending SMS Transaction Review Alert Banner */}

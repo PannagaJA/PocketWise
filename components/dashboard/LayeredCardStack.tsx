@@ -349,100 +349,101 @@ export function LayeredCardStack({
 
   return (
     <View style={styles.stackWrapper}>
-      {/* --- LAYER 4: Back-Left Accent Card --- */}
-      <Animated.View style={[styles.backgroundCard, styles.layerCardShadow, backLeftStyle]}>
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={() => handleCardPress(layer3Account)}
-        >
-          <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
-            <Defs>
-              <LinearGradient id="layer3Grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <Stop offset="0%" stopColor={layer3Theme.gradientColors[0]} />
-                <Stop offset="60%" stopColor={layer3Theme.gradientColors[1]} />
-                <Stop offset="100%" stopColor={layer3Theme.gradientColors[2]} />
-              </LinearGradient>
-            </Defs>
-            <Rect width="100%" height="100%" rx={24} fill="url(#layer3Grad)" />
-            <Circle cx="32" cy="22" r="12" fill="rgba(255, 255, 255, 0.18)" />
-            <Circle cx="48" cy="22" r="12" fill="rgba(255, 255, 255, 0.12)" />
-          </Svg>
-          <View style={styles.peekingLeftContent}>
-            <Text style={styles.peekingBankText} numberOfLines={1}>
-              {layer3Account?.name ? layer3Account.name.toUpperCase() : layer3Theme.shortName}
-            </Text>
-          </View>
-        </Pressable>
-      </Animated.View>
-
-      {/* --- LAYER 3: Back-Right Accent Card --- */}
-      <Animated.View style={[styles.backgroundCard, styles.layerCardShadow, backRightStyle]}>
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={() => handleCardPress(layer2Account)}
-        >
-          <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
-            <Defs>
-              <LinearGradient id="layer2Grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <Stop offset="0%" stopColor={layer2Theme.gradientColors[0]} />
-                <Stop offset="60%" stopColor={layer2Theme.gradientColors[1]} />
-                <Stop offset="100%" stopColor={layer2Theme.gradientColors[2]} />
-              </LinearGradient>
-            </Defs>
-            <Rect width="100%" height="100%" rx={24} fill="url(#layer2Grad)" />
-            <Circle cx="86%" cy="22" r="13" fill="rgba(255, 255, 255, 0.18)" />
-            <Circle cx="93%" cy="22" r="13" fill="rgba(255, 255, 255, 0.12)" />
-          </Svg>
-          <View style={styles.peekingRightContent}>
-            <Text style={styles.peekingBankText} numberOfLines={1}>
-              {layer2Account?.name ? layer2Account.name.toUpperCase() : layer2Theme.shortName}
-            </Text>
-          </View>
-        </Pressable>
-      </Animated.View>
-
-      {/* --- LAYER 2: BACK CARD (Next Bank in Line) --- */}
-      {/* Moves to the front when top card is swiped */}
-      <Animated.View style={[styles.cardSlotContainer, backCardAnimatedStyle]}>
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={() => handleCardPress(backAccount)}
-        >
-          <AtmCardVisual
-            theme={backTheme}
-            accountName={backAccountName}
-            balance={backBalance}
-            monthlyIncome={monthlyIncome}
-            monthlyExpense={monthlyExpense}
-            last4Digits={backLast4}
-            cardholderName={userName || 'CARDHOLDER'}
-            formatMoney={formatMoney}
-            onPressPill={onPressAccountSelect}
-            isHero={false}
-          />
-        </Pressable>
-      </Animated.View>
-
-      {/* --- LAYER 1: FRONT CARD (Active Bank) --- */}
-      {/* Follows swipe gesture, slides out, drops zIndex, loops into back */}
-      <GestureDetector gesture={cardGesture}>
-        <Animated.View style={[styles.cardSlotContainer, frontCardAnimatedStyle]}>
-          <AtmCardVisual
-            theme={frontTheme}
-            accountName={selectedAccountName}
-            balance={totalBalance}
-            monthlyIncome={monthlyIncome}
-            monthlyExpense={monthlyExpense}
-            last4Digits={frontLast4}
-            cardholderName={userName || 'CARDHOLDER'}
-            formatMoney={formatMoney}
-            onPressPill={onPressAccountSelect}
-            isHero
-          />
+      {/* Dedicated Card Deck Viewport */}
+      <View style={styles.cardsDeckViewport}>
+        {/* --- LAYER 4: Back-Left Accent Card --- */}
+        <Animated.View style={[styles.backgroundCard, styles.layerCardShadow, backLeftStyle]}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => handleCardPress(layer3Account)}
+          >
+            <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
+              <Defs>
+                <LinearGradient id="layer3Grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <Stop offset="0%" stopColor={layer3Theme.gradientColors[0]} />
+                  <Stop offset="60%" stopColor={layer3Theme.gradientColors[1]} />
+                  <Stop offset="100%" stopColor={layer3Theme.gradientColors[2]} />
+                </LinearGradient>
+              </Defs>
+              <Rect width="100%" height="100%" rx={24} fill="url(#layer3Grad)" />
+              <Circle cx="32" cy="22" r="12" fill="rgba(255, 255, 255, 0.18)" />
+              <Circle cx="48" cy="22" r="12" fill="rgba(255, 255, 255, 0.12)" />
+            </Svg>
+            <View style={styles.peekingLeftContent}>
+              <Text style={styles.peekingBankText} numberOfLines={1}>
+                {layer3Account?.name ? layer3Account.name.toUpperCase() : layer3Theme.shortName}
+              </Text>
+            </View>
+          </Pressable>
         </Animated.View>
-      </GestureDetector>
 
-      {/* --- Pagination Indicator Dots --- */}
+        {/* --- LAYER 3: Back-Right Accent Card --- */}
+        <Animated.View style={[styles.backgroundCard, styles.layerCardShadow, backRightStyle]}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => handleCardPress(layer2Account)}
+          >
+            <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
+              <Defs>
+                <LinearGradient id="layer2Grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <Stop offset="0%" stopColor={layer2Theme.gradientColors[0]} />
+                  <Stop offset="60%" stopColor={layer2Theme.gradientColors[1]} />
+                  <Stop offset="100%" stopColor={layer2Theme.gradientColors[2]} />
+                </LinearGradient>
+              </Defs>
+              <Rect width="100%" height="100%" rx={24} fill="url(#layer2Grad)" />
+              <Circle cx="86%" cy="22" r="13" fill="rgba(255, 255, 255, 0.18)" />
+              <Circle cx="93%" cy="22" r="13" fill="rgba(255, 255, 255, 0.12)" />
+            </Svg>
+            <View style={styles.peekingRightContent}>
+              <Text style={styles.peekingBankText} numberOfLines={1}>
+                {layer2Account?.name ? layer2Account.name.toUpperCase() : layer2Theme.shortName}
+              </Text>
+            </View>
+          </Pressable>
+        </Animated.View>
+
+        {/* --- LAYER 2: BACK CARD (Next Bank in Line) --- */}
+        <Animated.View style={[styles.cardSlotContainer, backCardAnimatedStyle]}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => handleCardPress(backAccount)}
+          >
+            <AtmCardVisual
+              theme={backTheme}
+              accountName={backAccountName}
+              balance={backBalance}
+              monthlyIncome={monthlyIncome}
+              monthlyExpense={monthlyExpense}
+              last4Digits={backLast4}
+              cardholderName={userName || 'CARDHOLDER'}
+              formatMoney={formatMoney}
+              onPressPill={onPressAccountSelect}
+              isHero={false}
+            />
+          </Pressable>
+        </Animated.View>
+
+        {/* --- LAYER 1: FRONT CARD (Active Bank) --- */}
+        <GestureDetector gesture={cardGesture}>
+          <Animated.View style={[styles.cardSlotContainer, frontCardAnimatedStyle]}>
+            <AtmCardVisual
+              theme={frontTheme}
+              accountName={selectedAccountName}
+              balance={totalBalance}
+              monthlyIncome={monthlyIncome}
+              monthlyExpense={monthlyExpense}
+              last4Digits={frontLast4}
+              cardholderName={userName || 'CARDHOLDER'}
+              formatMoney={formatMoney}
+              onPressPill={onPressAccountSelect}
+              isHero
+            />
+          </Animated.View>
+        </GestureDetector>
+      </View>
+
+      {/* --- Pagination Indicator Dots (In Normal Flow) --- */}
       {bankOptions.length > 1 && (
         <View style={styles.paginationRow}>
           {bankOptions.map((opt, idx) => {
@@ -473,10 +474,15 @@ export function LayeredCardStack({
 
 const styles = StyleSheet.create({
   stackWrapper: {
-    minHeight: 252,
-    marginVertical: 10,
+    width: '100%',
+    marginVertical: 6,
     alignItems: 'center',
-    justifyContent: 'center',
+  },
+  cardsDeckViewport: {
+    width: '100%',
+    height: 232,
+    alignItems: 'center',
+    position: 'relative',
   },
   backgroundCard: {
     position: 'absolute',
@@ -527,12 +533,11 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
   },
   paginationRow: {
-    position: 'absolute',
-    bottom: -16,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 6,
+    marginTop: 10,
   },
   paginationDot: {
     width: 6,
