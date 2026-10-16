@@ -6,7 +6,9 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
-import { AppModal } from '../../components/ui/AppModal';
+import { AppBottomSheet } from '../../components/ui/AppBottomSheet';
+import { AppDialog } from '../../components/ui/AppDialog';
+import { AppLoadingIndicator } from '../../components/ui/AppLoadingIndicator';
 import { useAuth } from '../../context/AuthContext';
 import { subscriptionService, Subscription, BillingCycle } from '../../lib/services/subscription.service';
 import { accountService } from '../../lib/services/account.service';
@@ -379,35 +381,20 @@ export default function SubscriptionsScreen() {
       </View>
 
       {/* Custom Edit Subscription Modal */}
-      <AppModal
+      <AppBottomSheet
         visible={editModalVisible}
         onClose={() => setEditModalVisible(false)}
-        animationType="slide"
+        title="Edit Subscription"
+        subtitle="Update subscription details"
+        scrollable={true}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 }}
       >
-        <Pressable
-          className="bg-white rounded-t-3xl p-6 pb-6 border-t border-zinc-200"
-          style={{ maxHeight: '100%', flexShrink: 1 }}
-          onPress={(e) => e.stopPropagation()}
-        >
-          <View className="flex-row justify-between items-center mb-6">
-            <View className="flex-row items-center gap-2">
-              <View className="w-8 h-8 rounded-xl bg-zinc-100 items-center justify-center">
-                <Pencil size={16} color="#18181B" />
-              </View>
-              <Text className="text-xl font-bold text-zinc-900">Edit Subscription</Text>
-            </View>
-            <Pressable onPress={() => setEditModalVisible(false)}>
-              <X size={20} color="#71717A" />
-            </Pressable>
+        {updateSubMutation.isPending ? (
+          <View className="py-12 items-center justify-center">
+            <AppLoadingIndicator message="Updating subscription..." />
           </View>
-
-          <ScrollView 
-            style={{ flexShrink: 1 }}
-            showsVerticalScrollIndicator={true}
-            persistentScrollbar={true}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 32 }}
-          >
+        ) : (
+          <View>
             <Input
               label="Service Name"
               placeholder="e.g. Netflix, Spotify"
@@ -461,77 +448,38 @@ export default function SubscriptionsScreen() {
             >
               <Text className="text-white font-semibold">Save Changes</Text>
             </Button>
-          </ScrollView>
-        </Pressable>
-      </AppModal>
+          </View>
+        )}
+      </AppBottomSheet>
 
-      {/* Custom Delete Confirmation Modal */}
-      <AppModal
+      {/* Custom Delete Confirmation Dialog */}
+      <AppDialog
         visible={!!subToDelete}
         onClose={() => setSubToDelete(null)}
-        animationType="fade"
-      >
-        <Pressable
-          className="p-6 w-full bg-white items-center"
-          onPress={(e) => e.stopPropagation()}
-        >
-          <View className="w-16 h-16 rounded-full bg-rose-50 border border-rose-100 items-center justify-center mb-4">
-            <AlertTriangle size={30} color="#EF4444" />
-          </View>
-
-          <Text className="text-xl font-black text-zinc-900 text-center">Delete Subscription</Text>
-          <Text className="text-xs text-zinc-500 text-center mt-1.5 mb-6 px-2 leading-5">
-            Are you sure you want to delete <Text className="font-bold text-zinc-900">{subToDelete?.name}</Text>? This action cannot be undone.
-          </Text>
-
-          <View className="flex-row gap-3 w-full">
-            <Button
-              variant="outline"
-              size="md"
-              className="flex-1"
-              onPress={() => setSubToDelete(null)}
-            >
-              <Text className="text-zinc-900 font-semibold text-xs">Cancel</Text>
-            </Button>
-
-            <Button
-              variant="destructive"
-              size="md"
-              className="flex-1 bg-rose-600 active:bg-rose-700"
-              loading={deleteSubMutation.isPending}
-              onPress={() => subToDelete && deleteSubMutation.mutate(subToDelete.id)}
-            >
-              <Text className="text-white font-semibold text-xs">Delete</Text>
-            </Button>
-          </View>
-        </Pressable>
-      </AppModal>
+        title="Delete Subscription"
+        description={`Are you sure you want to delete ${subToDelete?.name}? This action cannot be undone.`}
+        confirmLabel="Delete"
+        destructive={true}
+        isLoading={deleteSubMutation.isPending}
+        loadingMessage="Deleting subscription..."
+        onConfirm={() => subToDelete && deleteSubMutation.mutate(subToDelete.id)}
+      />
 
       {/* Main Add Subscription Modal */}
-      <AppModal
+      <AppBottomSheet
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
-        animationType="slide"
+        title="Add Subscription"
+        subtitle="Track recurring service"
+        scrollable={true}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 }}
       >
-        <Pressable
-          className="bg-white rounded-t-3xl p-6 pb-6 border-t border-zinc-200"
-          style={{ maxHeight: '100%', flexShrink: 1 }}
-          onPress={(e) => e.stopPropagation()}
-        >
-          <View className="flex-row justify-between items-center mb-6">
-            <Text className="text-xl font-bold text-zinc-900">Add Subscription</Text>
-            <Pressable onPress={() => setModalVisible(false)}>
-              <X size={20} color="#71717A" />
-            </Pressable>
+        {createSubMutation.isPending ? (
+          <View className="py-12 items-center justify-center">
+            <AppLoadingIndicator message="Adding subscription..." subMessage="Setting up billing notifications" />
           </View>
-
-          <ScrollView 
-            style={{ flexShrink: 1 }}
-            showsVerticalScrollIndicator={true}
-            persistentScrollbar={true}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 32 }}
-          >
+        ) : (
+          <View>
             <Input
               label="Service Name"
               placeholder="e.g. Netflix, Spotify, iCloud"
@@ -617,20 +565,18 @@ export default function SubscriptionsScreen() {
             >
               <Text className="text-white font-semibold">Save Subscription</Text>
             </Button>
-          </ScrollView>
-        </Pressable>
-      </AppModal>
+          </View>
+        )}
+      </AppBottomSheet>
 
       {/* Calendar Picker Sub-Modal */}
-      <AppModal
+      <AppBottomSheet
         visible={calendarPickerVisible}
         onClose={() => setCalendarPickerVisible(false)}
-        animationType="fade"
+        title="Select Billing Date"
+        subtitle="Next renewal date"
       >
-        <Pressable
-          className="p-5 w-full bg-white"
-          onPress={(e) => e.stopPropagation()}
-        >
+        <View className="p-5 w-full">
           {/* Calendar Header */}
           <View className="flex-row justify-between items-center mb-4">
             <Pressable
@@ -707,8 +653,8 @@ export default function SubscriptionsScreen() {
           >
             <Text className="text-white font-bold text-xs">Cancel</Text>
           </Pressable>
-        </Pressable>
-      </AppModal>
+        </View>
+      </AppBottomSheet>
 
       {/* Time Picker Modal */}
       <TimePickerModal

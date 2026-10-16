@@ -7,7 +7,9 @@ import Svg, { Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { AppModal } from '../../components/ui/AppModal';
+import { AppBottomSheet } from '../../components/ui/AppBottomSheet';
+import { AppDialog } from '../../components/ui/AppDialog';
+import { AppLoadingIndicator } from '../../components/ui/AppLoadingIndicator';
 import { useAuth } from '../../context/AuthContext';
 import { transactionService, cleanTransactionDescription } from '../../lib/services/transaction.service';
 import { supabase } from '../../lib/supabase';
@@ -249,6 +251,7 @@ export default function TransactionsScreen() {
   // Edit & Delete Transaction State
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingTx, setEditingTx] = useState<any>(null);
+  const [txToDelete, setTxToDelete] = useState<any | null>(null);
   const [editDescription, setEditDescription] = useState('');
   const [editAmount, setEditAmount] = useState('');
   const [editDate, setEditDate] = useState('');
@@ -395,6 +398,7 @@ export default function TransactionsScreen() {
       setDetailModalVisible(false);
       setEditingTx(null);
       setSelectedDetailTx(null);
+      setTxToDelete(null);
     },
     onError: (err: any) => {
       Alert.alert('Error', err.message || 'Failed to delete transaction');
@@ -406,18 +410,7 @@ export default function TransactionsScreen() {
     if (!target) return;
     setEditingTx(target);
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); } catch {}
-    Alert.alert(
-      'Delete Transaction?',
-      `Are you sure you want to delete this ${formatMoney(target.amount_minor)} transaction? Account balance will be restored automatically.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => deleteTxMutation.mutate(target.id),
-        },
-      ]
-    );
+    setTxToDelete(target);
   };
 
   const currentPlaceholders = getPlaceholders();
@@ -726,127 +719,113 @@ export default function TransactionsScreen() {
       </View>
 
       {/* Custom Date / Month / Bank Filter Modal */}
-      <AppModal
+      <AppBottomSheet
         visible={dateFilterModalVisible}
         onClose={() => setDateFilterModalVisible(false)}
-        animationType="slide"
+        title="Filter Transactions"
+        subtitle="Filter by presets, dates, or accounts"
+        scrollable={true}
+        contentContainerStyle={{ paddingBottom: 24 }}
       >
-        <Pressable
-          style={{ width: '100%', maxHeight: '100%', flexShrink: 1, padding: 20, paddingBottom: 12 }}
-          onPress={(e) => e.stopPropagation()}
-        >
-          <View className="flex-row justify-between items-center mb-4">
-            <View className="flex-row items-center gap-2">
-              <View className="w-8 h-8 rounded-full bg-indigo-50 items-center justify-center">
-                <SlidersHorizontal size={18} color="#6366F1" />
-              </View>
-              <Text className="text-xl font-bold text-zinc-900">Filter Transactions</Text>
-            </View>
-            <Pressable onPress={() => setDateFilterModalVisible(false)} className="p-1">
-              <X size={20} color="#71717A" />
-            </Pressable>
+        <View>
+          {/* Presets Section */}
+          <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5">Quick Presets</Text>
+          <View className="flex-row flex-wrap gap-2 mb-4">
+            {[
+              { mode: 'all', label: 'All Time' },
+              { mode: 'today', label: 'Today' },
+              { mode: 'this_month', label: 'This Month' },
+              { mode: 'last_month', label: 'Last Month' },
+            ].map((item) => {
+              const isSelected = dateFilterMode === item.mode;
+              return (
+                <Pressable
+                  key={item.mode}
+                  onPress={() => {
+                    try { Haptics.selectionAsync(); } catch {}
+                    setDateFilterMode(item.mode as DateFilterMode);
+                  }}
+                  className={`px-4 py-2.5 rounded-xl border ${
+                    isSelected
+                      ? 'bg-zinc-900 border-zinc-900'
+                      : 'bg-zinc-50 border-zinc-200 active:bg-zinc-100'
+                  }`}
+                >
+                  <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-zinc-800'}`}>
+                    {item.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={true} persistentScrollbar={true} style={{ flexShrink: 1, maxHeight: 380 }}>
-            {/* Presets Section */}
-            <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5">Quick Presets</Text>
-            <View className="flex-row flex-wrap gap-2 mb-4">
-              {[
-                { mode: 'all', label: 'All Time' },
-                { mode: 'today', label: 'Today' },
-                { mode: 'this_month', label: 'This Month' },
-                { mode: 'last_month', label: 'Last Month' },
-              ].map((item) => {
-                const isSelected = dateFilterMode === item.mode;
-                return (
-                  <Pressable
-                    key={item.mode}
-                    onPress={() => {
-                      try { Haptics.selectionAsync(); } catch {}
-                      setDateFilterMode(item.mode as DateFilterMode);
-                    }}
-                    className={`px-4 py-2.5 rounded-xl border ${
-                      isSelected
-                        ? 'bg-zinc-900 border-zinc-900'
-                        : 'bg-zinc-50 border-zinc-200 active:bg-zinc-100'
-                    }`}
-                  >
-                    <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-zinc-800'}`}>
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            {/* Custom Date Range Section */}
-            <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5">Custom Date Range</Text>
-            <View className="flex-row gap-3 mb-4">
-              <View className="flex-1">
-                <DatePickerButton
-                  label="Start Date"
-                  value={customStartDate}
-                  placeholder="Pick a start date"
-                  onSelectDate={(val) => {
-                    setCustomStartDate(val);
-                    if (val) setDateFilterMode('custom_range');
-                  }}
-                />
-              </View>
-              <View className="flex-1">
-                <DatePickerButton
-                  label="End Date"
-                  value={customEndDate}
-                  placeholder="Pick an end date"
-                  onSelectDate={(val) => {
-                    setCustomEndDate(val);
-                    if (val) setDateFilterMode('custom_range');
-                  }}
-                />
-              </View>
-            </View>
-
-            {/* Bank / Account Filter Section */}
-            <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5">Bank / Account</Text>
-            <View className="flex-row flex-wrap gap-2 mb-4">
-              <Pressable
-                onPress={() => {
-                  try { Haptics.selectionAsync(); } catch {}
-                  setSelectedAccountFilterId('all');
+          {/* Custom Date Range Section */}
+          <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5">Custom Date Range</Text>
+          <View className="flex-row gap-3 mb-4">
+            <View className="flex-1">
+              <DatePickerButton
+                label="Start Date"
+                value={customStartDate}
+                placeholder="Pick a start date"
+                onSelectDate={(val) => {
+                  setCustomStartDate(val);
+                  if (val) setDateFilterMode('custom_range');
                 }}
-                className={`px-4 py-2.5 rounded-xl border ${
-                  selectedAccountFilterId === 'all'
-                    ? 'bg-zinc-900 border-zinc-900'
-                    : 'bg-zinc-50 border-zinc-200 active:bg-zinc-100'
-                }`}
-              >
-                <Text className={`text-xs font-bold ${selectedAccountFilterId === 'all' ? 'text-white' : 'text-zinc-800'}`}>
-                  All Accounts
-                </Text>
-              </Pressable>
-              {accounts.map((acc) => {
-                const isSelected = selectedAccountFilterId === acc.id;
-                return (
-                  <Pressable
-                    key={acc.id}
-                    onPress={() => {
-                      try { Haptics.selectionAsync(); } catch {}
-                      setSelectedAccountFilterId(acc.id);
-                    }}
-                    className={`px-4 py-2.5 rounded-xl border ${
-                      isSelected
-                        ? 'bg-zinc-900 border-zinc-900'
-                        : 'bg-zinc-50 border-zinc-200 active:bg-zinc-100'
-                    }`}
-                  >
-                    <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-zinc-800'}`}>
-                      {acc.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+              />
             </View>
-          </ScrollView>
+            <View className="flex-1">
+              <DatePickerButton
+                label="End Date"
+                value={customEndDate}
+                placeholder="Pick an end date"
+                onSelectDate={(val) => {
+                  setCustomEndDate(val);
+                  if (val) setDateFilterMode('custom_range');
+                }}
+              />
+            </View>
+          </View>
+
+          {/* Bank / Account Filter Section */}
+          <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5">Bank / Account</Text>
+          <View className="flex-row flex-wrap gap-2 mb-4">
+            <Pressable
+              onPress={() => {
+                try { Haptics.selectionAsync(); } catch {}
+                setSelectedAccountFilterId('all');
+              }}
+              className={`px-4 py-2.5 rounded-xl border ${
+                selectedAccountFilterId === 'all'
+                  ? 'bg-zinc-900 border-zinc-900'
+                  : 'bg-zinc-50 border-zinc-200 active:bg-zinc-100'
+              }`}
+            >
+              <Text className={`text-xs font-bold ${selectedAccountFilterId === 'all' ? 'text-white' : 'text-zinc-800'}`}>
+                All Accounts
+              </Text>
+            </Pressable>
+            {accounts.map((acc) => {
+              const isSelected = selectedAccountFilterId === acc.id;
+              return (
+                <Pressable
+                  key={acc.id}
+                  onPress={() => {
+                    try { Haptics.selectionAsync(); } catch {}
+                    setSelectedAccountFilterId(acc.id);
+                  }}
+                  className={`px-4 py-2.5 rounded-xl border ${
+                    isSelected
+                      ? 'bg-zinc-900 border-zinc-900'
+                      : 'bg-zinc-50 border-zinc-200 active:bg-zinc-100'
+                  }`}
+                >
+                  <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-zinc-800'}`}>
+                    {acc.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
 
           {/* Modal Actions */}
           <View className="flex-row gap-3 mt-3">
@@ -877,33 +856,24 @@ export default function TransactionsScreen() {
               <Text className="text-white font-bold text-xs">Apply Filter</Text>
             </Button>
           </View>
-        </Pressable>
-      </AppModal>
+        </View>
+      </AppBottomSheet>
 
       {/* Transaction Creation Modal */}
-      <AppModal
+      <AppBottomSheet
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
-        animationType="slide"
+        title="Record Transaction"
+        subtitle="Track income, expense, or transfer"
+        scrollable={true}
+        contentContainerStyle={{ paddingBottom: 24 }}
       >
-        <Pressable
-          style={{ width: '100%', maxHeight: '100%', flexShrink: 1, padding: 20, paddingBottom: 12 }}
-          onPress={(e) => e.stopPropagation()}
-        >
-          <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-xl font-bold text-zinc-900">Record Transaction</Text>
-            <Pressable onPress={() => setModalVisible(false)} className="p-1">
-              <X size={20} color="#71717A" />
-            </Pressable>
+        {createTxMutation.isPending ? (
+          <View className="py-12">
+            <AppLoadingIndicator message="Recording transaction..." />
           </View>
-
-          <ScrollView 
-            style={{ flexShrink: 1 }}
-            showsVerticalScrollIndicator={true} 
-            persistentScrollbar={true}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 32 }}
-          >
+        ) : (
+          <View>
             <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-4">
               <Pressable
                 onPress={() => setType('expense')}
@@ -1048,40 +1018,30 @@ export default function TransactionsScreen() {
             <Button
               variant={type === 'income' ? 'income' : type === 'expense' ? 'destructive' : 'primary'}
               size="lg"
-              loading={createTxMutation.isPending}
               className="mt-2 mb-4"
               onPress={() => createTxMutation.mutate()}
             >
               <Text className="text-white font-semibold">{type === 'income' ? 'Save INCOME' : type === 'expense' ? 'Save EXPENSE' : 'Save TRANSFER'}</Text>
             </Button>
-          </ScrollView>
-        </Pressable>
-      </AppModal>
+          </View>
+        )}
+      </AppBottomSheet>
 
       {/* Account Creation Modal */}
-      <AppModal
+      <AppBottomSheet
         visible={accModalVisible}
         onClose={() => setAccModalVisible(false)}
-        animationType="slide"
+        title="Create Account"
+        subtitle="Add a new account or wallet"
+        scrollable={true}
+        contentContainerStyle={{ paddingBottom: 24 }}
       >
-        <Pressable
-          style={{ width: '100%', maxHeight: '100%', flexShrink: 1, padding: 20, paddingBottom: 12 }}
-          onPress={(e) => e.stopPropagation()}
-        >
-          <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-xl font-bold text-zinc-900">Create Account</Text>
-            <Pressable onPress={() => setAccModalVisible(false)} className="p-1">
-              <X size={20} color="#71717A" />
-            </Pressable>
+        {createAccountMutation.isPending ? (
+          <View className="py-12">
+            <AppLoadingIndicator message="Creating account..." />
           </View>
-
-          <ScrollView 
-            style={{ flexShrink: 1 }}
-            showsVerticalScrollIndicator={true} 
-            persistentScrollbar={true}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 32 }}
-          >
+        ) : (
+          <View>
             <Input
               label="Account Name"
               placeholder="e.g. HDFC Savings, Cash Wallet"
@@ -1100,45 +1060,30 @@ export default function TransactionsScreen() {
             <Button
               variant="primary"
               size="lg"
-              loading={createAccountMutation.isPending}
               className="mt-2"
               onPress={() => createAccountMutation.mutate()}
             >
               <Text className="text-white font-semibold">Save Account</Text>
             </Button>
-          </ScrollView>
-        </Pressable>
-      </AppModal>
+          </View>
+        )}
+      </AppBottomSheet>
 
       {/* Edit & Delete Transaction Modal */}
-      <AppModal
+      <AppBottomSheet
         visible={editModalVisible}
         onClose={() => setEditModalVisible(false)}
-        animationType="slide"
+        title="Edit Transaction"
+        subtitle="Update transaction details"
+        scrollable={true}
+        contentContainerStyle={{ paddingBottom: 24 }}
       >
-        <Pressable
-          style={{ width: '100%', maxHeight: '100%', flexShrink: 1, padding: 20, paddingBottom: 12 }}
-          onPress={(e) => e.stopPropagation()}
-        >
-          <View className="flex-row justify-between items-center mb-4">
-            <View className="flex-row items-center gap-2">
-              <View className="w-8 h-8 rounded-xl bg-zinc-100 items-center justify-center">
-                <Pencil size={16} color="#18181B" />
-              </View>
-              <Text className="text-xl font-bold text-zinc-900">Edit Transaction</Text>
-            </View>
-            <Pressable onPress={() => setEditModalVisible(false)} className="p-1">
-              <X size={20} color="#71717A" />
-            </Pressable>
+        {updateTxMutation.isPending ? (
+          <View className="py-12">
+            <AppLoadingIndicator message="Updating transaction..." />
           </View>
-
-          <ScrollView 
-            style={{ flexShrink: 1 }}
-            showsVerticalScrollIndicator={true}
-            persistentScrollbar={true}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 32 }}
-          >
+        ) : (
+          <View>
             <Input
               label="Amount (₹)"
               placeholder="0.00"
@@ -1255,16 +1200,31 @@ export default function TransactionsScreen() {
               <Button
                 variant="primary"
                 size="lg"
-                loading={updateTxMutation.isPending}
                 className="flex-1"
                 onPress={() => updateTxMutation.mutate()}
               >
                 <Text className="text-white font-bold">Save</Text>
               </Button>
             </View>
-          </ScrollView>
-        </Pressable>
-      </AppModal>
+          </View>
+        )}
+      </AppBottomSheet>
+
+      {/* Delete Transaction Dialog */}
+      <AppDialog
+        visible={!!txToDelete}
+        onClose={() => setTxToDelete(null)}
+        title="Delete Transaction?"
+        description={`Are you sure you want to delete this ${txToDelete ? formatMoney(txToDelete.amount_minor) : ''} transaction? Account balance will be restored automatically.`}
+        confirmLabel="Delete"
+        destructive={true}
+        isLoading={deleteTxMutation.isPending}
+        onConfirm={() => {
+          if (txToDelete) {
+            deleteTxMutation.mutate(txToDelete.id);
+          }
+        }}
+      />
 
       {/* Transaction Details View Modal */}
       <TransactionDetailModal
