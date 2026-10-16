@@ -8,7 +8,9 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
-import { AppModal } from '../components/ui/AppModal';
+import { AppBottomSheet } from '../components/ui/AppBottomSheet';
+import { AppDialog } from '../components/ui/AppDialog';
+import { AppLoadingIndicator } from '../components/ui/AppLoadingIndicator';
 import { useAuth } from '../context/AuthContext';
 import { goalService, Goal } from '../lib/services/goal.service';
 import { formatMoney, parseMoneyToMinor } from '../lib/finance/core';
@@ -25,6 +27,7 @@ export default function GoalsScreen() {
 
   const [modalVisible, setModalVisible] = useState(false);
   const [contribModalVisible, setContribModalVisible] = useState(false);
+  const [goalToDelete, setGoalToDelete] = useState<{ id: string; name: string } | null>(null);
   const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
 
   // Form state
@@ -68,12 +71,16 @@ export default function GoalsScreen() {
       if (targetMinor <= 0) throw new Error('Target amount must be greater than zero');
       const savedMinor = currentSaved ? parseMoneyToMinor(currentSaved) : 0;
 
-      return goalService.createGoal({
-        user_id: user!.id,
-        name,
-        target_amount_minor: targetMinor,
-        current_amount_minor: savedMinor,
-      });
+      const [res] = await Promise.all([
+        goalService.createGoal({
+          user_id: user!.id,
+          name,
+          target_amount_minor: targetMinor,
+          current_amount_minor: savedMinor,
+        }),
+        new Promise((resolve) => setTimeout(resolve, 650)),
+      ]);
+      return res;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['goals', user?.id] });
@@ -93,7 +100,11 @@ export default function GoalsScreen() {
     mutationFn: async () => {
       const contribMinor = parseMoneyToMinor(contribAmount);
       if (contribMinor <= 0) throw new Error('Contribution must be greater than zero');
-      return goalService.addContribution(selectedGoalId, contribMinor);
+      const [res] = await Promise.all([
+        goalService.addContribution(selectedGoalId, contribMinor),
+        new Promise((resolve) => setTimeout(resolve, 650)),
+      ]);
+      return res;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['goals', user?.id] });
@@ -146,14 +157,8 @@ export default function GoalsScreen() {
   });
 
   const confirmDeleteGoal = (goalId: string, goalName: string) => {
-    Alert.alert(
-      'Delete Goal',
-      `Are you sure you want to delete "${goalName}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => deleteGoalMutation.mutate(goalId) },
-      ]
-    );
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+    setGoalToDelete({ id: goalId, name: goalName });
   };
 
   // Filter Active vs History goals
@@ -396,30 +401,23 @@ export default function GoalsScreen() {
       </View>
 
       {/* Add Goal Modal */}
-      <AppModal
+      <AppBottomSheet
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
-        animationType="slide"
+        title="Create Goal"
+        subtitle="Set a new savings target"
+        scrollable={true}
+        contentContainerStyle={{ paddingBottom: 24 }}
       >
-        <Pressable
-          className="bg-white rounded-t-3xl p-6 pb-6 border-t border-zinc-200"
-          style={{ maxHeight: '100%', flexShrink: 1 }}
-          onPress={(e) => e.stopPropagation()}
-        >
-          <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-xl font-bold text-zinc-900">Create Goal</Text>
-            <Pressable onPress={() => setModalVisible(false)} className="p-1">
-              <X size={20} color="#71717A" />
-            </Pressable>
+        {createGoalMutation.isPending ? (
+          <View className="py-14 items-center justify-center">
+            <AppLoadingIndicator
+              message="Creating your goal..."
+              subMessage="Setting up your target savings milestone"
+            />
           </View>
-
-          <ScrollView 
-            style={{ flexShrink: 1 }}
-            showsVerticalScrollIndicator={true}
-            persistentScrollbar={true}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 32 }}
-          >
+        ) : (
+          <View>
             <Input
               label="Goal Name"
               placeholder="e.g. New iPhone, Vacation, Emergency Fund"
@@ -446,41 +444,34 @@ export default function GoalsScreen() {
             <Button
               variant="primary"
               size="lg"
-              loading={createGoalMutation.isPending}
               className="mt-2"
+              loading={createGoalMutation.isPending}
               onPress={() => createGoalMutation.mutate()}
             >
-              <Text className="text-white font-semibold">Save Goal</Text>
+              Save Goal
             </Button>
-          </ScrollView>
-        </Pressable>
-      </AppModal>
+          </View>
+        )}
+      </AppBottomSheet>
 
       {/* Add Contribution Modal */}
-      <AppModal
+      <AppBottomSheet
         visible={contribModalVisible}
         onClose={() => setContribModalVisible(false)}
-        animationType="slide"
+        title="Add Contribution"
+        subtitle="Deposit funds toward your goal"
+        scrollable={true}
+        contentContainerStyle={{ paddingBottom: 24 }}
       >
-        <Pressable
-          className="bg-white rounded-t-3xl p-6 pb-6 border-t border-zinc-200"
-          style={{ maxHeight: '100%', flexShrink: 1 }}
-          onPress={(e) => e.stopPropagation()}
-        >
-          <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-xl font-bold text-zinc-900">Add Contribution</Text>
-            <Pressable onPress={() => setContribModalVisible(false)} className="p-1">
-              <X size={20} color="#71717A" />
-            </Pressable>
+        {contribMutation.isPending ? (
+          <View className="py-14 items-center justify-center">
+            <AppLoadingIndicator
+              message="Adding contribution..."
+              subMessage="Depositing funds to your savings goal"
+            />
           </View>
-
-          <ScrollView 
-            style={{ flexShrink: 1 }}
-            showsVerticalScrollIndicator={true}
-            persistentScrollbar={true}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 32 }}
-          >
+        ) : (
+          <View>
             <Input
               label="Contribution Amount (₹)"
               placeholder="1000.00"
@@ -492,15 +483,31 @@ export default function GoalsScreen() {
             <Button
               variant="primary"
               size="lg"
-              loading={contribMutation.isPending}
               className="mt-2"
+              loading={contribMutation.isPending}
               onPress={() => contribMutation.mutate()}
             >
-              <Text className="text-white font-semibold">Add Contribution</Text>
+              Add Contribution
             </Button>
-          </ScrollView>
-        </Pressable>
-      </AppModal>
+          </View>
+        )}
+      </AppBottomSheet>
+
+      {/* Delete Goal Confirmation Dialog */}
+      <AppDialog
+        visible={!!goalToDelete}
+        onClose={() => setGoalToDelete(null)}
+        title="Delete Goal"
+        description={`Are you sure you want to delete "${goalToDelete?.name}"? All progress will be removed.`}
+        confirmLabel="Delete"
+        destructive={true}
+        isLoading={deleteGoalMutation.isPending}
+        onConfirm={() => {
+          if (goalToDelete) {
+            deleteGoalMutation.mutate(goalToDelete.id);
+          }
+        }}
+      />
     </SafeAreaView>
   );
 }

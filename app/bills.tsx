@@ -7,7 +7,9 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
-import { AppModal } from '../components/ui/AppModal';
+import { AppBottomSheet } from '../components/ui/AppBottomSheet';
+import { AppDialog } from '../components/ui/AppDialog';
+import { AppLoadingIndicator } from '../components/ui/AppLoadingIndicator';
 import { useAuth } from '../context/AuthContext';
 import { billService } from '../lib/services/bill.service';
 import { accountService } from '../lib/services/account.service';
@@ -361,35 +363,20 @@ export default function BillsScreen() {
       </View>
 
       {/* Custom Edit Bill Modal */}
-      <AppModal
+      <AppBottomSheet
         visible={editModalVisible}
         onClose={() => setEditModalVisible(false)}
-        animationType="slide"
+        title="Edit Bill"
+        subtitle="Update bill and due date"
+        scrollable={true}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 }}
       >
-        <Pressable
-          className="bg-white rounded-t-3xl p-6 pb-6 border-t border-zinc-200"
-          style={{ maxHeight: '100%', flexShrink: 1 }}
-          onPress={(e) => e.stopPropagation()}
-        >
-          <View className="flex-row justify-between items-center mb-6">
-            <View className="flex-row items-center gap-2">
-              <View className="w-8 h-8 rounded-xl bg-zinc-100 items-center justify-center">
-                <Pencil size={16} color="#18181B" />
-              </View>
-              <Text className="text-xl font-bold text-zinc-900">Edit Bill</Text>
-            </View>
-            <Pressable onPress={() => setEditModalVisible(false)}>
-              <X size={20} color="#71717A" />
-            </Pressable>
+        {updateBillMutation.isPending || deleteBillMutation.isPending ? (
+          <View className="py-12 items-center justify-center">
+            <AppLoadingIndicator message={deleteBillMutation.isPending ? "Deleting bill..." : "Updating bill..."} />
           </View>
-
-          <ScrollView 
-            style={{ flexShrink: 1 }}
-            showsVerticalScrollIndicator={true}
-            persistentScrollbar={true}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 32 }}
-          >
+        ) : (
+          <View>
             <Input
               label="Bill Name"
               placeholder="e.g. Electricity, Internet"
@@ -456,77 +443,37 @@ export default function BillsScreen() {
                 <Text className="text-white font-bold">Save</Text>
               </Button>
             </View>
-          </ScrollView>
-        </Pressable>
-      </AppModal>
+          </View>
+        )}
+      </AppBottomSheet>
 
-      {/* Custom Mark as Paid Confirmation Modal */}
-      <AppModal
+      {/* Custom Mark as Paid Confirmation Dialog */}
+      <AppDialog
         visible={!!billToPay}
         onClose={() => setBillToPay(null)}
-        animationType="fade"
-      >
-        <Pressable
-          className="p-6 w-full bg-white items-center"
-          onPress={(e) => e.stopPropagation()}
-        >
-          <View className="w-16 h-16 rounded-full bg-emerald-50 border border-emerald-100 items-center justify-center mb-4">
-            <CheckCircle2 size={32} color="#10B981" />
-          </View>
-
-          <Text className="text-xl font-black text-zinc-900 text-center">Confirm Bill Payment</Text>
-          <Text className="text-xs text-zinc-500 text-center mt-1.5 mb-6 px-2 leading-5">
-            Mark <Text className="font-bold text-zinc-900">{billToPay?.name}</Text> as paid for <Text className="font-bold text-emerald-600">{formatMoney(billToPay?.expected_amount_minor || 0)}</Text>? An expense transaction will be logged to your account.
-          </Text>
-
-          <View className="flex-row gap-3 w-full">
-            <Button
-              variant="outline"
-              size="md"
-              className="flex-1"
-              onPress={() => setBillToPay(null)}
-            >
-              <Text className="text-zinc-900 font-semibold text-xs">Cancel</Text>
-            </Button>
-
-            <Button
-              variant="primary"
-              size="md"
-              className="flex-1 bg-emerald-600 active:bg-emerald-700"
-              loading={markPaidMutation.isPending}
-              onPress={() => billToPay && markPaidMutation.mutate(billToPay)}
-            >
-              <Text className="text-white font-bold text-xs">Confirm Payment</Text>
-            </Button>
-          </View>
-        </Pressable>
-      </AppModal>
+        title="Confirm Bill Payment"
+        description={`Mark ${billToPay?.name} as paid for ${formatMoney(billToPay?.expected_amount_minor || 0)}? An expense transaction will be logged to your account.`}
+        confirmLabel="Confirm Payment"
+        isLoading={markPaidMutation.isPending}
+        loadingMessage="Recording payment transaction..."
+        onConfirm={() => billToPay && markPaidMutation.mutate(billToPay)}
+      />
 
       {/* Add Bill Modal */}
-      <AppModal
+      <AppBottomSheet
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
-        animationType="slide"
+        title="Add Bill"
+        subtitle="Track upcoming dues"
+        scrollable={true}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 }}
       >
-        <Pressable
-          className="bg-white rounded-t-3xl p-6 pb-6 border-t border-zinc-200"
-          style={{ maxHeight: '100%', flexShrink: 1 }}
-          onPress={(e) => e.stopPropagation()}
-        >
-          <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-xl font-bold text-zinc-900">Add Bill</Text>
-            <Pressable onPress={() => setModalVisible(false)} className="p-1">
-              <X size={20} color="#71717A" />
-            </Pressable>
+        {createBillMutation.isPending ? (
+          <View className="py-12 items-center justify-center">
+            <AppLoadingIndicator message="Saving bill..." subMessage="Setting reminder notifications" />
           </View>
-
-          <ScrollView 
-            style={{ flexShrink: 1 }}
-            showsVerticalScrollIndicator={true}
-            persistentScrollbar={true}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 32 }}
-          >
+        ) : (
+          <View>
             <Input
               label="Bill Name"
               placeholder="e.g. Electricity Bill, Wifi"
@@ -587,20 +534,18 @@ export default function BillsScreen() {
             >
               <Text className="text-white font-semibold">Save Bill & Enable Reminder</Text>
             </Button>
-          </ScrollView>
-        </Pressable>
-      </AppModal>
+          </View>
+        )}
+      </AppBottomSheet>
 
       {/* Visual Interactive Calendar Modal */}
-      <AppModal
+      <AppBottomSheet
         visible={calendarModalVisible}
         onClose={() => setCalendarModalVisible(false)}
-        animationType="fade"
+        title="Select Due Date"
+        subtitle="Choose bill deadline"
       >
-        <Pressable
-          className="p-5 w-full bg-white"
-          onPress={(e) => e.stopPropagation()}
-        >
+        <View className="p-5 w-full">
           {/* Calendar Header */}
           <View className="flex-row justify-between items-center mb-4">
             <Pressable
@@ -676,8 +621,8 @@ export default function BillsScreen() {
           >
             <Text className="text-zinc-700 font-semibold text-xs">Cancel</Text>
           </Button>
-        </Pressable>
-      </AppModal>
+        </View>
+      </AppBottomSheet>
 
       {/* Time Picker Modal */}
       <TimePickerModal
