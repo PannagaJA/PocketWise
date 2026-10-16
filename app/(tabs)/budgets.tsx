@@ -214,7 +214,7 @@ export default function BudgetsScreen() {
         </Card>
 
         {/* Budgets List */}
-        <ScrollView showsVerticalScrollIndicator={false} className="flex-1" contentContainerStyle={{ paddingBottom: 110 }}>
+        <ScrollView showsVerticalScrollIndicator={false} className="flex-1" contentContainerStyle={{ paddingBottom: 140 }}>
           {loadingBudgets ? (
             <View className="py-8">
               <ActivityIndicator size="small" color="#09090B" />
