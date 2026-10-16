@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, Pressable, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, ScrollView, Alert } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, ChevronDown, Check } from 'lucide-react-native';
+import { ChevronDown, Check } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
-import { AppModal } from './ui/AppModal';
+import { AppBottomSheet } from './ui/AppBottomSheet';
+import { AppLoadingIndicator } from './ui/AppLoadingIndicator';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { useAuth } from '../context/AuthContext';
@@ -147,31 +148,21 @@ export function RecordTransactionModal({
   });
 
   return (
-    <AppModal visible={visible} onClose={onClose} animationType="slide">
-      <Pressable
-        style={{ width: '100%', maxHeight: '100%', flexShrink: 1, padding: 20, paddingBottom: 16 }}
-        onPress={(e) => e.stopPropagation()}
-      >
-        <View className="flex-row justify-between items-center mb-4">
-          <Text className="text-xl font-bold text-zinc-900">Record Transaction</Text>
-          <Pressable
-            onPress={() => {
-              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-              onClose();
-            }}
-            className="p-1"
-          >
-            <X size={20} color="#71717A" />
-          </Pressable>
-        </View>
-
-        <ScrollView
-          style={{ flexShrink: 1 }}
-          showsVerticalScrollIndicator={true}
-          persistentScrollbar={true}
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingBottom: 24 }}
-        >
+    <AppBottomSheet
+      visible={visible}
+      onClose={onClose}
+      title="Record Transaction"
+      subtitle="Track your income, expense or account transfer"
+      scrollable
+      dismissOnBackdrop={!createTxMutation.isPending}
+    >
+      {createTxMutation.isPending ? (
+        <AppLoadingIndicator
+          message={`Saving ${type === 'income' ? 'income' : type === 'expense' ? 'expense' : 'transfer'}...`}
+          subMessage="Updating your balance and transactions"
+        />
+      ) : (
+        <View style={{ paddingBottom: 24 }}>
           {/* Type Selector */}
           <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-4">
             <Pressable
@@ -212,22 +203,26 @@ export function RecordTransactionModal({
             </Pressable>
           </View>
 
-          <Input
-            label="Description"
-            placeholder={currentPlaceholders.description}
-            value={description}
-            onChangeText={setDescription}
-          />
-
+          {/* Amount Input */}
           <Input
             label="Amount (₹)"
             placeholder={currentPlaceholders.amount}
             keyboardType="numeric"
             value={amount}
             onChangeText={setAmount}
+            containerClassName="mb-4"
           />
 
-          {/* Category Dropdown (Expense & Income) */}
+          {/* Description Input */}
+          <Input
+            label="Description / Merchant"
+            placeholder={currentPlaceholders.description}
+            value={description}
+            onChangeText={setDescription}
+            containerClassName="mb-4"
+          />
+
+          {/* Category Dropdown (Not for transfers) */}
           {type !== 'transfer' && (
             <View className="mb-4">
               <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Category</Text>
@@ -239,7 +234,7 @@ export function RecordTransactionModal({
                 className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
               >
                 <Text className={`text-sm ${selectedCatObj ? 'text-zinc-900 font-medium' : 'text-zinc-400'}`}>
-                  {selectedCatObj ? selectedCatObj.name : 'Select a Category'}
+                  {selectedCatObj ? selectedCatObj.name : 'Select Category (Optional)'}
                 </Text>
                 <ChevronDown size={18} color="#71717A" />
               </Pressable>
@@ -247,6 +242,17 @@ export function RecordTransactionModal({
               {categoryDropdownOpen && (
                 <View className="mt-1 bg-white border border-zinc-200 rounded-xl max-h-48 overflow-hidden shadow-sm">
                   <ScrollView nestedScrollEnabled className="p-1">
+                    <Pressable
+                      onPress={() => {
+                        try { Haptics.selectionAsync(); } catch {}
+                        setSelectedCategoryId('');
+                        setCategoryDropdownOpen(false);
+                      }}
+                      className="p-3 rounded-lg flex-row items-center justify-between"
+                    >
+                      <Text className="text-sm text-zinc-500">None</Text>
+                      {!selectedCategoryId && <Check size={16} color="#09090B" />}
+                    </Pressable>
                     {filteredCategories.map((cat) => (
                       <Pressable
                         key={cat.id}
@@ -368,8 +374,8 @@ export function RecordTransactionModal({
               </Text>
             </Button>
           </View>
-        </ScrollView>
-      </Pressable>
-    </AppModal>
+        </View>
+      )}
+    </AppBottomSheet>
   );
 }
