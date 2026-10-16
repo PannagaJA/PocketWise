@@ -351,14 +351,27 @@ export default function MoreScreen() {
             onChangeText={setConfirmPinInput}
           />
 
-          <Button
-            variant="primary"
-            size="lg"
-            className="mt-2 mb-4"
-            onPress={handleSavePin}
-          >
-            <Text className="text-white font-semibold">Enable App Lock</Text>
-          </Button>
+          {/* Action Buttons */}
+          <View className="flex-row gap-3 mt-2 mb-4">
+            <Button
+              variant="outline"
+              size="lg"
+              className="flex-1 rounded-2xl border-zinc-200/90"
+              onPress={() => setPinModalVisible(false)}
+            >
+              <Text className="text-zinc-700 font-bold text-sm">Cancel</Text>
+            </Button>
+
+            <Button
+              variant="purple"
+              size="lg"
+              className="flex-1 rounded-2xl shadow-xs"
+              disabled={pinInput.length !== 4 || confirmPinInput.length !== 4}
+              onPress={handleSavePin}
+            >
+              <Text className="text-white font-bold text-sm">Enable Lock</Text>
+            </Button>
+          </View>
         </View>
       </AppBottomSheet>
 

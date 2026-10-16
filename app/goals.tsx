@@ -441,15 +441,28 @@ export default function GoalsScreen() {
               onChangeText={setCurrentSaved}
             />
 
-            <Button
-              variant="primary"
-              size="lg"
-              className="mt-2"
-              loading={createGoalMutation.isPending}
-              onPress={() => createGoalMutation.mutate()}
-            >
-              Save Goal
-            </Button>
+            {/* Action Buttons */}
+            <View className="flex-row gap-3 mt-4">
+              <Button
+                variant="outline"
+                size="lg"
+                className="flex-1 rounded-2xl border-zinc-200/90"
+                onPress={() => setModalVisible(false)}
+              >
+                <Text className="text-zinc-700 font-bold text-sm">Cancel</Text>
+              </Button>
+
+              <Button
+                variant="purple"
+                size="lg"
+                className="flex-1 rounded-2xl shadow-xs"
+                loading={createGoalMutation.isPending}
+                disabled={createGoalMutation.isPending || !name.trim() || !targetAmount.trim()}
+                onPress={() => createGoalMutation.mutate()}
+              >
+                <Text className="text-white font-bold text-sm">Save Goal</Text>
+              </Button>
+            </View>
           </View>
         )}
       </AppBottomSheet>
@@ -480,15 +493,28 @@ export default function GoalsScreen() {
               onChangeText={setContribAmount}
             />
 
-            <Button
-              variant="primary"
-              size="lg"
-              className="mt-2"
-              loading={contribMutation.isPending}
-              onPress={() => contribMutation.mutate()}
-            >
-              Add Contribution
-            </Button>
+            {/* Action Buttons */}
+            <View className="flex-row gap-3 mt-4">
+              <Button
+                variant="outline"
+                size="lg"
+                className="flex-1 rounded-2xl border-zinc-200/90"
+                onPress={() => setContribModalVisible(false)}
+              >
+                <Text className="text-zinc-700 font-bold text-sm">Cancel</Text>
+              </Button>
+
+              <Button
+                variant="purple"
+                size="lg"
+                className="flex-1 rounded-2xl shadow-xs"
+                loading={contribMutation.isPending}
+                disabled={contribMutation.isPending || !contribAmount.trim()}
+                onPress={() => contribMutation.mutate()}
+              >
+                <Text className="text-white font-bold text-sm">Add Money</Text>
+              </Button>
+            </View>
           </View>
         )}
       </AppBottomSheet>

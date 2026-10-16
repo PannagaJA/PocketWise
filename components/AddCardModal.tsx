@@ -239,28 +239,37 @@ export const AddCardModal: React.FC<AddCardModalProps> = ({
             </Text>
           </View>
 
-          {/* Prominent Action Button */}
-          <Pressable
-            onPress={handleSubmit}
-            disabled={!isFormValid || isLoading}
-            style={[
-              styles.submitButton,
-              isFormValid && !isLoading
-                ? styles.submitButtonActive
-                : styles.submitButtonDisabled,
-            ]}
-          >
-            <Text
+          {/* Prominent Action Buttons */}
+          <View style={styles.actionRow}>
+            <Pressable
+              onPress={onClose}
+              style={styles.cancelButton}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={handleSubmit}
+              disabled={!isFormValid || isLoading}
               style={[
-                styles.submitButtonText,
+                styles.submitButton,
                 isFormValid && !isLoading
-                  ? styles.submitButtonTextActive
-                  : styles.submitButtonTextDisabled,
+                  ? styles.submitButtonActive
+                  : styles.submitButtonDisabled,
               ]}
             >
-              Add Card
-            </Text>
-          </Pressable>
+              <Text
+                style={[
+                  styles.submitButtonText,
+                  isFormValid && !isLoading
+                    ? styles.submitButtonTextActive
+                    : styles.submitButtonTextDisabled,
+                ]}
+              >
+                Add Card
+              </Text>
+            </Pressable>
+          </View>
         </View>
       )}
     </AppBottomSheet>
@@ -352,18 +361,38 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#71717A',
   },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  cancelButton: {
+    flex: 1,
+    height: 52,
+    borderRadius: 9999,
+    borderWidth: 1,
+    borderColor: '#E4E4E7',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#71717A',
+  },
   submitButton: {
     height: 52,
     borderRadius: 9999,
     alignItems: 'center',
     justifyContent: 'center',
-    width: '100%',
+    flex: 1,
   },
   submitButtonActive: {
-    backgroundColor: '#09090B',
-    shadowColor: '#000000',
+    backgroundColor: '#6366F1',
+    shadowColor: '#6366F1',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 4,
   },

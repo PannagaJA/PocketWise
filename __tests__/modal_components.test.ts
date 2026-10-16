@@ -58,4 +58,59 @@ describe('Magpie Modal System — Unit Tests', () => {
     expect(dot1ScaleMid).toBeCloseTo(1.275);
     expect(dot2ScaleMid).toBeCloseTo(1.275);
   });
+
+  test('Set Monthly Budget modal validates category selection and positive limit', () => {
+    const validateBudgetForm = (categoryId: string, limitStr: string) => {
+      if (!categoryId) return { valid: false, error: 'Please select an expense category' };
+      const num = parseFloat(limitStr.replace(/,/g, ''));
+      if (isNaN(num) || num <= 0) return { valid: false, error: 'Monthly limit must be greater than zero' };
+      return { valid: true, error: null, amountMinor: Math.round(num * 100) };
+    };
+
+    expect(validateBudgetForm('', '5000')).toEqual({
+      valid: false,
+      error: 'Please select an expense category',
+    });
+    expect(validateBudgetForm('cat-123', '')).toEqual({
+      valid: false,
+      error: 'Monthly limit must be greater than zero',
+    });
+    expect(validateBudgetForm('cat-123', '0')).toEqual({
+      valid: false,
+      error: 'Monthly limit must be greater than zero',
+    });
+    expect(validateBudgetForm('cat-123', '15000')).toEqual({
+      valid: true,
+      error: null,
+      amountMinor: 1500000,
+    });
+    expect(validateBudgetForm('cat-123', '15,000.50')).toEqual({
+      valid: true,
+      error: null,
+      amountMinor: 1500050,
+    });
+  });
+
+  test('AppDialog differentiates destructive and confirmation variants', () => {
+    const getButtonStyles = (variant: 'primary' | 'destructive', isDestructiveProp?: boolean) => {
+      const isDestructive = isDestructiveProp || variant === 'destructive';
+      return {
+        bg: isDestructive ? '#FEE2E2' : '#09090B',
+        textColor: isDestructive ? '#DC2626' : '#FFFFFF',
+      };
+    };
+
+    expect(getButtonStyles('primary')).toEqual({
+      bg: '#09090B',
+      textColor: '#FFFFFF',
+    });
+    expect(getButtonStyles('destructive')).toEqual({
+      bg: '#FEE2E2',
+      textColor: '#DC2626',
+    });
+    expect(getButtonStyles('primary', true)).toEqual({
+      bg: '#FEE2E2',
+      textColor: '#DC2626',
+    });
+  });
 });

@@ -5,7 +5,7 @@ import * as Haptics from 'expo-haptics';
 interface ButtonProps {
   children: React.ReactNode;
   onPress: () => void;
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive' | 'income';
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive' | 'income' | 'purple';
   size?: 'sm' | 'md' | 'lg';
   loading?: boolean;
   disabled?: boolean;
@@ -40,6 +40,7 @@ export const Button: React.FC<ButtonProps> = ({
   else if (size === 'lg') baseStyle += "px-6 h-[52px] ";
 
   if (variant === 'primary') baseStyle += "bg-zinc-950 shadow-xs ";
+  else if (variant === 'purple') baseStyle += "bg-indigo-600 shadow-xs ";
   else if (variant === 'secondary') baseStyle += "bg-zinc-100 ";
   else if (variant === 'outline') baseStyle += "bg-white border border-zinc-200 ";
   else if (variant === 'ghost') baseStyle += "bg-transparent ";
@@ -49,7 +50,7 @@ export const Button: React.FC<ButtonProps> = ({
   if (disabled || loading) baseStyle += "opacity-40 ";
 
   let textStyle = "font-bold text-center tracking-tight ";
-  if (variant === 'primary' || variant === 'destructive' || variant === 'income') {
+  if (variant === 'primary' || variant === 'purple' || variant === 'destructive' || variant === 'income') {
     textStyle += "text-white ";
   } else if (variant === 'outline' || variant === 'secondary') {
     textStyle += "text-zinc-900 ";

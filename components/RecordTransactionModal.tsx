@@ -361,13 +361,24 @@ export function RecordTransactionModal({
             </View>
           )}
 
-          {/* Submit Button */}
-          <View className="mt-2">
+          {/* Action Buttons */}
+          <View className="flex-row gap-3 mt-4">
+            <Button
+              variant="outline"
+              size="lg"
+              className="flex-1 rounded-2xl border-zinc-200/90"
+              onPress={onClose}
+            >
+              <Text className="text-zinc-700 font-bold text-sm">Cancel</Text>
+            </Button>
+
             <Button
               size="lg"
-              variant={type === 'income' ? 'income' : 'primary'}
+              variant={type === 'income' ? 'income' : type === 'expense' ? 'purple' : 'primary'}
+              className="flex-1 rounded-2xl shadow-xs"
               onPress={() => createTxMutation.mutate()}
               loading={createTxMutation.isPending}
+              disabled={createTxMutation.isPending}
             >
               <Text className="text-white font-bold text-sm">
                 Save {type === 'income' ? 'Income' : type === 'expense' ? 'Expense' : 'Transfer'}

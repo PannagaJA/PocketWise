@@ -439,15 +439,28 @@ export default function SubscriptionsScreen() {
               onChangeText={setEditNextBillingDate}
             />
 
-            <Button
-              variant="primary"
-              size="lg"
-              loading={updateSubMutation.isPending}
-              className="mt-4"
-              onPress={() => updateSubMutation.mutate()}
-            >
-              <Text className="text-white font-semibold">Save Changes</Text>
-            </Button>
+            {/* Action Buttons */}
+            <View className="flex-row gap-3 mt-4">
+              <Button
+                variant="outline"
+                size="lg"
+                className="flex-1 rounded-2xl border-zinc-200/90"
+                onPress={() => setEditModalVisible(false)}
+              >
+                <Text className="text-zinc-700 font-bold text-sm">Cancel</Text>
+              </Button>
+
+              <Button
+                variant="purple"
+                size="lg"
+                className="flex-1 rounded-2xl shadow-xs"
+                loading={updateSubMutation.isPending}
+                disabled={updateSubMutation.isPending || !editName.trim() || !editAmount.trim()}
+                onPress={() => updateSubMutation.mutate()}
+              >
+                <Text className="text-white font-bold text-sm">Save Changes</Text>
+              </Button>
+            </View>
           </View>
         )}
       </AppBottomSheet>
@@ -557,14 +570,28 @@ export default function SubscriptionsScreen() {
               </Pressable>
             </View>
 
-            <Button
-              variant="primary"
-              size="lg"
-              loading={createSubMutation.isPending}
-              onPress={() => createSubMutation.mutate()}
-            >
-              <Text className="text-white font-semibold">Save Subscription</Text>
-            </Button>
+            {/* Action Buttons */}
+            <View className="flex-row gap-3 mt-2">
+              <Button
+                variant="outline"
+                size="lg"
+                className="flex-1 rounded-2xl border-zinc-200/90"
+                onPress={() => setModalVisible(false)}
+              >
+                <Text className="text-zinc-700 font-bold text-sm">Cancel</Text>
+              </Button>
+
+              <Button
+                variant="purple"
+                size="lg"
+                className="flex-1 rounded-2xl shadow-xs"
+                loading={createSubMutation.isPending}
+                disabled={createSubMutation.isPending || !name.trim() || !amount.trim()}
+                onPress={() => createSubMutation.mutate()}
+              >
+                <Text className="text-white font-bold text-sm">Save Subscription</Text>
+              </Button>
+            </View>
           </View>
         )}
       </AppBottomSheet>
@@ -649,9 +676,9 @@ export default function SubscriptionsScreen() {
           {/* Close / Cancel Button */}
           <Pressable
             onPress={() => setCalendarPickerVisible(false)}
-            className="mt-4 bg-zinc-900 py-3 rounded-2xl items-center active:bg-zinc-800 shadow-sm"
+            className="mt-4 bg-white border border-zinc-200/90 py-3 rounded-2xl items-center active:bg-zinc-50 shadow-xs"
           >
-            <Text className="text-white font-bold text-xs">Cancel</Text>
+            <Text className="text-zinc-700 font-bold text-xs">Cancel</Text>
           </Pressable>
         </View>
       </AppBottomSheet>

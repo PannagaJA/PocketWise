@@ -471,14 +471,14 @@ export default function ReportsScreen() {
                 activeOpacity={0.7}
                 disabled={isExporting}
                 onPress={handleExportCSV}
-                className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 flex-row items-center"
+                className="p-4 rounded-2xl bg-zinc-50/80 border border-zinc-200/80 flex-row items-center active:bg-zinc-100"
               >
-                <View className="w-10 h-10 rounded-xl bg-emerald-50 items-center justify-center mr-3 border border-emerald-100">
+                <View className="w-10 h-10 rounded-2xl bg-emerald-50 items-center justify-center mr-3 border border-emerald-100/60">
                   <FileSpreadsheet size={20} color="#10B981" />
                 </View>
                 <View className="flex-1">
-                  <Text className="text-sm font-bold text-zinc-900">Transactions Spreadsheet (CSV)</Text>
-                  <Text className="text-xs text-zinc-500">Full itemized statement with dates, categories & amounts</Text>
+                  <Text className="text-sm font-bold text-zinc-950">Transactions Spreadsheet (CSV)</Text>
+                  <Text className="text-xs font-medium text-zinc-500 mt-0.5">Full itemized statement with dates, categories & amounts</Text>
                 </View>
               </TouchableOpacity>
 
@@ -486,14 +486,14 @@ export default function ReportsScreen() {
                 activeOpacity={0.7}
                 disabled={isExporting}
                 onPress={handleExportSummary}
-                className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 flex-row items-center"
+                className="p-4 rounded-2xl bg-zinc-50/80 border border-zinc-200/80 flex-row items-center active:bg-zinc-100"
               >
-                <View className="w-10 h-10 rounded-xl bg-indigo-50 items-center justify-center mr-3 border border-indigo-100">
+                <View className="w-10 h-10 rounded-2xl bg-indigo-50 items-center justify-center mr-3 border border-indigo-100/60">
                   <FileText size={20} color="#6366F1" />
                 </View>
                 <View className="flex-1">
-                  <Text className="text-sm font-bold text-zinc-900">Financial Summary Report (Text)</Text>
-                  <Text className="text-xs text-zinc-500">Savings rate, income/expense breakdown & totals</Text>
+                  <Text className="text-sm font-bold text-zinc-950">Financial Summary Report (Text)</Text>
+                  <Text className="text-xs font-medium text-zinc-500 mt-0.5">Savings rate, income/expense breakdown & totals</Text>
                 </View>
               </TouchableOpacity>
             </View>
@@ -501,10 +501,10 @@ export default function ReportsScreen() {
             <Button
               variant="outline"
               size="lg"
-              className="mt-2"
+              className="mt-2 rounded-2xl border-zinc-200/90"
               onPress={() => setExportModalVisible(false)}
             >
-              <Text className="text-zinc-700 font-semibold">Cancel</Text>
+              <Text className="text-zinc-700 font-bold text-sm">Cancel</Text>
             </Button>
           </View>
         )}

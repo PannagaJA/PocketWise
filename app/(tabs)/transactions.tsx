@@ -988,14 +988,30 @@ export default function TransactionsScreen() {
               </View>
             )}
 
-            <Button
-              variant={type === 'income' ? 'income' : type === 'expense' ? 'destructive' : 'primary'}
-              size="lg"
-              className="mt-2 mb-4"
-              onPress={() => createTxMutation.mutate()}
-            >
-              <Text className="text-white font-semibold">{type === 'income' ? 'Save INCOME' : type === 'expense' ? 'Save EXPENSE' : 'Save TRANSFER'}</Text>
-            </Button>
+            {/* Action Buttons */}
+            <View className="flex-row gap-3 mt-4 mb-4">
+              <Button
+                variant="outline"
+                size="lg"
+                className="flex-1 rounded-2xl border-zinc-200/90"
+                onPress={() => setModalVisible(false)}
+              >
+                <Text className="text-zinc-700 font-bold text-sm">Cancel</Text>
+              </Button>
+
+              <Button
+                variant={type === 'income' ? 'income' : type === 'expense' ? 'purple' : 'primary'}
+                size="lg"
+                className="flex-1 rounded-2xl shadow-xs"
+                loading={createTxMutation.isPending}
+                disabled={createTxMutation.isPending || !amount.trim()}
+                onPress={() => createTxMutation.mutate()}
+              >
+                <Text className="text-white font-bold text-sm">
+                  {type === 'income' ? 'Save Income' : type === 'expense' ? 'Save Expense' : 'Save Transfer'}
+                </Text>
+              </Button>
+            </View>
           </View>
         )}
       </AppBottomSheet>
@@ -1030,14 +1046,28 @@ export default function TransactionsScreen() {
               onChangeText={setAccBalance}
             />
 
-            <Button
-              variant="primary"
-              size="lg"
-              className="mt-2"
-              onPress={() => createAccountMutation.mutate()}
-            >
-              <Text className="text-white font-semibold">Save Account</Text>
-            </Button>
+            {/* Action Buttons */}
+            <View className="flex-row gap-3 mt-4">
+              <Button
+                variant="outline"
+                size="lg"
+                className="flex-1 rounded-2xl border-zinc-200/90"
+                onPress={() => setAccModalVisible(false)}
+              >
+                <Text className="text-zinc-700 font-bold text-sm">Cancel</Text>
+              </Button>
+
+              <Button
+                variant="purple"
+                size="lg"
+                className="flex-1 rounded-2xl shadow-xs"
+                loading={createAccountMutation.isPending}
+                disabled={createAccountMutation.isPending || !accName.trim()}
+                onPress={() => createAccountMutation.mutate()}
+              >
+                <Text className="text-white font-bold text-sm">Save Account</Text>
+              </Button>
+            </View>
           </View>
         )}
       </AppBottomSheet>
@@ -1158,27 +1188,39 @@ export default function TransactionsScreen() {
               )}
             </View>
 
-            <View className="flex-row gap-3 mt-3">
+            {/* Action Buttons */}
+            <View className="flex-row gap-3 mt-4">
               <Button
                 variant="outline"
                 size="lg"
-                loading={deleteTxMutation.isPending}
-                className="flex-1 border-rose-200 bg-rose-50/50"
-                onPress={confirmDeleteTx}
+                className="flex-1 rounded-2xl border-zinc-200/90"
+                onPress={() => setEditModalVisible(false)}
               >
-                <Trash2 size={16} color="#EF4444" />
-                <Text className="text-rose-600 font-bold ml-1.5">Delete</Text>
+                <Text className="text-zinc-700 font-bold text-sm">Cancel</Text>
               </Button>
 
               <Button
-                variant="primary"
+                variant="purple"
                 size="lg"
-                className="flex-1"
+                className="flex-1 rounded-2xl shadow-xs"
+                loading={updateTxMutation.isPending}
+                disabled={updateTxMutation.isPending || !editAmount.trim()}
                 onPress={() => updateTxMutation.mutate()}
               >
-                <Text className="text-white font-bold">Save</Text>
+                <Text className="text-white font-bold text-sm">Save Changes</Text>
               </Button>
             </View>
+
+            <Button
+              variant="outline"
+              size="sm"
+              loading={deleteTxMutation.isPending}
+              className="mt-3 border-rose-200 bg-rose-50/50 rounded-2xl"
+              onPress={confirmDeleteTx}
+            >
+              <Trash2 size={14} color="#EF4444" />
+              <Text className="text-rose-600 font-bold text-xs ml-1.5">Delete This Transaction</Text>
+            </Button>
           </View>
         )}
       </AppBottomSheet>

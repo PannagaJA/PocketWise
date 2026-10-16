@@ -5,6 +5,7 @@ import { X, ChevronDown, Check, Zap } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { AppBottomSheet } from './ui/AppBottomSheet';
 import { AppLoadingIndicator } from './ui/AppLoadingIndicator';
+import { Button } from './ui/Button';
 import { useAuth } from '../context/AuthContext';
 import { transactionService } from '../lib/services/transaction.service';
 import { accountService } from '../lib/services/account.service';
@@ -286,14 +287,28 @@ export function QuickExpenseModal() {
             </Text>
           ) : null}
 
-          {/* Done Button */}
-          <Pressable
-            disabled={createExpenseMutation.isPending}
-            onPress={() => createExpenseMutation.mutate()}
-            className="w-full py-3.5 rounded-2xl items-center justify-center mb-3 bg-zinc-900 active:bg-zinc-800 shadow-sm"
-          >
-            <Text className="text-sm font-black text-white tracking-wider">DONE</Text>
-          </Pressable>
+          {/* Action Buttons */}
+          <View className="flex-row gap-3 mt-2 mb-3">
+            <Button
+              variant="outline"
+              size="lg"
+              className="flex-1 rounded-2xl border-zinc-200/90"
+              onPress={closeModal}
+            >
+              <Text className="text-zinc-700 font-bold text-sm">Cancel</Text>
+            </Button>
+
+            <Button
+              variant="purple"
+              size="lg"
+              className="flex-1 rounded-2xl shadow-xs"
+              disabled={createExpenseMutation.isPending || !amount.trim()}
+              loading={createExpenseMutation.isPending}
+              onPress={() => createExpenseMutation.mutate()}
+            >
+              <Text className="text-white font-bold text-sm">Save Expense</Text>
+            </Button>
+          </View>
         </View>
       )}
     </AppBottomSheet>

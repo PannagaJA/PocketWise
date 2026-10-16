@@ -120,31 +120,31 @@ export function TransactionDetailModal({
       contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 }}
     >
       {/* Hero Amount Box */}
-          <View className="items-center justify-center py-5 px-4 bg-zinc-50 rounded-2xl border border-zinc-200/80 mb-5">
-            <View className="flex-row items-center gap-1.5 mb-2">
-              <Badge
-                variant={isIncome ? 'income' : isExpense ? 'expense' : 'subscription'}
-                label={isIncome ? 'CREDIT / RECEIVED' : isExpense ? 'DEBIT / PAID' : 'INTERNAL TRANSFER'}
-                className="px-2.5 py-0.5"
-              />
-            </View>
+      <View className="items-center justify-center py-5 px-4 bg-zinc-50/80 rounded-3xl border border-zinc-100 mb-4">
+        <View className="flex-row items-center gap-1.5 mb-2">
+          <Badge
+            variant={isIncome ? 'income' : isExpense ? 'expense' : 'neutral'}
+            label={isIncome ? 'CREDIT / RECEIVED' : isExpense ? 'DEBIT / PAID' : 'INTERNAL TRANSFER'}
+            className="px-2.5 py-0.5"
+          />
+        </View>
 
-            <Text
-              className={`text-3xl font-black tracking-tight ${
-                isIncome ? 'text-emerald-600' : isExpense ? 'text-zinc-900' : 'text-indigo-600'
-              }`}
-            >
-              {isIncome ? '+' : isExpense ? '-' : ''}
-              {formatMoney(tx.amount_minor)}
-            </Text>
+        <Text
+          className={`text-3xl font-extrabold tracking-tight ${
+            isIncome ? 'text-emerald-600' : isExpense ? 'text-zinc-950' : 'text-indigo-600'
+          }`}
+        >
+          {isIncome ? '+' : isExpense ? '-' : ''}
+          {formatMoney(tx.amount_minor)}
+        </Text>
 
-            <Text className="text-sm font-semibold text-zinc-600 mt-1 text-center" numberOfLines={2}>
-              {cleanedDescription}
-            </Text>
-          </View>
+        <Text className="text-sm font-semibold text-zinc-600 mt-1 text-center" numberOfLines={2}>
+          {cleanedDescription}
+        </Text>
+      </View>
 
-          {/* Details Breakdown */}
-          <View className="bg-white rounded-2xl border border-zinc-200 overflow-hidden mb-5 divide-y divide-zinc-100">
+      {/* Details Breakdown */}
+      <View className="bg-white rounded-3xl border border-zinc-100 shadow-xs overflow-hidden mb-5 divide-y divide-zinc-100/80">
             {/* To / From / Party */}
             <View className="p-4 flex-row items-center justify-between">
               <View className="flex-row items-center gap-3 flex-1 mr-2">
@@ -289,7 +289,7 @@ export function TransactionDetailModal({
               <TouchableOpacity
                 onPress={handleDelete}
                 activeOpacity={0.7}
-                className="flex-1 flex-row items-center justify-center gap-2 py-3 px-4 bg-rose-50 border border-rose-200 rounded-xl"
+                className="flex-1 flex-row items-center justify-center gap-2 h-[52px] px-4 bg-rose-50 border border-rose-200/80 rounded-2xl active:bg-rose-100"
               >
                 <Trash2 size={16} color="#E11D48" />
                 <Text className="text-rose-700 font-bold text-sm">Delete</Text>
@@ -300,7 +300,7 @@ export function TransactionDetailModal({
               <TouchableOpacity
                 onPress={handleEdit}
                 activeOpacity={0.7}
-                className="flex-1 flex-row items-center justify-center gap-2 py-3 px-4 bg-zinc-900 rounded-xl shadow-sm"
+                className="flex-1 flex-row items-center justify-center gap-2 h-[52px] px-4 bg-zinc-950 rounded-2xl shadow-xs active:bg-zinc-800"
               >
                 <Pencil size={16} color="#FFFFFF" />
                 <Text className="text-white font-bold text-sm">Edit</Text>

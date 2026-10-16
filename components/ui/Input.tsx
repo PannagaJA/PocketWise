@@ -67,10 +67,10 @@ const styles = StyleSheet.create({
   },
   inputFocused: {
     backgroundColor: '#FFFFFF',
-    borderColor: '#09090B',
-    shadowColor: '#000000',
+    borderColor: '#6366F1',
+    shadowColor: '#6366F1',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 2,
   },

@@ -994,18 +994,32 @@ export default function LendsScreen() {
               </View>
             </View>
 
-            <Button
-              variant="primary"
-              size="lg"
-              className="bg-indigo-600 active:bg-indigo-700 shadow-sm mt-3"
-              onPress={() => createLendMutation.mutate()}
-            >
-              <Text className="text-white font-bold text-sm">
-                {parseMoneyToMinor(collectAmount || amount) > 0
-                  ? `Save & Collect ${formatMoney(parseMoneyToMinor(collectAmount || amount))}`
-                  : 'Save & Set Reminder'}
-              </Text>
-            </Button>
+            {/* Action Buttons */}
+            <View className="flex-row gap-3 mt-4">
+              <Button
+                variant="outline"
+                size="lg"
+                className="flex-1 rounded-2xl border-zinc-200/90"
+                onPress={() => setShowAdd(false)}
+              >
+                <Text className="text-zinc-700 font-bold text-sm">Cancel</Text>
+              </Button>
+
+              <Button
+                variant="purple"
+                size="lg"
+                className="flex-1 rounded-2xl shadow-xs"
+                loading={createLendMutation.isPending}
+                disabled={createLendMutation.isPending || !personName.trim() || !(collectAmount.trim() || amount.trim())}
+                onPress={() => createLendMutation.mutate()}
+              >
+                <Text className="text-white font-bold text-sm">
+                  {parseMoneyToMinor(collectAmount || amount) > 0
+                    ? `Collect ${formatMoney(parseMoneyToMinor(collectAmount || amount))}`
+                    : 'Save Lend'}
+                </Text>
+              </Button>
+            </View>
           </View>
         )}
       </AppBottomSheet>

@@ -8,9 +8,10 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { AppBottomSheet } from '../../components/ui/AppBottomSheet';
+import { AppDialog } from '../../components/ui/AppDialog';
 import { AppLoadingIndicator } from '../../components/ui/AppLoadingIndicator';
 import { useAuth } from '../../context/AuthContext';
-import { budgetService } from '../../lib/services/budget.service';
+import { budgetService, Budget } from '../../lib/services/budget.service';
 import { categoryService } from '../../lib/services/category.service';
 import { formatMoney, parseMoneyToMinor } from '../../lib/finance/core';
 import { Plus, X, PieChart, AlertTriangle, ChevronDown, Check, Target, TrendingUp, ShieldCheck, Pencil, Trash2 } from 'lucide-react-native';
@@ -22,6 +23,7 @@ export default function BudgetsScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
+  const [budgetToDelete, setBudgetToDelete] = useState<Budget | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
   // Form state
@@ -283,10 +285,7 @@ export default function BudgetsScreen() {
                       <Pressable
                         onPress={() => {
                           try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
-                          Alert.alert('Delete Budget', `Are you sure you want to delete the ${b.category_name} budget?`, [
-                            { text: 'Cancel', style: 'cancel' },
-                            { text: 'Delete', style: 'destructive', onPress: () => deleteBudgetMutation.mutate(b.id) },
-                          ]);
+                          setBudgetToDelete(b);
                         }}
                         className="p-2 rounded-full bg-rose-50 active:bg-rose-100"
                       >
@@ -337,44 +336,61 @@ export default function BudgetsScreen() {
           setModalVisible(false);
           setEditingBudgetId(null);
           setFormError(null);
+          setCategoryDropdownOpen(false);
         }}
-        title={editingBudgetId ? 'Edit Budget' : 'Set Monthly Budget'}
-        subtitle="Manage category spending limit"
+        title={editingBudgetId ? 'Edit Monthly Budget' : 'Set Monthly Budget'}
+        subtitle="Define spending threshold to stay on track"
         scrollable={true}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 }}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 28 }}
       >
         {saveBudgetMutation.isPending ? (
           <View className="py-12 items-center justify-center">
-            <AppLoadingIndicator message="Updating budget limit..." subMessage="Calculating monthly forecast" />
+            <AppLoadingIndicator
+              message={editingBudgetId ? 'Updating budget limit...' : 'Saving monthly budget...'}
+              subMessage="Recalculating category targets & monthly forecast"
+            />
           </View>
         ) : (
           <View>
             {/* In-Modal Error Banner */}
             {formError && (
-              <View className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl flex-row items-center gap-2">
-                <AlertTriangle size={16} color="#EF4444" />
+              <View className="mb-4 p-3.5 bg-rose-50 border border-rose-200/80 rounded-2xl flex-row items-center gap-2.5">
+                <View className="w-6 h-6 rounded-full bg-rose-100 items-center justify-center">
+                  <AlertTriangle size={13} color="#EF4444" />
+                </View>
                 <Text className="text-xs font-semibold text-rose-700 flex-1">{formError}</Text>
               </View>
             )}
 
             {/* Category Dropdown */}
             <View className="mb-4">
-              <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Category</Text>
+              <Text className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider mb-2 ml-0.5">
+                Expense Category
+              </Text>
               <Pressable
                 onPress={() => setCategoryDropdownOpen(!categoryDropdownOpen)}
-                className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
+                className="flex-row justify-between items-center px-4 py-3.5 bg-zinc-50 border border-zinc-200/80 rounded-2xl active:bg-zinc-100/70"
               >
-                <Text className={`text-sm ${selectedCatObj ? 'text-zinc-900 font-medium' : 'text-zinc-400'}`}>
-                  {selectedCatObj ? selectedCatObj.name : 'Select a Category'}
-                </Text>
+                <View className="flex-row items-center flex-1 mr-2">
+                  {selectedCatObj ? (
+                    <View
+                      className="w-4 h-4 rounded-full mr-2.5"
+                      style={{ backgroundColor: selectedCatObj.color || '#6366F1' }}
+                    />
+                  ) : null}
+                  <Text className={`text-sm ${selectedCatObj ? 'text-zinc-950 font-bold' : 'text-zinc-400 font-medium'}`}>
+                    {selectedCatObj ? selectedCatObj.name : 'Choose an expense category'}
+                  </Text>
+                </View>
                 <ChevronDown size={18} color="#71717A" />
               </Pressable>
 
               {categoryDropdownOpen && (
-                <View className="mt-1 bg-white border border-zinc-200 rounded-xl max-h-48 overflow-hidden shadow-sm">
+                <View className="mt-2 bg-white border border-zinc-200/80 rounded-2xl max-h-52 overflow-hidden shadow-xs">
                   <ScrollView nestedScrollEnabled className="p-1">
                     {expenseCategories.map((cat) => {
                       const isBudgeted = budgets.some((b) => b.category_id === cat.id && b.id !== editingBudgetId);
+                      const isSelected = selectedCategoryId === cat.id;
                       return (
                         <Pressable
                           key={cat.id}
@@ -382,24 +398,23 @@ export default function BudgetsScreen() {
                             setSelectedCategoryId(cat.id);
                             setFormError(null);
                             setCategoryDropdownOpen(false);
-                            // Preload amount if already budgeted
                             const existing = budgets.find((b) => b.category_id === cat.id);
                             if (existing && !monthlyLimit) {
                               setMonthlyLimit((existing.amount_minor / 100).toString());
                             }
                           }}
-                          className={`flex-row justify-between items-center p-3 rounded-lg ${selectedCategoryId === cat.id ? 'bg-zinc-100' : ''}`}
+                          className={`flex-row justify-between items-center px-3.5 py-3 rounded-xl ${isSelected ? 'bg-indigo-50/80' : 'active:bg-zinc-50'}`}
                         >
                           <View className="flex-row items-center flex-1 mr-2">
-                            <View className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: cat.color }} />
-                            <Text className={`text-sm ${selectedCategoryId === cat.id ? 'font-bold text-zinc-900' : 'text-zinc-700'}`}>
+                            <View className="w-3.5 h-3.5 rounded-full mr-2.5" style={{ backgroundColor: cat.color }} />
+                            <Text className={`text-sm ${isSelected ? 'font-bold text-indigo-950' : 'font-medium text-zinc-800'}`}>
                               {cat.name}
                             </Text>
                             {isBudgeted && (
-                              <Text className="text-[10px] text-zinc-400 ml-2">(Active)</Text>
+                              <Text className="text-[10px] font-semibold text-zinc-400 ml-2">(Active Limit)</Text>
                             )}
                           </View>
-                          {selectedCategoryId === cat.id && <Check size={16} color="#09090B" />}
+                          {isSelected && <Check size={16} color="#6366F1" />}
                         </Pressable>
                       );
                     })}
@@ -410,7 +425,7 @@ export default function BudgetsScreen() {
 
             <Input
               label="Monthly Limit (₹)"
-              placeholder="e.g. 15000.00"
+              placeholder="e.g. 15,000"
               keyboardType="numeric"
               value={monthlyLimit}
               onChangeText={(val) => {
@@ -419,20 +434,54 @@ export default function BudgetsScreen() {
               }}
             />
 
-            <Button
-              variant="primary"
-              size="lg"
-              loading={saveBudgetMutation.isPending}
-              className="mt-2"
-              onPress={() => saveBudgetMutation.mutate()}
-            >
-              <Text className="text-white font-semibold">
-                {editingBudgetId ? 'Update Budget' : 'Save Budget'}
-              </Text>
-            </Button>
+            {/* Differentiated Cancel & Save Actions */}
+            <View className="flex-row gap-3 mt-4">
+              <Button
+                variant="outline"
+                size="lg"
+                className="flex-1 rounded-2xl border-zinc-200/90"
+                onPress={() => {
+                  setModalVisible(false);
+                  setEditingBudgetId(null);
+                  setFormError(null);
+                  setCategoryDropdownOpen(false);
+                }}
+              >
+                <Text className="text-zinc-700 font-bold text-sm">Cancel</Text>
+              </Button>
+
+              <Button
+                variant="purple"
+                size="lg"
+                className="flex-1 rounded-2xl shadow-xs"
+                disabled={!selectedCategoryId || !monthlyLimit.trim() || saveBudgetMutation.isPending}
+                loading={saveBudgetMutation.isPending}
+                onPress={() => saveBudgetMutation.mutate()}
+              >
+                <Text className="text-white font-bold text-sm">
+                  {editingBudgetId ? 'Update Budget' : 'Save Budget'}
+                </Text>
+              </Button>
+            </View>
           </View>
         )}
       </AppBottomSheet>
+
+      {/* Delete Budget Confirmation Dialog */}
+      <AppDialog
+        visible={!!budgetToDelete}
+        onClose={() => setBudgetToDelete(null)}
+        title="Delete Budget?"
+        description={`Are you sure you want to remove the monthly limit for ${budgetToDelete?.category_name || 'this category'}? Your transactions will remain safe.`}
+        confirmLabel="Delete"
+        destructive={true}
+        onConfirm={() => {
+          if (budgetToDelete) {
+            deleteBudgetMutation.mutate(budgetToDelete.id);
+            setBudgetToDelete(null);
+          }
+        }}
+      />
     </SafeAreaView>
   );
 }

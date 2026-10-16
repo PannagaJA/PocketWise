@@ -423,24 +423,34 @@ export default function BillsScreen() {
               <Button
                 variant="outline"
                 size="lg"
-                loading={deleteBillMutation.isPending}
-                className="flex-1 border-rose-200 bg-rose-50/50"
-                onPress={confirmDeleteBill}
+                className="flex-1 rounded-2xl border-zinc-200/90"
+                onPress={() => setEditModalVisible(false)}
               >
-                <Trash2 size={16} color="#EF4444" />
-                <Text className="text-rose-600 font-bold ml-1.5">Delete</Text>
+                <Text className="text-zinc-700 font-bold text-sm">Cancel</Text>
               </Button>
 
               <Button
-                variant="primary"
+                variant="purple"
                 size="lg"
                 loading={updateBillMutation.isPending}
-                className="flex-1"
+                disabled={updateBillMutation.isPending || !editName.trim() || !editAmount.trim()}
+                className="flex-1 rounded-2xl shadow-xs"
                 onPress={() => updateBillMutation.mutate()}
               >
-                <Text className="text-white font-bold">Save</Text>
+                <Text className="text-white font-bold text-sm">Save Changes</Text>
               </Button>
             </View>
+
+            <Button
+              variant="outline"
+              size="sm"
+              loading={deleteBillMutation.isPending}
+              className="mt-3 border-rose-200 bg-rose-50/50 rounded-2xl"
+              onPress={confirmDeleteBill}
+            >
+              <Trash2 size={14} color="#EF4444" />
+              <Text className="text-rose-600 font-bold text-xs ml-1.5">Delete This Bill</Text>
+            </Button>
           </View>
         )}
       </AppBottomSheet>
@@ -523,15 +533,28 @@ export default function BillsScreen() {
               </Pressable>
             </View>
 
-            <Button
-              variant="primary"
-              size="lg"
-              loading={createBillMutation.isPending}
-              className="mt-2"
-              onPress={() => createBillMutation.mutate()}
-            >
-              <Text className="text-white font-semibold">Save Bill & Enable Reminder</Text>
-            </Button>
+            {/* Action Buttons */}
+            <View className="flex-row gap-3 mt-4">
+              <Button
+                variant="outline"
+                size="lg"
+                className="flex-1 rounded-2xl border-zinc-200/90"
+                onPress={() => setModalVisible(false)}
+              >
+                <Text className="text-zinc-700 font-bold text-sm">Cancel</Text>
+              </Button>
+
+              <Button
+                variant="purple"
+                size="lg"
+                loading={createBillMutation.isPending}
+                disabled={createBillMutation.isPending || !name.trim() || !amount.trim()}
+                className="flex-1 rounded-2xl shadow-xs"
+                onPress={() => createBillMutation.mutate()}
+              >
+                <Text className="text-white font-bold text-sm">Save Bill</Text>
+              </Button>
+            </View>
           </View>
         )}
       </AppBottomSheet>
