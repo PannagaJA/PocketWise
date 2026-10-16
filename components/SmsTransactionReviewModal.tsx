@@ -101,7 +101,7 @@ export function SmsTransactionReviewModal({
       title="Transaction Review"
       subtitle="SMS transaction details"
     >
-      <View className="px-6 pb-6">
+      <View className="w-full">
         {step === 'review' ? (
           <ScrollView
             showsVerticalScrollIndicator={true}

@@ -117,7 +117,32 @@ export function TransactionDetailModal({
       title="Transaction Details"
       subtitle={isIncome ? 'Income Received' : isExpense ? 'Expense Paid' : 'Account Transfer'}
       scrollable={true}
-      contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 }}
+      contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20 }}
+      footer={
+        <View className="flex-row gap-3">
+          {onDelete && (
+            <TouchableOpacity
+              onPress={handleDelete}
+              activeOpacity={0.7}
+              className="flex-1 flex-row items-center justify-center gap-2 h-[52px] px-4 bg-rose-50 border border-rose-200/80 rounded-2xl active:bg-rose-100"
+            >
+              <Trash2 size={16} color="#E11D48" />
+              <Text className="text-rose-700 font-bold text-sm">Delete</Text>
+            </TouchableOpacity>
+          )}
+
+          {onEdit && (
+            <TouchableOpacity
+              onPress={handleEdit}
+              activeOpacity={0.7}
+              className="flex-1 flex-row items-center justify-center gap-2 h-[52px] px-4 bg-zinc-950 rounded-2xl shadow-xs active:bg-zinc-800"
+            >
+              <Pencil size={16} color="#FFFFFF" />
+              <Text className="text-white font-bold text-sm">Edit</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      }
     >
       {/* Hero Amount Box */}
       <View className="items-center justify-center py-5 px-4 bg-zinc-50/80 rounded-3xl border border-zinc-100 mb-4">
@@ -280,31 +305,6 @@ export function TransactionDetailModal({
                   </View>
                 </View>
               </View>
-            )}
-          </View>
-
-          {/* Action Buttons */}
-          <View className="flex-row gap-3">
-            {onDelete && (
-              <TouchableOpacity
-                onPress={handleDelete}
-                activeOpacity={0.7}
-                className="flex-1 flex-row items-center justify-center gap-2 h-[52px] px-4 bg-rose-50 border border-rose-200/80 rounded-2xl active:bg-rose-100"
-              >
-                <Trash2 size={16} color="#E11D48" />
-                <Text className="text-rose-700 font-bold text-sm">Delete</Text>
-              </TouchableOpacity>
-            )}
-
-            {onEdit && (
-              <TouchableOpacity
-                onPress={handleEdit}
-                activeOpacity={0.7}
-                className="flex-1 flex-row items-center justify-center gap-2 h-[52px] px-4 bg-zinc-950 rounded-2xl shadow-xs active:bg-zinc-800"
-              >
-                <Pencil size={16} color="#FFFFFF" />
-                <Text className="text-white font-bold text-sm">Edit</Text>
-              </TouchableOpacity>
             )}
           </View>
     </AppBottomSheet>
