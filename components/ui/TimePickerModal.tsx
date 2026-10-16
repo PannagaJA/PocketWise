@@ -3,7 +3,7 @@ import { View, Text, Pressable, ScrollView } from 'react-native';
 import { Clock, Check, X, ChevronDown } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { Button } from './Button';
-import { AppModal } from './AppModal';
+import { AppBottomSheet } from './AppBottomSheet';
 
 interface TimePickerModalProps {
   visible: boolean;
@@ -54,27 +54,13 @@ export function TimePickerModal({ visible, onClose, selectedTime24, onSelectTime
   const formattedDisplay = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} ${period}`;
 
   return (
-    <AppModal
+    <AppBottomSheet
       visible={visible}
       onClose={() => { setHourDropdownOpen(false); setMinuteDropdownOpen(false); onClose(); }}
-      animationType="fade"
+      title="Select Reminder Time"
+      subtitle="Set daily reminder alert"
     >
-      <Pressable
-        className="p-6 w-full bg-white"
-        onPress={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <View className="flex-row justify-between items-center mb-4">
-          <View className="flex-row items-center gap-2">
-            <View className="w-8 h-8 rounded-full bg-indigo-50 items-center justify-center">
-              <Clock size={18} color="#6366F1" />
-            </View>
-            <Text className="text-lg font-bold text-zinc-900">Select Reminder Time</Text>
-          </View>
-          <Pressable onPress={() => { setHourDropdownOpen(false); setMinuteDropdownOpen(false); onClose(); }} className="p-1">
-            <X size={20} color="#71717A" />
-          </Pressable>
-        </View>
+      <View className="px-6 pb-6 w-full">
 
         {/* Time Display Badge */}
         <View className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 items-center mb-5">
@@ -219,8 +205,8 @@ export function TimePickerModal({ visible, onClose, selectedTime24, onSelectTime
             <Text className="text-white font-bold text-xs">Set Time</Text>
           </Button>
         </View>
-      </Pressable>
-    </AppModal>
+      </View>
+    </AppBottomSheet>
   );
 }
 
