@@ -436,7 +436,7 @@ const styles = StyleSheet.create({
   },
   sheet: {
     width: '100%',
-    maxWidth: 560,
+    maxWidth: 440,
     alignSelf: 'center',
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 28,

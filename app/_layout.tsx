@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
+import { View, StyleSheet, Platform } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { QueryClient, QueryCache, MutationCache } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
@@ -140,49 +141,84 @@ function RootSplashOverlay() {
 
 export default function RootLayout() {
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#FAF8FD' }}>
-      <SafeAreaProvider>
-        <PersistQueryClientProvider
-          client={queryClient}
-          persistOptions={{
-            persister: asyncStoragePersister,
-            maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days offline persistence
-            dehydrateOptions: {
-              shouldDehydrateQuery: (query) => query.state.status === 'success',
-            },
-          }}
-        >
-          <AuthProvider>
-            <AppLockGate>
-              <GlobalRealtimeSync />
-              <StatusBar style="dark" />
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  contentStyle: { backgroundColor: '#FAF8FD' },
-                  animation: 'none',
-                }}
-              >
-                <Stack.Screen name="index" />
-                <Stack.Screen name="(auth)" />
-                <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="shake-settings" />
-                <Stack.Screen name="sms-settings" />
-                <Stack.Screen name="notification-settings" />
-                <Stack.Screen name="bills" />
-                <Stack.Screen name="goals" />
-                <Stack.Screen name="reports" />
-                <Stack.Screen name="lends" />
-              </Stack>
-              {/* QuickExpenseModal is a screen-agnostic overlay — rendered after Stack so it floats above all screens */}
-              <QuickExpenseModal />
-            </AppLockGate>
+    <GestureHandlerRootView style={styles.rootGestureHandler}>
+      <View style={styles.webOuterContainer}>
+        <View style={styles.mobileViewport}>
+          <SafeAreaProvider>
+            <PersistQueryClientProvider
+              client={queryClient}
+              persistOptions={{
+                persister: asyncStoragePersister,
+                maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days offline persistence
+                dehydrateOptions: {
+                  shouldDehydrateQuery: (query) => query.state.status === 'success',
+                },
+              }}
+            >
+              <AuthProvider>
+                <AppLockGate>
+                  <GlobalRealtimeSync />
+                  <StatusBar style="dark" />
+                  <Stack
+                    screenOptions={{
+                      headerShown: false,
+                      contentStyle: { backgroundColor: '#FAF8FD' },
+                      animation: 'none',
+                    }}
+                  >
+                    <Stack.Screen name="index" />
+                    <Stack.Screen name="(auth)" />
+                    <Stack.Screen name="(tabs)" />
+                    <Stack.Screen name="shake-settings" />
+                    <Stack.Screen name="sms-settings" />
+                    <Stack.Screen name="notification-settings" />
+                    <Stack.Screen name="bills" />
+                    <Stack.Screen name="goals" />
+                    <Stack.Screen name="reports" />
+                    <Stack.Screen name="lends" />
+                  </Stack>
+                  {/* QuickExpenseModal is a screen-agnostic overlay — rendered after Stack so it floats above all screens */}
+                  <QuickExpenseModal />
+                </AppLockGate>
 
-            {/* Seamless Animated Splash Screen Overlay: mounts immediately, covers route loading */}
-            <RootSplashOverlay />
-          </AuthProvider>
-        </PersistQueryClientProvider>
-      </SafeAreaProvider>
+                {/* Seamless Animated Splash Screen Overlay: mounts immediately, covers route loading */}
+                <RootSplashOverlay />
+              </AuthProvider>
+            </PersistQueryClientProvider>
+          </SafeAreaProvider>
+        </View>
+      </View>
     </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  rootGestureHandler: {
+    flex: 1,
+    backgroundColor: Platform.OS === 'web' ? '#09090C' : '#FAF8FD',
+  },
+  webOuterContainer: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    backgroundColor: Platform.OS === 'web' ? '#09090C' : '#FAF8FD',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mobileViewport: {
+    flex: 1,
+    width: '100%',
+    maxWidth: Platform.OS === 'web' ? 440 : undefined,
+    height: '100%',
+    backgroundColor: '#FAF8FD',
+    overflow: 'hidden',
+    position: 'relative',
+    ...(Platform.OS === 'web'
+      ? {
+          // Sleek bezel/shadow on desktop browser viewports
+          boxShadow: '0 0 60px rgba(0, 0, 0, 0.55), 0 20px 40px rgba(0, 0, 0, 0.35)',
+        }
+      : {}),
+  },
+});
+

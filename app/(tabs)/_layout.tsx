@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { StyleSheet, View, useWindowDimensions, BackHandler } from 'react-native';
+import { StyleSheet, View, useWindowDimensions, BackHandler, Platform } from 'react-native';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
@@ -32,7 +32,8 @@ const SCREENS = [
 ];
 
 export default function TabLayout() {
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: windowWidth } = useWindowDimensions();
+  const screenWidth = Platform.OS === 'web' ? Math.min(windowWidth, 440) : windowWidth;
   const initialIndex = useTabStore.getState().activeTabIndex;
   const [activeIndex, setActiveIndex] = useState(initialIndex);
 
