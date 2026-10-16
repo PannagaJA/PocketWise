@@ -20,7 +20,9 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
-import { AppModal } from '../components/ui/AppModal';
+import { AppBottomSheet } from '../components/ui/AppBottomSheet';
+import { AppDialog } from '../components/ui/AppDialog';
+import { AppLoadingIndicator } from '../components/ui/AppLoadingIndicator';
 import { DatePickerButton } from '../components/ui/DatePickerModal';
 import { useAuth } from '../context/AuthContext';
 import { lendService, LendRecord } from '../lib/services/lend.service';
@@ -125,6 +127,8 @@ export default function LendsScreen() {
   const [smsMessage, setSmsMessage] = useState('');
   const [smsTemplate, setSmsTemplate] = useState<'friendly' | 'due' | 'overdue'>('friendly');
   const [sendingSms, setSendingSms] = useState(false);
+  const [recordToCollect, setRecordToCollect] = useState<LendRecord | null>(null);
+  const [recordToDelete, setRecordToDelete] = useState<LendRecord | null>(null);
 
   // TanStack Query for reactive data loading
   const { data: lends = [], isLoading: loadingLends } = useQuery({
@@ -393,6 +397,7 @@ export default function LendsScreen() {
     },
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ['lends'] });
+      setRecordToCollect(null);
       if (smsTarget?.id === id) {
         setShowSmsModal(false);
         setSmsTarget(null);
@@ -410,6 +415,7 @@ export default function LendsScreen() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lends'] });
+      setRecordToDelete(null);
       try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
     },
     onError: () => {
@@ -434,33 +440,12 @@ export default function LendsScreen() {
 
   const confirmMarkCollected = (record: LendRecord) => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
-    Alert.alert(
-      'Mark as Collected?',
-      `Confirm you have received ${formatMoney(record.amountMinor)} from ${record.personName}.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Mark Collected ✓',
-          onPress: () => markCollectedMutation.mutate(record.id),
-        },
-      ]
-    );
+    setRecordToCollect(record);
   };
 
   const confirmDelete = (record: LendRecord) => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); } catch {}
-    Alert.alert(
-      'Delete Record?',
-      `Remove the lend record for ${record.personName}? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => deleteLendMutation.mutate(record.id),
-        },
-      ]
-    );
+    setRecordToDelete(record);
   };
 
   const openReschedule = (record: LendRecord) => {
@@ -786,47 +771,20 @@ export default function LendsScreen() {
       </View>
 
       {/* ── Add Lend Modal ── */}
-      <AppModal
+      <AppBottomSheet
         visible={showAdd}
         onClose={() => setShowAdd(false)}
-        animationType="slide"
+        title="Record a Lend"
+        subtitle="Track money lent and schedule reminders"
+        scrollable={true}
+        contentContainerStyle={{ paddingBottom: 24 }}
       >
-        <Pressable
-          className="bg-white rounded-t-3xl border-t border-zinc-200 flex-col"
-          style={{ maxHeight: '100%' }}
-          onPress={(e) => e.stopPropagation()}
-        >
-          {/* Fixed Header */}
-          <View className="flex-row justify-between items-center p-5 pb-3 border-b border-zinc-100">
-            <View className="flex-row items-center gap-3">
-              <View className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 items-center justify-center">
-                <HandCoins size={20} color="#6366F1" />
-              </View>
-              <View>
-                <Text className="text-xl font-extrabold text-zinc-900">Record a Lend</Text>
-                <Text className="text-xs text-zinc-500 mt-0.5">Track money lent and schedule reminders</Text>
-              </View>
-            </View>
-            <Pressable
-              onPress={() => {
-                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                setShowAdd(false);
-              }}
-              className="w-8 h-8 rounded-full bg-zinc-100 items-center justify-center"
-            >
-              <X size={16} color="#71717A" />
-            </Pressable>
+        {createLendMutation.isPending ? (
+          <View className="py-12">
+            <AppLoadingIndicator message="Recording lend..." />
           </View>
-
-          {/* Scrollable Form Content */}
-          <ScrollView 
-            className="px-5 pt-3"
-            style={{ flexShrink: 1 }}
-            showsVerticalScrollIndicator={true}
-            persistentScrollbar={true}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 16 }}
-          >
+        ) : (
+          <View>
             {/* Current Total Outstanding to Collect Context */}
             <View className="bg-zinc-50 border border-zinc-200/80 rounded-2xl p-3.5 mb-4 flex-row items-center justify-between">
               <View>
@@ -1032,15 +990,11 @@ export default function LendsScreen() {
                 </Text>
               </View>
             </View>
-          </ScrollView>
 
-          {/* Fixed Bottom Action Bar */}
-          <View className="p-5 pt-3 pb-8 border-t border-zinc-100 bg-white">
             <Button
               variant="primary"
               size="lg"
-              loading={createLendMutation.isPending}
-              className="bg-indigo-600 active:bg-indigo-700 shadow-sm"
+              className="bg-indigo-600 active:bg-indigo-700 shadow-sm mt-3"
               onPress={() => createLendMutation.mutate()}
             >
               <Text className="text-white font-bold text-sm">
@@ -1050,339 +1004,329 @@ export default function LendsScreen() {
               </Text>
             </Button>
           </View>
-        </Pressable>
-      </AppModal>
+        )}
+      </AppBottomSheet>
 
       {/* ── Reschedule Modal ── */}
-      <AppModal
+      <AppBottomSheet
         visible={showReschedule}
         onClose={() => setShowReschedule(false)}
-        animationType="fade"
+        title="Reschedule Collection"
+        subtitle="Select a new target return date"
+        scrollable={true}
+        contentContainerStyle={{ paddingBottom: 24 }}
       >
-        <Pressable
-          className="p-6 w-full bg-white"
-          onPress={(e) => e.stopPropagation()}
-        >
-          <View className="flex-row justify-between items-center mb-4">
-            <View className="flex-row items-center gap-2.5">
-              <View className="w-8 h-8 rounded-full bg-indigo-50 items-center justify-center border border-indigo-100">
-                <RefreshCw size={16} color="#6366F1" />
-              </View>
-              <Text className="text-lg font-black text-zinc-900">Reschedule Collection</Text>
-            </View>
-            <Pressable
-              onPress={() => setShowReschedule(false)}
-              className="w-7 h-7 rounded-full bg-zinc-100 items-center justify-center"
-            >
-              <X size={14} color="#71717A" />
-            </Pressable>
+        {rescheduleMutation.isPending ? (
+          <View className="py-12">
+            <AppLoadingIndicator message="Updating collection date..." />
           </View>
-
-          {rescheduleTarget && (
-            <View className="bg-indigo-50/70 border border-indigo-100 rounded-2xl p-3.5 mb-4 flex-row items-center justify-between">
-              <View>
-                <Text className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Debtor</Text>
-                <Text className="text-sm font-bold text-zinc-900 mt-0.5">{rescheduleTarget.personName}</Text>
-              </View>
-              <View className="items-end">
-                <Text className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Amount to Collect</Text>
-                <Text className="text-base font-black text-indigo-600 mt-0.5">
-                  {formatMoney(rescheduleTarget.amountMinor)}
-                </Text>
-              </View>
-            </View>
-          )}
-
-          <DatePickerButton
-            label="New Collection Date"
-            value={newDueDate}
-            onSelectDate={(d) => setNewDueDate(d || getTodayISO())}
-            placeholder="Select new return date"
-          />
-
-          <View className="flex-row gap-2 mb-5 flex-wrap">
-            {DATE_PRESETS.map((p) => {
-              const target = addDays(getTodayISO(), p.days);
-              const isSelected = newDueDate === target;
-              return (
-                <TouchableOpacity
-                  key={p.label}
-                  activeOpacity={0.7}
-                  onPress={() => {
-                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                    setNewDueDate(target);
-                  }}
-                  style={{
-                    backgroundColor: isSelected ? '#4F46E5' : '#FAFAFA',
-                    borderColor: isSelected ? '#4F46E5' : '#E4E4E7',
-                  }}
-                  className="px-3 py-1.5 rounded-full border"
-                >
-                  <Text
-                    style={{ color: isSelected ? '#FFFFFF' : '#52525B' }}
-                    className="text-xs font-bold"
-                  >
-                    +{p.label}
+        ) : (
+          <View>
+            {rescheduleTarget && (
+              <View className="bg-indigo-50/70 border border-indigo-100 rounded-2xl p-3.5 mb-4 flex-row items-center justify-between">
+                <View>
+                  <Text className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Debtor</Text>
+                  <Text className="text-sm font-bold text-zinc-900 mt-0.5">{rescheduleTarget.personName}</Text>
+                </View>
+                <View className="items-end">
+                  <Text className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Amount to Collect</Text>
+                  <Text className="text-base font-black text-indigo-600 mt-0.5">
+                    {formatMoney(rescheduleTarget.amountMinor)}
                   </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <View className="flex-row gap-3">
-            <Button
-              variant="outline"
-              size="md"
-              className="flex-1 border-zinc-200"
-              onPress={() => setShowReschedule(false)}
-            >
-              <Text className="text-zinc-700 font-semibold text-xs">Cancel</Text>
-            </Button>
-
-            <Button
-              variant="primary"
-              size="md"
-              className="flex-1 bg-indigo-600 active:bg-indigo-700"
-              loading={rescheduleMutation.isPending}
-              onPress={() => rescheduleMutation.mutate()}
-            >
-              <Text className="text-white font-bold text-xs">Update Date</Text>
-            </Button>
-          </View>
-        </Pressable>
-      </AppModal>
-
-      {/* ── Edit Amount to Collect Modal ── */}
-      <AppModal
-        visible={showEditAmount}
-        onClose={() => setShowEditAmount(false)}
-        animationType="fade"
-      >
-        <Pressable
-          className="p-6 w-full bg-white"
-          onPress={(e) => e.stopPropagation()}
-        >
-          <View className="flex-row justify-between items-center mb-4">
-            <View className="flex-row items-center gap-2.5">
-              <View className="w-8 h-8 rounded-full bg-indigo-50 items-center justify-center border border-indigo-100">
-                <HandCoins size={16} color="#6366F1" />
+                </View>
               </View>
-              <Text className="text-lg font-black text-zinc-900">Edit Amount to Collect</Text>
-            </View>
-            <TouchableOpacity
-              onPress={() => setShowEditAmount(false)}
-              className="w-7 h-7 rounded-full bg-zinc-100 items-center justify-center"
-            >
-              <X size={14} color="#71717A" />
-            </TouchableOpacity>
-          </View>
+            )}
 
-          {editAmountTarget && (
-            <View className="bg-zinc-50 border border-zinc-200 rounded-2xl p-3 mb-4 flex-row items-center justify-between">
-              <View>
-                <Text className="text-[10px] font-bold text-zinc-400 uppercase">Debtor</Text>
-                <Text className="text-xs font-bold text-zinc-800 mt-0.5">{editAmountTarget.personName}</Text>
-              </View>
-              <View className="items-end">
-                <Text className="text-[10px] font-bold text-zinc-400 uppercase">Current Amount</Text>
-                <Text className="text-xs font-extrabold text-zinc-600 mt-0.5">
-                  {formatMoney(editAmountTarget.amountMinor)}
-                </Text>
-              </View>
-            </View>
-          )}
-
-          <Input
-            label="Amount to be Collected (₹)"
-            placeholder="e.g. 2,500.00"
-            keyboardType="numeric"
-            value={newCollectAmount}
-            onChangeText={setNewCollectAmount}
-          />
-
-          {parseMoneyToMinor(newCollectAmount) > 0 && (
-            <View className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 mb-5 flex-row justify-between items-center">
-              <Text className="text-xs font-bold text-emerald-800">Updated Amount to Collect</Text>
-              <Text className="text-base font-black text-emerald-700">
-                {formatMoney(parseMoneyToMinor(newCollectAmount))}
-              </Text>
-            </View>
-          )}
-
-          <View className="flex-row gap-3">
-            <Button
-              variant="outline"
-              size="md"
-              className="flex-1 border-zinc-200"
-              onPress={() => setShowEditAmount(false)}
-            >
-              <Text className="text-zinc-700 font-semibold text-xs">Cancel</Text>
-            </Button>
-
-            <Button
-              variant="primary"
-              size="md"
-              className="flex-1 bg-indigo-600 active:bg-indigo-700"
-              loading={updateAmountMutation.isPending}
-              onPress={() => updateAmountMutation.mutate()}
-            >
-              <Text className="text-white font-bold text-xs">Save Amount</Text>
-            </Button>
-          </View>
-        </Pressable>
-      </AppModal>
-
-      {/* ── SMS Reminder Modal ── */}
-      <AppModal
-        visible={showSmsModal}
-        onClose={() => setShowSmsModal(false)}
-        animationType="fade"
-      >
-        <Pressable
-          className="p-5 w-full bg-white"
-          onPress={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <View className="flex-row justify-between items-center mb-3">
-            <View className="flex-row items-center gap-2.5">
-              <View className="w-8 h-8 rounded-full bg-indigo-50 items-center justify-center border border-indigo-100">
-                <MessageSquare size={16} color="#6366F1" />
-              </View>
-              <View>
-                <Text className="text-lg font-black text-zinc-900">Send Reminder</Text>
-                <Text className="text-[11px] text-zinc-500">Send notice via WhatsApp or SMS</Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              onPress={() => setShowSmsModal(false)}
-              className="w-7 h-7 rounded-full bg-zinc-100 items-center justify-center"
-            >
-              <X size={14} color="#71717A" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Borrower & Amount Snapshot */}
-          <View className="bg-zinc-50 border border-zinc-200 rounded-2xl p-3 mb-3 flex-row justify-between items-center">
-            <View className="flex-1 pr-2">
-              <Text className="text-[10px] font-bold text-zinc-400 uppercase">Borrower</Text>
-              <Text className="text-xs font-bold text-zinc-900 mt-0.5" numberOfLines={1}>
-                {smsTarget?.personName}
-              </Text>
-            </View>
-            <View className="items-end">
-              <Text className="text-[10px] font-bold text-zinc-400 uppercase">To Collect</Text>
-              <Text className="text-sm font-black text-indigo-600 mt-0.5">
-                {smsTarget ? formatMoney(smsTarget.amountMinor) : '₹0'}
-              </Text>
-            </View>
-          </View>
-
-          {/* Recipient Phone Number */}
-          <View className="mb-2.5">
-            <View className="flex-row justify-between items-center mb-1">
-              <Text className="text-xs font-bold text-zinc-700">Mobile Number</Text>
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={handlePickContactForSms}
-                className="flex-row items-center gap-1 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100"
-              >
-                <BookUser size={11} color="#6366F1" />
-                <Text className="text-[10px] font-bold text-indigo-700">Choose from Contacts</Text>
-              </TouchableOpacity>
-            </View>
-            <Input
-              placeholder="e.g. +91 98765 43210"
-              keyboardType="phone-pad"
-              value={smsRecipientPhone}
-              onChangeText={setSmsRecipientPhone}
+            <DatePickerButton
+              label="New Collection Date"
+              value={newDueDate}
+              onSelectDate={(d) => setNewDueDate(d || getTodayISO())}
+              placeholder="Select new return date"
             />
-          </View>
 
-          {/* Quick Template Presets */}
-          <View className="mb-2.5">
-            <Text className="text-xs font-bold text-zinc-700 mb-1.5">Template</Text>
-            <View className="flex-row gap-1.5 flex-wrap">
-              {[
-                { id: 'friendly', emoji: '💬', label: 'Friendly' },
-                { id: 'due', emoji: '⏰', label: 'Due Today' },
-                { id: 'overdue', emoji: '⚠️', label: 'Overdue' },
-              ].map((tmpl) => {
-                const isSelected = smsTemplate === tmpl.id;
+            <View className="flex-row gap-2 mb-5 flex-wrap">
+              {DATE_PRESETS.map((p) => {
+                const target = addDays(getTodayISO(), p.days);
+                const isSelected = newDueDate === target;
                 return (
                   <TouchableOpacity
-                    key={tmpl.id}
+                    key={p.label}
                     activeOpacity={0.7}
-                    onPress={() => handleSelectTemplate(tmpl.id as any)}
-                    style={{
-                      backgroundColor: isSelected ? '#EEF2FF' : '#F4F4F5',
-                      borderColor: isSelected ? '#6366F1' : '#E4E4E7',
+                    onPress={() => {
+                      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                      setNewDueDate(target);
                     }}
-                    className="px-2.5 py-1 rounded-full border flex-row items-center gap-1"
+                    style={{
+                      backgroundColor: isSelected ? '#4F46E5' : '#FAFAFA',
+                      borderColor: isSelected ? '#4F46E5' : '#E4E4E7',
+                    }}
+                    className="px-3 py-1.5 rounded-full border"
                   >
-                    <Text className="text-[11px]">{tmpl.emoji}</Text>
                     <Text
-                      style={{ color: isSelected ? '#4F46E5' : '#52525B' }}
-                      className="text-[11px] font-bold"
+                      style={{ color: isSelected ? '#FFFFFF' : '#52525B' }}
+                      className="text-xs font-bold"
                     >
-                      {tmpl.label}
+                      +{p.label}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
-          </View>
 
-          {/* Editable Message Content */}
-          <View className="mb-3.5">
-            <Text className="text-xs font-bold text-zinc-700 mb-1">Message</Text>
-            <TextInput
-              multiline
-              numberOfLines={3}
-              value={smsMessage}
-              onChangeText={setSmsMessage}
-              textAlignVertical="top"
-              className="border border-zinc-200 rounded-xl p-2.5 text-zinc-900 text-xs bg-zinc-50 min-h-[72px]"
-              placeholder="Type your reminder message..."
+            <View className="flex-row gap-3">
+              <Button
+                variant="outline"
+                size="md"
+                className="flex-1 border-zinc-200"
+                onPress={() => setShowReschedule(false)}
+              >
+                <Text className="text-zinc-700 font-semibold text-xs">Cancel</Text>
+              </Button>
+
+              <Button
+                variant="primary"
+                size="md"
+                className="flex-1 bg-indigo-600 active:bg-indigo-700"
+                onPress={() => rescheduleMutation.mutate()}
+              >
+                <Text className="text-white font-bold text-xs">Update Date</Text>
+              </Button>
+            </View>
+          </View>
+        )}
+      </AppBottomSheet>
+
+      {/* ── Edit Amount to Collect Modal ── */}
+      <AppBottomSheet
+        visible={showEditAmount}
+        onClose={() => setShowEditAmount(false)}
+        title="Edit Amount to Collect"
+        subtitle="Update outstanding amount"
+        scrollable={true}
+        contentContainerStyle={{ paddingBottom: 24 }}
+      >
+        {updateAmountMutation.isPending ? (
+          <View className="py-12">
+            <AppLoadingIndicator message="Updating amount..." />
+          </View>
+        ) : (
+          <View>
+            {editAmountTarget && (
+              <View className="bg-zinc-50 border border-zinc-200 rounded-2xl p-3 mb-4 flex-row items-center justify-between">
+                <View>
+                  <Text className="text-[10px] font-bold text-zinc-400 uppercase">Debtor</Text>
+                  <Text className="text-xs font-bold text-zinc-800 mt-0.5">{editAmountTarget.personName}</Text>
+                </View>
+                <View className="items-end">
+                  <Text className="text-[10px] font-bold text-zinc-400 uppercase">Current Amount</Text>
+                  <Text className="text-xs font-extrabold text-zinc-600 mt-0.5">
+                    {formatMoney(editAmountTarget.amountMinor)}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            <Input
+              label="Amount to be Collected (₹)"
+              placeholder="e.g. 2,500.00"
+              keyboardType="numeric"
+              value={newCollectAmount}
+              onChangeText={setNewCollectAmount}
             />
+
+            {parseMoneyToMinor(newCollectAmount) > 0 && (
+              <View className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 mb-5 flex-row justify-between items-center">
+                <Text className="text-xs font-bold text-emerald-800">Updated Amount to Collect</Text>
+                <Text className="text-base font-black text-emerald-700">
+                  {formatMoney(parseMoneyToMinor(newCollectAmount))}
+                </Text>
+              </View>
+            )}
+
+            <View className="flex-row gap-3">
+              <Button
+                variant="outline"
+                size="md"
+                className="flex-1 border-zinc-200"
+                onPress={() => setShowEditAmount(false)}
+              >
+                <Text className="text-zinc-700 font-semibold text-xs">Cancel</Text>
+              </Button>
+
+              <Button
+                variant="primary"
+                size="md"
+                className="flex-1 bg-indigo-600 active:bg-indigo-700"
+                onPress={() => updateAmountMutation.mutate()}
+              >
+                <Text className="text-white font-bold text-xs">Save Amount</Text>
+              </Button>
+            </View>
           </View>
+        )}
+      </AppBottomSheet>
 
-          {/* Bottom Action Bar */}
-          <View className="flex-row gap-2 pt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="px-3.5 border-zinc-200 rounded-xl"
-              onPress={() => setShowSmsModal(false)}
-            >
-              <Text className="text-zinc-700 font-bold text-xs">Cancel</Text>
-            </Button>
+      {/* ── SMS Reminder Modal ── */}
+      <AppBottomSheet
+        visible={showSmsModal}
+        onClose={() => setShowSmsModal(false)}
+        title="Send Reminder"
+        subtitle="Send notice via WhatsApp or SMS"
+        scrollable={true}
+        contentContainerStyle={{ paddingBottom: 24 }}
+      >
+        {/* Borrower & Amount Snapshot */}
+        <View className="bg-zinc-50 border border-zinc-200 rounded-2xl p-3 mb-3 flex-row justify-between items-center">
+          <View className="flex-1 pr-2">
+            <Text className="text-[10px] font-bold text-zinc-400 uppercase">Borrower</Text>
+            <Text className="text-xs font-bold text-zinc-900 mt-0.5" numberOfLines={1}>
+              {smsTarget?.personName}
+            </Text>
+          </View>
+          <View className="items-end">
+            <Text className="text-[10px] font-bold text-zinc-400 uppercase">To Collect</Text>
+            <Text className="text-sm font-black text-indigo-600 mt-0.5">
+              {smsTarget ? formatMoney(smsTarget.amountMinor) : '₹0'}
+            </Text>
+          </View>
+        </View>
 
+        {/* Recipient Phone Number */}
+        <View className="mb-2.5">
+          <View className="flex-row justify-between items-center mb-1">
+            <Text className="text-xs font-bold text-zinc-700">Mobile Number</Text>
             <TouchableOpacity
-              activeOpacity={0.8}
-              disabled={sendingSms}
-              onPress={handleSendWhatsApp}
-              className="flex-1 bg-[#25D366] active:bg-[#1EBE5D] py-3 px-2 rounded-xl flex-row items-center justify-center gap-1.5 shadow-xs"
+              activeOpacity={0.7}
+              onPress={handlePickContactForSms}
+              className="flex-row items-center gap-1 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100"
             >
-              <MessageSquare size={14} color="#FFFFFF" strokeWidth={2.5} />
-              <Text className="text-white font-bold text-xs">
-                {sendingSms ? 'Opening...' : 'WhatsApp'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.8}
-              disabled={sendingSms}
-              onPress={handleSendSms}
-              className="flex-1 bg-indigo-600 active:bg-indigo-700 py-3 px-2 rounded-xl flex-row items-center justify-center gap-1.5 shadow-xs"
-            >
-              <Send size={13} color="#FFFFFF" strokeWidth={2.5} />
-              <Text className="text-white font-bold text-xs">
-                {sendingSms ? 'Opening...' : 'Send SMS'}
-              </Text>
+              <BookUser size={11} color="#6366F1" />
+              <Text className="text-[10px] font-bold text-indigo-700">Choose from Contacts</Text>
             </TouchableOpacity>
           </View>
-        </Pressable>
-      </AppModal>
+          <Input
+            placeholder="e.g. +91 98765 43210"
+            keyboardType="phone-pad"
+            value={smsRecipientPhone}
+            onChangeText={setSmsRecipientPhone}
+          />
+        </View>
+
+        {/* Quick Template Presets */}
+        <View className="mb-2.5">
+          <Text className="text-xs font-bold text-zinc-700 mb-1.5">Template</Text>
+          <View className="flex-row gap-1.5 flex-wrap">
+            {[
+              { id: 'friendly', emoji: '💬', label: 'Friendly' },
+              { id: 'due', emoji: '⏰', label: 'Due Today' },
+              { id: 'overdue', emoji: '⚠️', label: 'Overdue' },
+            ].map((tmpl) => {
+              const isSelected = smsTemplate === tmpl.id;
+              return (
+                <TouchableOpacity
+                  key={tmpl.id}
+                  activeOpacity={0.7}
+                  onPress={() => handleSelectTemplate(tmpl.id as any)}
+                  style={{
+                    backgroundColor: isSelected ? '#EEF2FF' : '#F4F4F5',
+                    borderColor: isSelected ? '#6366F1' : '#E4E4E7',
+                  }}
+                  className="px-2.5 py-1 rounded-full border flex-row items-center gap-1"
+                >
+                  <Text className="text-[11px]">{tmpl.emoji}</Text>
+                  <Text
+                    style={{ color: isSelected ? '#4F46E5' : '#52525B' }}
+                    className="text-[11px] font-bold"
+                  >
+                    {tmpl.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Editable Message Content */}
+        <View className="mb-3.5">
+          <Text className="text-xs font-bold text-zinc-700 mb-1">Message</Text>
+          <TextInput
+            multiline
+            numberOfLines={3}
+            value={smsMessage}
+            onChangeText={setSmsMessage}
+            textAlignVertical="top"
+            className="border border-zinc-200 rounded-xl p-2.5 text-zinc-900 text-xs bg-zinc-50 min-h-[72px]"
+            placeholder="Type your reminder message..."
+          />
+        </View>
+
+        {/* Bottom Action Bar */}
+        <View className="flex-row gap-2 pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="px-3.5 border-zinc-200 rounded-xl"
+            onPress={() => setShowSmsModal(false)}
+          >
+            <Text className="text-zinc-700 font-bold text-xs">Cancel</Text>
+          </Button>
+
+          <TouchableOpacity
+            activeOpacity={0.8}
+            disabled={sendingSms}
+            onPress={handleSendWhatsApp}
+            className="flex-1 bg-[#25D366] active:bg-[#1EBE5D] py-3 px-2 rounded-xl flex-row items-center justify-center gap-1.5 shadow-xs"
+          >
+            <MessageSquare size={14} color="#FFFFFF" strokeWidth={2.5} />
+            <Text className="text-white font-bold text-xs">
+              {sendingSms ? 'Opening...' : 'WhatsApp'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            activeOpacity={0.8}
+            disabled={sendingSms}
+            onPress={handleSendSms}
+            className="flex-1 bg-indigo-600 active:bg-indigo-700 py-3 px-2 rounded-xl flex-row items-center justify-center gap-1.5 shadow-xs"
+          >
+            <Send size={13} color="#FFFFFF" strokeWidth={2.5} />
+            <Text className="text-white font-bold text-xs">
+              {sendingSms ? 'Opening...' : 'Send SMS'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </AppBottomSheet>
+
+      {/* ── Mark Collected Dialog ── */}
+      <AppDialog
+        visible={!!recordToCollect}
+        onClose={() => setRecordToCollect(null)}
+        title="Mark as Collected?"
+        description={`Confirm you have received ${recordToCollect ? formatMoney(recordToCollect.amountMinor) : 'funds'} from ${recordToCollect?.personName}.`}
+        confirmLabel="Mark Collected ✓"
+        isLoading={markCollectedMutation.isPending}
+        onConfirm={() => {
+          if (recordToCollect) {
+            markCollectedMutation.mutate(recordToCollect.id);
+          }
+        }}
+      />
+
+      {/* ── Delete Lend Dialog ── */}
+      <AppDialog
+        visible={!!recordToDelete}
+        onClose={() => setRecordToDelete(null)}
+        title="Delete Record?"
+        description={`Remove the lend record for ${recordToDelete?.personName}? This cannot be undone.`}
+        confirmLabel="Delete"
+        destructive={true}
+        isLoading={deleteLendMutation.isPending}
+        onConfirm={() => {
+          if (recordToDelete) {
+            deleteLendMutation.mutate(recordToDelete.id);
+          }
+        }}
+      />
     </SafeAreaView>
   );
 }

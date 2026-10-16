@@ -7,7 +7,8 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
-import { AppModal } from '../../components/ui/AppModal';
+import { AppBottomSheet } from '../../components/ui/AppBottomSheet';
+import { AppLoadingIndicator } from '../../components/ui/AppLoadingIndicator';
 import { useAuth } from '../../context/AuthContext';
 import { budgetService } from '../../lib/services/budget.service';
 import { categoryService } from '../../lib/services/category.service';
@@ -331,43 +332,24 @@ export default function BudgetsScreen() {
       </View>
 
       {/* Add / Edit Budget Modal */}
-      <AppModal
+      <AppBottomSheet
         visible={modalVisible}
         onClose={() => {
           setModalVisible(false);
           setEditingBudgetId(null);
           setFormError(null);
         }}
-        animationType="slide"
+        title={editingBudgetId ? 'Edit Budget' : 'Set Monthly Budget'}
+        subtitle="Manage category spending limit"
+        scrollable={true}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 }}
       >
-        <Pressable
-          className="bg-white rounded-t-3xl p-6 pb-6 border-t border-zinc-200"
-          style={{ maxHeight: '100%', flexShrink: 1 }}
-          onPress={(e) => e.stopPropagation()}
-        >
-          <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-xl font-bold text-zinc-900">
-              {editingBudgetId ? 'Edit Budget' : 'Set Monthly Budget'}
-            </Text>
-            <Pressable
-              onPress={() => {
-                setModalVisible(false);
-                setEditingBudgetId(null);
-                setFormError(null);
-              }}
-              className="p-1"
-            >
-              <X size={20} color="#71717A" />
-            </Pressable>
+        {saveBudgetMutation.isPending ? (
+          <View className="py-12 items-center justify-center">
+            <AppLoadingIndicator message="Updating budget limit..." subMessage="Calculating monthly forecast" />
           </View>
-
-          <ScrollView 
-            style={{ flexShrink: 1 }}
-            showsVerticalScrollIndicator={true}
-            persistentScrollbar={true}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 32 }}
-          >
+        ) : (
+          <View>
             {/* In-Modal Error Banner */}
             {formError && (
               <View className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl flex-row items-center gap-2">
@@ -449,9 +431,9 @@ export default function BudgetsScreen() {
                 {editingBudgetId ? 'Update Budget' : 'Save Budget'}
               </Text>
             </Button>
-          </ScrollView>
-        </Pressable>
-      </AppModal>
+          </View>
+        )}
+      </AppBottomSheet>
     </SafeAreaView>
   );
 }

@@ -5,7 +5,8 @@ import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { AppModal } from '../components/ui/AppModal';
+import { AppBottomSheet } from '../components/ui/AppBottomSheet';
+import { AppLoadingIndicator } from '../components/ui/AppLoadingIndicator';
 import { useAuth } from '../context/AuthContext';
 import { reportService } from '../lib/services/report.service';
 import { budgetService, Budget } from '../lib/services/budget.service';
@@ -450,77 +451,63 @@ export default function ReportsScreen() {
       </View>
 
       {/* Export Statement Modal */}
-      <AppModal
+      <AppBottomSheet
         visible={exportModalVisible}
         onClose={() => setExportModalVisible(false)}
-        animationType="slide"
+        title="Export Statement"
+        subtitle={`${period.replace('_', ' ').toUpperCase()} (${startDate} to ${endDate})`}
+        scrollable={true}
+        contentContainerStyle={{ paddingBottom: 24 }}
       >
-        <Pressable
-          className="bg-white rounded-t-3xl p-6 pb-6 border-t border-zinc-200"
-          style={{ maxHeight: '100%', flexShrink: 1 }}
-          onPress={(e) => e.stopPropagation()}
-        >
-          <View className="flex-row justify-between items-center mb-4">
-            <View>
-              <Text className="text-xl font-bold text-zinc-900">Export Financial Statement</Text>
-              <Text className="text-xs text-zinc-500 mt-0.5">
-                {period.replace('_', ' ').toUpperCase()} ({startDate} to {endDate})
-              </Text>
-            </View>
-            <Pressable onPress={() => setExportModalVisible(false)} className="p-1">
-              <X size={20} color="#71717A" />
-            </Pressable>
+        {isExporting ? (
+          <View className="py-12">
+            <AppLoadingIndicator message="Preparing export statement..." />
           </View>
+        ) : (
+          <View>
+            <View className="gap-3 mb-4">
+              <TouchableOpacity
+                activeOpacity={0.7}
+                disabled={isExporting}
+                onPress={handleExportCSV}
+                className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 flex-row items-center"
+              >
+                <View className="w-10 h-10 rounded-xl bg-emerald-50 items-center justify-center mr-3 border border-emerald-100">
+                  <FileSpreadsheet size={20} color="#10B981" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-sm font-bold text-zinc-900">Transactions Spreadsheet (CSV)</Text>
+                  <Text className="text-xs text-zinc-500">Full itemized statement with dates, categories & amounts</Text>
+                </View>
+              </TouchableOpacity>
 
-          <View className="gap-3 my-3">
-            <TouchableOpacity
-              activeOpacity={0.7}
-              disabled={isExporting}
-              onPress={handleExportCSV}
-              className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 flex-row items-center"
-            >
-              <View className="w-10 h-10 rounded-xl bg-emerald-50 items-center justify-center mr-3 border border-emerald-100">
-                <FileSpreadsheet size={20} color="#10B981" />
-              </View>
-              <View className="flex-1">
-                <Text className="text-sm font-bold text-zinc-900">Transactions Spreadsheet (CSV)</Text>
-                <Text className="text-xs text-zinc-500">Full itemized statement with dates, categories & amounts</Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.7}
-              disabled={isExporting}
-              onPress={handleExportSummary}
-              className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 flex-row items-center"
-            >
-              <View className="w-10 h-10 rounded-xl bg-indigo-50 items-center justify-center mr-3 border border-indigo-100">
-                <FileText size={20} color="#6366F1" />
-              </View>
-              <View className="flex-1">
-                <Text className="text-sm font-bold text-zinc-900">Financial Summary Report (Text)</Text>
-                <Text className="text-xs text-zinc-500">Savings rate, income/expense breakdown & totals</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          {isExporting && (
-            <View className="py-2 items-center flex-row justify-center gap-2">
-              <ActivityIndicator size="small" color="#6366F1" />
-              <Text className="text-xs font-semibold text-zinc-500">Preparing export statement...</Text>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                disabled={isExporting}
+                onPress={handleExportSummary}
+                className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 flex-row items-center"
+              >
+                <View className="w-10 h-10 rounded-xl bg-indigo-50 items-center justify-center mr-3 border border-indigo-100">
+                  <FileText size={20} color="#6366F1" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-sm font-bold text-zinc-900">Financial Summary Report (Text)</Text>
+                  <Text className="text-xs text-zinc-500">Savings rate, income/expense breakdown & totals</Text>
+                </View>
+              </TouchableOpacity>
             </View>
-          )}
 
-          <Button
-            variant="outline"
-            size="lg"
-            className="mt-2 mb-2"
-            onPress={() => setExportModalVisible(false)}
-          >
-            <Text className="text-zinc-700 font-semibold">Cancel</Text>
-          </Button>
-        </Pressable>
-      </AppModal>
+            <Button
+              variant="outline"
+              size="lg"
+              className="mt-2"
+              onPress={() => setExportModalVisible(false)}
+            >
+              <Text className="text-zinc-700 font-semibold">Cancel</Text>
+            </Button>
+          </View>
+        )}
+      </AppBottomSheet>
     </SafeAreaView>
   );
 }
