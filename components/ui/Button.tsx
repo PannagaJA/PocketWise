@@ -35,20 +35,20 @@ export const Button: React.FC<ButtonProps> = ({
 
   let baseStyle = "flex-row items-center justify-center rounded-2xl active:opacity-80 ";
   
-  if (size === 'sm') baseStyle += "px-4 py-2.5 ";
-  else if (size === 'md') baseStyle += "px-5 py-3.5 ";
-  else if (size === 'lg') baseStyle += "px-6 py-4 ";
+  if (size === 'sm') baseStyle += "px-4 py-2 ";
+  else if (size === 'md') baseStyle += "px-5 py-3 ";
+  else if (size === 'lg') baseStyle += "px-6 h-[52px] ";
 
-  if (variant === 'primary') baseStyle += "bg-zinc-900 ";
+  if (variant === 'primary') baseStyle += "bg-zinc-950 shadow-xs ";
   else if (variant === 'secondary') baseStyle += "bg-zinc-100 ";
   else if (variant === 'outline') baseStyle += "bg-white border border-zinc-200 ";
   else if (variant === 'ghost') baseStyle += "bg-transparent ";
   else if (variant === 'destructive') baseStyle += "bg-red-500 ";
   else if (variant === 'income') baseStyle += "bg-emerald-600 ";
 
-  if (disabled || loading) baseStyle += "opacity-50 ";
+  if (disabled || loading) baseStyle += "opacity-40 ";
 
-  let textStyle = "font-semibold text-center ";
+  let textStyle = "font-bold text-center tracking-tight ";
   if (variant === 'primary' || variant === 'destructive' || variant === 'income') {
     textStyle += "text-white ";
   } else if (variant === 'outline' || variant === 'secondary') {
@@ -57,9 +57,9 @@ export const Button: React.FC<ButtonProps> = ({
     textStyle += "text-zinc-600 ";
   }
 
-  if (size === 'sm') textStyle += "text-sm ";
-  else if (size === 'md') textStyle += "text-base ";
-  else if (size === 'lg') textStyle += "text-lg ";
+  if (size === 'sm') textStyle += "text-xs ";
+  else if (size === 'md') textStyle += "text-sm ";
+  else if (size === 'lg') textStyle += "text-[15px] ";
 
   const renderContent = () => {
     if (loading) {
