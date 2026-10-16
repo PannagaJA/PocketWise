@@ -110,7 +110,7 @@ export function DatePickerButton({ label, value, onSelectDate, placeholder = 'Pi
         title="Pick a Date"
         subtitle="Select transaction date"
       >
-        <View style={{ width: '100%', paddingHorizontal: 20, paddingBottom: 24 }}>
+        <View style={{ width: '100%' }}>
           {/* Month & Year Navigation Header Button */}
           <View className="flex-row justify-between items-center bg-zinc-50 border border-zinc-200 rounded-2xl px-3 py-2 mb-4">
             <Pressable onPress={handlePrevMonth} className="p-1.5 rounded-xl bg-white active:bg-zinc-100 shadow-xs">

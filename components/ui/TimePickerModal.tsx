@@ -60,7 +60,7 @@ export function TimePickerModal({ visible, onClose, selectedTime24, onSelectTime
       title="Select Reminder Time"
       subtitle="Set daily reminder alert"
     >
-      <View className="px-6 pb-6 w-full">
+      <View className="w-full">
 
         {/* Time Display Badge */}
         <View className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 items-center mb-5">
