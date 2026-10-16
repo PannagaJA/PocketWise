@@ -685,7 +685,7 @@ export default function TransactionsScreen() {
             renderItem={renderItem}
             showsVerticalScrollIndicator={false}
             className="flex-1"
-            contentContainerStyle={{ paddingBottom: 110 }}
+            contentContainerStyle={{ paddingBottom: 140 }}
             initialNumToRender={12}
             maxToRenderPerBatch={12}
             windowSize={5}

@@ -286,7 +286,7 @@ export default function SubscriptionsScreen() {
         </Card>
 
         {/* Subscriptions List */}
-        <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
+        <ScrollView showsVerticalScrollIndicator={false} className="flex-1" contentContainerStyle={{ paddingBottom: 140 }}>
           {loadingSubs ? (
             <View className="py-8">
               <ActivityIndicator size="small" color="#09090B" />
