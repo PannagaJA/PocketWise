@@ -103,82 +103,88 @@ export default function MoreScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: '#F8F9FE' }} edges={['top']}>
       <ScrollView
         className="flex-1 px-4 pt-2"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 140 }}
       >
+        {/* Header */}
+        <View className="mb-4">
+          <Text className="text-[22px] font-extrabold text-zinc-950 tracking-tight">More & Settings</Text>
+          <Text className="text-xs font-medium text-zinc-500 mt-0.5">Preferences, security & modules</Text>
+        </View>
+
         {/* Profile Card */}
-        <Card className="mb-6 p-5 flex-row items-center bg-white border border-zinc-200">
-          <View className="w-14 h-14 rounded-full bg-zinc-900 items-center justify-center mr-4">
-            <Text className="text-xl font-bold text-white">
+        <Card className="mb-6 p-5 flex-row items-center bg-white border border-zinc-100 rounded-3xl shadow-xs">
+          <View className="w-14 h-14 rounded-full bg-violet-100 border border-violet-200/60 items-center justify-center mr-4">
+            <Text className="text-xl font-extrabold text-violet-700">
               {(user?.user_metadata?.display_name || user?.email || 'U')[0].toUpperCase()}
             </Text>
           </View>
           <View className="flex-1">
-            <Text className="text-lg font-extrabold text-zinc-900">
+            <Text className="text-[17px] font-extrabold text-zinc-950">
               {user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Authenticated User'}
             </Text>
-            <Text className="text-xs text-zinc-500 mt-0.5" numberOfLines={1}>
+            <Text className="text-xs font-medium text-zinc-500 mt-0.5" numberOfLines={1}>
               {user?.user_metadata?.phone_number || (user?.email?.includes('@pocketwise.internal') ? 'Mobile Account' : user?.email)}
             </Text>
             <View className="mt-2 flex-row items-center gap-1.5">
-              <Badge label="Verified Account" variant="income" />
+              <Badge label="Verified Account" variant="neutral" />
             </View>
           </View>
         </Card>
 
         {/* Modules */}
-        <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3 ml-1">Financial Modules</Text>
-        <Card className="mb-6 p-0 bg-white border border-zinc-200 divide-y divide-zinc-100">
-          <Pressable onPress={() => router.push({ pathname: '/reports', params: { from: 'more' } } as any)} className="p-4 flex-row items-center justify-between">
-            <View className="flex-row items-center">
-              <View className="w-9 h-9 rounded-xl bg-purple-50 items-center justify-center mr-3">
-                <PieChart size={20} color="#A855F7" />
+        <Text className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2.5 ml-1">Financial Modules</Text>
+        <Card className="mb-6 p-0 bg-white border border-zinc-100 rounded-3xl shadow-xs overflow-hidden divide-y divide-zinc-100/80">
+          <Pressable onPress={() => router.push({ pathname: '/reports', params: { from: 'more' } } as any)} className="p-4 flex-row items-center justify-between active:bg-zinc-50">
+            <View className="flex-row items-center flex-1 pr-2">
+              <View className="w-10 h-10 rounded-2xl bg-purple-50 items-center justify-center mr-3.5">
+                <PieChart size={20} color="#9333EA" />
               </View>
-              <View>
-                <Text className="text-sm font-bold text-zinc-900">Financial Reports & Analytics</Text>
-                <Text className="text-xs text-zinc-500">Spending rate, breakdown & performance</Text>
+              <View className="flex-1">
+                <Text className="text-[15px] font-bold text-zinc-950">Financial Reports & Analytics</Text>
+                <Text className="text-xs font-medium text-zinc-500 mt-0.5">Spending rate, breakdown & performance</Text>
               </View>
             </View>
             <ChevronRight size={18} color="#A1A1AA" />
           </Pressable>
 
-          <Pressable onPress={() => router.push({ pathname: '/bills', params: { from: 'more' } } as any)} className="p-4 flex-row items-center justify-between">
-            <View className="flex-row items-center">
-              <View className="w-9 h-9 rounded-xl bg-amber-50 items-center justify-center mr-3">
+          <Pressable onPress={() => router.push({ pathname: '/bills', params: { from: 'more' } } as any)} className="p-4 flex-row items-center justify-between active:bg-zinc-50">
+            <View className="flex-row items-center flex-1 pr-2">
+              <View className="w-10 h-10 rounded-2xl bg-amber-50 items-center justify-center mr-3.5">
                 <Calendar size={20} color="#F59E0B" />
               </View>
-              <View>
-                <Text className="text-sm font-bold text-zinc-900">Upcoming Bills</Text>
-                <Text className="text-xs text-zinc-500">Track recurring bills & pay expenses</Text>
+              <View className="flex-1">
+                <Text className="text-[15px] font-bold text-zinc-950">Upcoming Bills</Text>
+                <Text className="text-xs font-medium text-zinc-500 mt-0.5">Track recurring bills & pay expenses</Text>
               </View>
             </View>
             <ChevronRight size={18} color="#A1A1AA" />
           </Pressable>
 
-          <Pressable onPress={() => router.push({ pathname: '/goals', params: { from: 'more' } } as any)} className="p-4 flex-row items-center justify-between">
-            <View className="flex-row items-center">
-              <View className="w-9 h-9 rounded-xl bg-indigo-50 items-center justify-center mr-3">
+          <Pressable onPress={() => router.push({ pathname: '/goals', params: { from: 'more' } } as any)} className="p-4 flex-row items-center justify-between active:bg-zinc-50">
+            <View className="flex-row items-center flex-1 pr-2">
+              <View className="w-10 h-10 rounded-2xl bg-indigo-50 items-center justify-center mr-3.5">
                 <Target size={20} color="#6366F1" />
               </View>
-              <View>
-                <Text className="text-sm font-bold text-zinc-900">Savings Goals</Text>
-                <Text className="text-xs text-zinc-500">Set target milestones & contributions</Text>
+              <View className="flex-1">
+                <Text className="text-[15px] font-bold text-zinc-950">Savings Goals</Text>
+                <Text className="text-xs font-medium text-zinc-500 mt-0.5">Set target milestones & contributions</Text>
               </View>
             </View>
             <ChevronRight size={18} color="#A1A1AA" />
           </Pressable>
 
-          <Pressable onPress={() => router.push({ pathname: '/lends', params: { from: 'more' } } as any)} className="p-4 flex-row items-center justify-between">
-            <View className="flex-row items-center">
-              <View className="w-9 h-9 rounded-xl bg-violet-50 items-center justify-center mr-3">
-                <HandCoins size={20} color="#7C3AED" />
+          <Pressable onPress={() => router.push({ pathname: '/lends', params: { from: 'more' } } as any)} className="p-4 flex-row items-center justify-between active:bg-zinc-50">
+            <View className="flex-row items-center flex-1 pr-2">
+              <View className="w-10 h-10 rounded-2xl bg-teal-50 items-center justify-center mr-3.5">
+                <HandCoins size={20} color="#0D9488" />
               </View>
-              <View>
-                <Text className="text-sm font-bold text-zinc-900">Money Lends</Text>
-                <Text className="text-xs text-zinc-500">Track lent money & get reminded to collect</Text>
+              <View className="flex-1">
+                <Text className="text-[15px] font-bold text-zinc-950">Money Lends</Text>
+                <Text className="text-xs font-medium text-zinc-500 mt-0.5">Track lent money & get reminded to collect</Text>
               </View>
             </View>
             <ChevronRight size={18} color="#A1A1AA" />
@@ -186,16 +192,16 @@ export default function MoreScreen() {
         </Card>
 
         {/* Security */}
-        <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3 ml-1">App Security & Sync</Text>
-        <Card className="mb-6 p-0 bg-white border border-zinc-200 divide-y divide-zinc-100">
+        <Text className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2.5 ml-1">App Security & Sync</Text>
+        <Card className="mb-6 p-0 bg-white border border-zinc-100 rounded-3xl shadow-xs overflow-hidden divide-y divide-zinc-100/80">
           <View className="p-4 flex-row items-center justify-between">
-            <View className="flex-row items-center">
-              <View className="w-9 h-9 rounded-xl bg-indigo-50 items-center justify-center mr-3">
+            <View className="flex-row items-center flex-1 pr-2">
+              <View className="w-10 h-10 rounded-2xl bg-indigo-50 items-center justify-center mr-3.5">
                 <Lock size={20} color="#6366F1" />
               </View>
-              <View>
-                <Text className="text-sm font-bold text-zinc-900">App Lock (PIN)</Text>
-                <Text className="text-xs text-zinc-500">Protect financial data with 4-digit PIN</Text>
+              <View className="flex-1">
+                <Text className="text-[15px] font-bold text-zinc-950">App Lock (PIN)</Text>
+                <Text className="text-xs font-medium text-zinc-500 mt-0.5">Protect financial data with 4-digit PIN</Text>
               </View>
             </View>
             <Switch
@@ -208,13 +214,13 @@ export default function MoreScreen() {
           {appLockEnabled && (
             <>
               <View className="p-4 flex-row items-center justify-between">
-                <View className="flex-row items-center">
-                  <View className="w-9 h-9 rounded-xl bg-emerald-50 items-center justify-center mr-3">
+                <View className="flex-row items-center flex-1 pr-2">
+                  <View className="w-10 h-10 rounded-2xl bg-emerald-50 items-center justify-center mr-3.5">
                     <Fingerprint size={20} color="#10B981" />
                   </View>
-                  <View>
-                    <Text className="text-sm font-bold text-zinc-900">Biometric Unlock</Text>
-                    <Text className="text-xs text-zinc-500">Face ID / Touch ID unlock</Text>
+                  <View className="flex-1">
+                    <Text className="text-[15px] font-bold text-zinc-950">Biometric Unlock</Text>
+                    <Text className="text-xs font-medium text-zinc-500 mt-0.5">Face ID / Touch ID unlock</Text>
                   </View>
                 </View>
                 <Switch
@@ -224,9 +230,9 @@ export default function MoreScreen() {
                 />
               </View>
 
-              <View className="p-4 bg-zinc-50/50">
+              <View className="p-4 bg-zinc-50/70 border-t border-zinc-100/80">
                 <View className="flex-row items-center mb-2.5">
-                  <Clock size={16} color="#6366F1" />
+                  <Clock size={15} color="#6366F1" />
                   <Text className="text-xs font-bold text-zinc-700 ml-1.5">Auto-Lock When in Background</Text>
                 </View>
                 <View className="flex-row gap-2">
@@ -245,10 +251,10 @@ export default function MoreScreen() {
                           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         } catch {}
                       }}
-                      className={`flex-1 py-2 rounded-xl items-center border ${
+                      className={`flex-1 py-2.5 rounded-xl items-center border ${
                         lockTimeout === option.value
-                          ? 'bg-indigo-600 border-indigo-600 shadow-sm'
-                          : 'bg-white border-zinc-200'
+                          ? 'bg-zinc-950 border-zinc-950 shadow-xs'
+                          : 'bg-white border-zinc-200/80'
                       }`}
                     >
                       <Text
@@ -265,57 +271,54 @@ export default function MoreScreen() {
             </>
           )}
 
-          <Pressable onPress={() => router.push({ pathname: '/sms-settings', params: { from: 'more' } } as any)} className="p-4 flex-row items-center justify-between">
-            <View className="flex-row items-center">
-              <View className="w-9 h-9 rounded-xl bg-indigo-50 items-center justify-center mr-3">
-                <Smartphone size={20} color="#6366F1" />
+          <Pressable onPress={() => router.push({ pathname: '/sms-settings', params: { from: 'more' } } as any)} className="p-4 flex-row items-center justify-between active:bg-zinc-50">
+            <View className="flex-row items-center flex-1 pr-2">
+              <View className="w-10 h-10 rounded-2xl bg-blue-50 items-center justify-center mr-3.5">
+                <Smartphone size={20} color="#2563EB" />
               </View>
-              <View>
-                <Text className="text-sm font-bold text-zinc-900">Bank & SMS Tracking</Text>
-                <Text className="text-xs text-zinc-500">Auto-detect bank transactions & SMS</Text>
+              <View className="flex-1">
+                <Text className="text-[15px] font-bold text-zinc-950">Bank & SMS Tracking</Text>
+                <Text className="text-xs font-medium text-zinc-500 mt-0.5">Auto-detect bank transactions & SMS</Text>
               </View>
             </View>
             <ChevronRight size={18} color="#A1A1AA" />
           </Pressable>
 
-          <Pressable onPress={() => router.push({ pathname: '/shake-settings', params: { from: 'more' } } as any)} className="p-4 flex-row items-center justify-between">
-            <View className="flex-row items-center">
-              <View className="w-9 h-9 rounded-xl bg-emerald-50 items-center justify-center mr-3">
+          <Pressable onPress={() => router.push({ pathname: '/shake-settings', params: { from: 'more' } } as any)} className="p-4 flex-row items-center justify-between active:bg-zinc-50">
+            <View className="flex-row items-center flex-1 pr-2">
+              <View className="w-10 h-10 rounded-2xl bg-emerald-50 items-center justify-center mr-3.5">
                 <Zap size={20} color="#10B981" />
               </View>
-              <View>
-                <Text className="text-sm font-bold text-zinc-900">Quick Expense (Shake to Add)</Text>
-                <Text className="text-xs text-zinc-500">Shake phone to immediately record expenses</Text>
+              <View className="flex-1">
+                <Text className="text-[15px] font-bold text-zinc-950">Quick Expense (Shake to Add)</Text>
+                <Text className="text-xs font-medium text-zinc-500 mt-0.5">Shake phone to immediately record expenses</Text>
               </View>
             </View>
             <ChevronRight size={18} color="#A1A1AA" />
           </Pressable>
 
-          <Pressable onPress={() => router.push({ pathname: '/notification-settings', params: { from: 'more' } } as any)} className="p-4 flex-row items-center justify-between">
-            <View className="flex-row items-center">
-              <View className="w-9 h-9 rounded-xl bg-indigo-50 items-center justify-center mr-3">
-                <Bell size={20} color="#6366F1" />
+          <Pressable onPress={() => router.push({ pathname: '/notification-settings', params: { from: 'more' } } as any)} className="p-4 flex-row items-center justify-between active:bg-zinc-50">
+            <View className="flex-row items-center flex-1 pr-2">
+              <View className="w-10 h-10 rounded-2xl bg-purple-50 items-center justify-center mr-3.5">
+                <Bell size={20} color="#9333EA" />
               </View>
-              <View>
-                <Text className="text-sm font-bold text-zinc-900">Notification & Alert Settings</Text>
-                <Text className="text-xs text-zinc-500">Customize push categories, limits & quiet hours</Text>
+              <View className="flex-1">
+                <Text className="text-[15px] font-bold text-zinc-950">Notification & Alert Settings</Text>
+                <Text className="text-xs font-medium text-zinc-500 mt-0.5">Customize push categories, limits & quiet hours</Text>
               </View>
             </View>
             <ChevronRight size={18} color="#A1A1AA" />
           </Pressable>
         </Card>
 
-
-
-        <Button
-          variant="outline"
-          size="lg"
-          className="mb-12 border-rose-200 bg-rose-50/50 flex-row items-center justify-center gap-2"
+        {/* Sign Out Button */}
+        <Pressable
           onPress={handleSignOut}
+          className="mb-12 py-3.5 px-5 rounded-2xl bg-white border border-rose-200/80 shadow-xs flex-row items-center justify-center gap-2 active:bg-rose-50/40"
         >
-          <LogOut size={18} color="#EF4444" />
-          <Text className="text-rose-600 font-bold">Sign Out</Text>
-        </Button>
+          <LogOut size={17} color="#EF4444" />
+          <Text className="text-rose-600 font-bold text-sm">Sign Out</Text>
+        </Pressable>
       </ScrollView>
 
       {/* Set PIN Modal */}

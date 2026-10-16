@@ -229,20 +229,20 @@ export default function SubscriptionsScreen() {
   ];
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: '#F8F9FE' }} edges={['top']}>
       <View className="px-4 pt-2 flex-1">
         {/* Header */}
         <View className="flex-row justify-between items-center mb-4">
           <View className="flex-1 mr-3">
-            <Text className="text-2xl font-black text-zinc-900">Subscriptions</Text>
-            <Text className="text-xs text-zinc-500 mt-0.5" numberOfLines={1} ellipsizeMode="tail">Push notifications alert before renewal</Text>
+            <Text className="text-[22px] font-extrabold text-zinc-950 tracking-tight">Subscriptions</Text>
+            <Text className="text-xs font-medium text-zinc-500 mt-0.5" numberOfLines={1} ellipsizeMode="tail">Automated renewal tracking</Text>
           </View>
 
           <Button
             variant="primary"
             size="sm"
             style={{ flexShrink: 0 }}
-            className="flex-row items-center gap-1.5 px-3.5 py-2.5"
+            className="flex-row items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-zinc-950 shadow-xs"
             onPress={() => setModalVisible(true)}
           >
             <Plus size={16} color="#FFF" />
@@ -250,38 +250,38 @@ export default function SubscriptionsScreen() {
           </Button>
         </View>
 
-        {/* Clean Subscriptions Card */}
-        <Card className="bg-zinc-900 border-zinc-800 p-6 mb-5 rounded-3xl overflow-hidden relative shadow-lg">
+        {/* Clean Magpie Subscriptions Summary Card */}
+        <Card className="bg-white border border-zinc-100 p-5 mb-5 rounded-3xl shadow-xs">
           <View className="flex-row justify-between items-start mb-3">
             <View>
-              <Text className="text-xs font-bold text-indigo-300 uppercase tracking-widest mb-1">
-                Recurring Subscriptions
+              <Text className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider mb-1">
+                Monthly Subscriptions
               </Text>
-              <Text className="text-3xl font-black text-white">
+              <Text className="text-[28px] font-extrabold text-zinc-950 tracking-tight">
                 {formatCurrency(totalMonthlySpend)}
-                <Text className="text-xs font-bold text-zinc-400"> /mo</Text>
+                <Text className="text-xs font-bold text-zinc-500"> /mo</Text>
               </Text>
             </View>
 
-            <View className="bg-indigo-500/20 px-3 py-1.5 rounded-2xl border border-indigo-500/30">
-              <Text className="text-xs font-extrabold text-indigo-300">{activeCount} Active</Text>
+            <View className="bg-indigo-50 px-3 py-1.5 rounded-full border border-indigo-100/60">
+              <Text className="text-xs font-extrabold text-indigo-600">{activeCount} Active</Text>
             </View>
           </View>
 
           {/* Metrics Pill Bar */}
-          <View className="flex-row pt-4 mt-2 border-t border-zinc-800 justify-between items-center">
+          <View className="flex-row pt-4 mt-2 border-t border-zinc-100 justify-between items-center">
             <View>
               <Text className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Est. Annual Cost</Text>
-              <Text className="text-sm font-extrabold text-indigo-300 mt-0.5">{formatCurrency(yearlySpend)}/yr</Text>
+              <Text className="text-sm font-extrabold text-zinc-900 mt-0.5">{formatCurrency(yearlySpend)}/yr</Text>
             </View>
 
-            <View className="h-6 w-[1px] bg-zinc-800" />
+            <View className="h-6 w-[1px] bg-zinc-100" />
 
             <View>
               <Text className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Renewal Alerts</Text>
               <View className="flex-row items-center gap-1 mt-0.5">
                 <ShieldCheck size={14} color="#10B981" />
-                <Text className="text-xs font-bold text-emerald-400">24h Prior Alert</Text>
+                <Text className="text-xs font-bold text-emerald-600">24h Prior Alert</Text>
               </View>
             </View>
           </View>
@@ -294,34 +294,34 @@ export default function SubscriptionsScreen() {
               <ActivityIndicator size="small" color="#09090B" />
             </View>
           ) : subscriptions.length === 0 ? (
-            <Card className="p-8 bg-white border border-zinc-200 items-center mt-2 rounded-3xl">
+            <Card className="p-8 bg-white border border-zinc-100 items-center mt-2 rounded-3xl shadow-xs">
               <View className="w-14 h-14 rounded-full bg-indigo-50 items-center justify-center mb-3">
-                <CreditCard size={28} color="#6366F1" />
+                <CreditCard size={26} color="#6366F1" />
               </View>
               <Text className="text-base font-bold text-zinc-900 text-center">No active subscriptions</Text>
               <Text className="text-xs text-zinc-500 mt-1 mb-5 text-center px-4 leading-5">
                 Track your Netflix, Spotify, iCloud or gym plans and get push reminders before your card is billed!
               </Text>
-              <Button size="md" variant="primary" className="px-6" onPress={() => setModalVisible(true)}>
+              <Button size="md" variant="primary" className="px-6 rounded-full" onPress={() => setModalVisible(true)}>
                 + Add Subscription
               </Button>
             </Card>
           ) : (
             subscriptions.map((sub) => (
-              <Card key={sub.id} className="mb-3 p-4 bg-white border border-zinc-200 rounded-2xl shadow-xs">
+              <Card key={sub.id} className="mb-3 p-4.5 bg-white border border-zinc-100 rounded-3xl shadow-xs">
                 {/* Top Section: Service Branding, Cycle Badge & Amount */}
                 <View className="flex-row items-center justify-between">
                   <View className="flex-row items-center flex-1 mr-3">
-                    <View className="w-11 h-11 rounded-2xl bg-indigo-50 border border-indigo-100 items-center justify-center mr-3">
-                      <Text className="font-black text-lg text-indigo-600">{sub.name[0]?.toUpperCase() || 'S'}</Text>
+                    <View className="w-11 h-11 rounded-full bg-indigo-50 border border-indigo-100 items-center justify-center mr-3">
+                      <Text className="font-extrabold text-base text-indigo-600">{sub.name[0]?.toUpperCase() || 'S'}</Text>
                     </View>
                     <View className="flex-1">
-                      <Text className="text-base font-extrabold text-zinc-900" numberOfLines={1}>
+                      <Text className="text-[16px] font-bold text-zinc-950" numberOfLines={1}>
                         {sub.name}
                       </Text>
                       <View className="flex-row items-center gap-1.5 mt-0.5">
                         <Badge label={sub.billing_cycle} variant="subscription" />
-                        <View className="flex-row items-center bg-indigo-50/80 px-1.5 py-0.5 rounded-md border border-indigo-100/60">
+                        <View className="flex-row items-center bg-indigo-50/80 px-2 py-0.5 rounded-full border border-indigo-100/60">
                           <Bell size={10} color="#6366F1" />
                           <Text className="text-[10px] font-bold text-indigo-600 ml-1">Auto Alert</Text>
                         </View>
@@ -330,7 +330,7 @@ export default function SubscriptionsScreen() {
                   </View>
 
                   <View className="items-end">
-                    <Text className="text-lg font-black text-zinc-900">{formatCurrency(sub.amount_minor)}</Text>
+                    <Text className="text-[17px] font-extrabold text-zinc-950">{formatCurrency(sub.amount_minor)}</Text>
                     <Text className="text-[10px] font-semibold text-zinc-400 capitalize">per {sub.billing_cycle}</Text>
                   </View>
                 </View>
@@ -350,7 +350,7 @@ export default function SubscriptionsScreen() {
                   <View className="flex-row items-center gap-1.5">
                     <Pressable
                       onPress={() => handleRenewSub(sub)}
-                      className="flex-row items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 active:bg-emerald-100 border border-emerald-200/60"
+                      className="flex-row items-center gap-1 px-2.5 py-1.5 rounded-full bg-emerald-50 active:bg-emerald-100 border border-emerald-200/60"
                     >
                       <RotateCcw size={12} color="#059669" />
                       <Text className="text-xs font-bold text-emerald-700">Renew</Text>
@@ -358,9 +358,9 @@ export default function SubscriptionsScreen() {
 
                     <Pressable
                       onPress={() => handleOpenEditSub(sub)}
-                      className="p-1.5 rounded-xl bg-zinc-100 active:bg-zinc-200 border border-zinc-200/60 items-center justify-center"
+                      className="p-2 rounded-full bg-zinc-100 active:bg-zinc-200 border border-zinc-200/60 items-center justify-center"
                     >
-                      <Pencil size={13} color="#27272A" />
+                      <Pencil size={12} color="#27272A" />
                     </Pressable>
 
                     <Pressable
@@ -368,9 +368,9 @@ export default function SubscriptionsScreen() {
                         try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch { }
                         setSubToDelete(sub);
                       }}
-                      className="p-1.5 rounded-xl bg-rose-50 active:bg-rose-100 border border-rose-200/60 items-center justify-center"
+                      className="p-2 rounded-full bg-rose-50 active:bg-rose-100 border border-rose-200/60 items-center justify-center"
                     >
-                      <Trash2 size={13} color="#EF4444" />
+                      <Trash2 size={12} color="#EF4444" />
                     </Pressable>
                   </View>
                 </View>

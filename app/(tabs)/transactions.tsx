@@ -19,6 +19,7 @@ import { formatMoney, formatDate, parseMoneyToMinor } from '../../lib/finance/co
 import { DatePickerButton } from '../../components/ui/DatePickerModal';
 import { TransactionDetailModal } from '../../components/TransactionDetailModal';
 import { SpendChartCard } from '../../components/NetBalanceChartCard';
+import { RecordRow } from '../../components/ui/RecordRow';
 import { Plus, ArrowUpRight, ArrowDownLeft, X, ArrowRightLeft, ChevronDown, Check, Wallet, BarChart2, Filter, Search, Calendar, SlidersHorizontal, Pencil, Trash2 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
@@ -35,50 +36,22 @@ const TransactionItem = memo(function TransactionItem({
   categoryName: string;
   onPress?: () => void;
 }) {
+  const formattedAmount = `${tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}${formatMoney(tx.amount_minor)}`;
   return (
-    <TouchableOpacity activeOpacity={0.7} delayPressIn={0} onPress={onPress}>
-      <Card className="mb-3 p-4 bg-white border border-zinc-200">
-        <View className="flex-row items-center justify-between">
-          <View className="flex-row items-center flex-1 pr-3">
-            <View
-              className={`w-11 h-11 rounded-2xl items-center justify-center mr-3 ${
-                tx.type === 'income' ? 'bg-emerald-50' : tx.type === 'expense' ? 'bg-rose-50' : 'bg-indigo-50'
-              }`}
-            >
-              {tx.type === 'income' ? (
-                <ArrowDownLeft size={20} color="#10B981" />
-              ) : tx.type === 'expense' ? (
-                <ArrowUpRight size={20} color="#EF4444" />
-              ) : (
-                <ArrowRightLeft size={20} color="#6366F1" />
-              )}
-            </View>
-            <View className="flex-1">
-              <Text className="text-base font-bold text-zinc-900" numberOfLines={1}>
-                {cleanTransactionDescription(tx.description, categoryName, tx.type)}
-              </Text>
-              <Text className="text-xs text-zinc-500 mt-0.5">
-                {categoryName} • {accountName}
-              </Text>
-            </View>
-          </View>
-
-          <View className="items-end">
-            <Text
-              className={`text-base font-extrabold ${
-                tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-zinc-900' : 'text-indigo-600'
-              }`}
-            >
-              {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}
-              {formatMoney(tx.amount_minor)}
-            </Text>
-            <Text className="text-xs text-zinc-400 mt-0.5">{formatDate(tx.date)}</Text>
-          </View>
-        </View>
-      </Card>
-    </TouchableOpacity>
+    <View className="mb-2.5 bg-white rounded-2xl px-4 py-0.5 border border-zinc-100 shadow-xs">
+      <RecordRow
+        title={cleanTransactionDescription(tx.description, categoryName, tx.type)}
+        subtitle={`${categoryName} • ${accountName}`}
+        amount={formattedAmount}
+        isCredit={tx.type === 'income'}
+        date={formatDate(tx.date)}
+        onPress={onPress}
+        showDivider={false}
+      />
+    </View>
   );
 });
+
 
 export default function TransactionsScreen() {
   const { user } = useAuth();
@@ -525,12 +498,12 @@ export default function TransactionsScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: '#F8F9FE' }} edges={['top']}>
       <View className="px-4 pt-2 flex-1">
         {/* Header */}
         <View className="mb-3">
-          <Text className="text-2xl font-black text-zinc-900">Transactions</Text>
-          <Text className="text-xs text-zinc-500 mt-0.5 mb-3">Real-time financial activity</Text>
+          <Text className="text-[22px] font-extrabold text-zinc-950 tracking-tight">Transactions</Text>
+          <Text className="text-xs font-medium text-zinc-500 mt-0.5 mb-3">Real-time financial activity</Text>
 
           {/* Spend Graph based on Spend with Dashboard Balance */}
           <SpendChartCard
@@ -542,7 +515,7 @@ export default function TransactionsScreen() {
           {/* Search Bar Input & Custom Date/Month Filter Button on the Same Line */}
           <View className="flex-row items-center gap-2 mb-3">
             {/* Search Bar */}
-            <View className="flex-1 flex-row items-center bg-white border border-zinc-200 rounded-2xl px-3.5 py-2.5 shadow-sm">
+            <View className="flex-1 flex-row items-center bg-white border border-zinc-100 rounded-2xl px-3.5 py-2.5 shadow-xs">
               <Search size={18} color="#71717A" />
               <TextInput
                 placeholder="Search description, category..."
@@ -567,8 +540,8 @@ export default function TransactionsScreen() {
               style={{ maxWidth: 140 }}
               className={`flex-row items-center gap-1.5 py-2.5 px-3 rounded-2xl border ${
                 isFilterActive
-                  ? 'bg-indigo-600 border-indigo-600'
-                  : 'bg-white border-zinc-200 shadow-sm'
+                  ? 'bg-zinc-900 border-zinc-900'
+                  : 'bg-white border-zinc-100 shadow-xs'
               }`}
             >
               <SlidersHorizontal size={16} color={isFilterActive ? '#FFF' : '#09090B'} />
@@ -597,15 +570,15 @@ export default function TransactionsScreen() {
           </View>
 
           {/* Filter Pills */}
-          <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-3">
+          <View className="flex-row bg-zinc-100/80 p-1 rounded-2xl mb-3">
             <Pressable
               onPress={() => {
                 try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                 setActiveFilter('all');
               }}
-              className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'all' ? 'bg-white' : ''}`}
+              className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'all' ? 'bg-white shadow-xs' : ''}`}
             >
-              <Text className={`font-semibold text-xs ${activeFilter === 'all' ? 'text-zinc-900' : 'text-zinc-500'}`}>All</Text>
+              <Text className={`font-bold text-xs ${activeFilter === 'all' ? 'text-zinc-950' : 'text-zinc-500'}`}>All</Text>
             </Pressable>
 
             <Pressable
@@ -613,9 +586,9 @@ export default function TransactionsScreen() {
                 try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                 setActiveFilter('income');
               }}
-              className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'income' ? 'bg-white' : ''}`}
+              className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'income' ? 'bg-white shadow-xs' : ''}`}
             >
-              <Text className={`font-semibold text-xs ${activeFilter === 'income' ? 'text-emerald-600' : 'text-zinc-500'}`}>Income</Text>
+              <Text className={`font-bold text-xs ${activeFilter === 'income' ? 'text-emerald-600' : 'text-zinc-500'}`}>Income</Text>
             </Pressable>
 
             <Pressable
@@ -623,9 +596,9 @@ export default function TransactionsScreen() {
                 try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                 setActiveFilter('expense');
               }}
-              className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'expense' ? 'bg-white' : ''}`}
+              className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'expense' ? 'bg-white shadow-xs' : ''}`}
             >
-              <Text className={`font-semibold text-xs ${activeFilter === 'expense' ? 'text-rose-600' : 'text-zinc-500'}`}>Expense</Text>
+              <Text className={`font-bold text-xs ${activeFilter === 'expense' ? 'text-rose-600' : 'text-zinc-500'}`}>Expense</Text>
             </Pressable>
 
             <Pressable
@@ -633,9 +606,9 @@ export default function TransactionsScreen() {
                 try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                 setActiveFilter('transfer');
               }}
-              className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'transfer' ? 'bg-white' : ''}`}
+              className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'transfer' ? 'bg-white shadow-xs' : ''}`}
             >
-              <Text className={`font-semibold text-xs ${activeFilter === 'transfer' ? 'text-indigo-600' : 'text-zinc-500'}`}>Transfer</Text>
+              <Text className={`font-bold text-xs ${activeFilter === 'transfer' ? 'text-indigo-600' : 'text-zinc-500'}`}>Transfer</Text>
             </Pressable>
           </View>
 
@@ -646,7 +619,7 @@ export default function TransactionsScreen() {
                 try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                 setAccModalVisible(true);
               }}
-              className="flex-1 flex-row items-center justify-center py-2.5 px-3 bg-white border border-zinc-200 rounded-xl active:bg-zinc-100 shadow-sm"
+              className="flex-1 flex-row items-center justify-center py-2.5 px-3 bg-white border border-zinc-100 rounded-2xl active:bg-zinc-50 shadow-xs"
             >
               <Wallet size={16} color="#09090B" />
               <Text className="text-zinc-900 font-bold text-xs ml-1.5">Account</Text>
@@ -658,7 +631,7 @@ export default function TransactionsScreen() {
                 setSelectedAccountId(accounts[0]?.id || '');
                 setModalVisible(true);
               }}
-              className="flex-1 flex-row items-center justify-center py-2.5 px-3 bg-zinc-900 rounded-xl active:bg-zinc-800 shadow-sm"
+              className="flex-1 flex-row items-center justify-center py-2.5 px-3 bg-zinc-950 rounded-2xl active:bg-zinc-800 shadow-xs"
             >
               <Plus size={16} color="#FFF" />
               <Text className="text-white font-bold text-xs ml-1.5">Transaction</Text>
