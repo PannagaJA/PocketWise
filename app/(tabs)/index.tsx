@@ -368,7 +368,7 @@ export default function DashboardScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      <ScrollView className="flex-1 px-4 pt-2" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 110 }}>
+      <ScrollView className="flex-1 px-4 pt-2" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 140 }}>
         {/* Modern Header: Avatar Monogram, Greeting, Notifications */}
         <View className="flex-row justify-between items-center mb-3 pt-1">
           <View className="flex-row items-center gap-3">

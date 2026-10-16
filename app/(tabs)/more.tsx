@@ -120,7 +120,7 @@ export default function MoreScreen() {
       <ScrollView
         className="flex-1 px-4 pt-2"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingBottom: 140 }}
       >
         {/* Profile Card */}
         <Card className="mb-6 p-5 flex-row items-center bg-white border border-zinc-200">
