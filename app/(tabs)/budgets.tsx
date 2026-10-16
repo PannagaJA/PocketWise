@@ -10,6 +10,7 @@ import { Badge } from '../../components/ui/Badge';
 import { AppBottomSheet } from '../../components/ui/AppBottomSheet';
 import { AppDialog } from '../../components/ui/AppDialog';
 import { AppLoadingIndicator } from '../../components/ui/AppLoadingIndicator';
+import { AppSelectField } from '../../components/ui/AppSelectModal';
 import { useAuth } from '../../context/AuthContext';
 import { budgetService, Budget } from '../../lib/services/budget.service';
 import { categoryService } from '../../lib/services/category.service';
@@ -21,7 +22,6 @@ export default function BudgetsScreen() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [modalVisible, setModalVisible] = useState(false);
-  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
   const [budgetToDelete, setBudgetToDelete] = useState<Budget | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -101,7 +101,6 @@ export default function BudgetsScreen() {
       setMonthlyLimit('');
       setEditingBudgetId(null);
       setFormError(null);
-      setCategoryDropdownOpen(false);
     },
     onError: (err: any) => {
       try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch {}
@@ -142,7 +141,6 @@ export default function BudgetsScreen() {
               setSelectedCategoryId('');
               setMonthlyLimit('');
               setFormError(null);
-              setCategoryDropdownOpen(false);
               setModalVisible(true);
             }}
           >
@@ -241,7 +239,6 @@ export default function BudgetsScreen() {
                   setSelectedCategoryId('');
                   setMonthlyLimit('');
                   setFormError(null);
-                  setCategoryDropdownOpen(false);
                   setModalVisible(true);
                 }}
               >
@@ -275,7 +272,6 @@ export default function BudgetsScreen() {
                           setSelectedCategoryId(b.category_id);
                           setMonthlyLimit((b.amount_minor / 100).toString());
                           setFormError(null);
-                          setCategoryDropdownOpen(false);
                           setModalVisible(true);
                         }}
                         className="p-2 rounded-full bg-zinc-100 active:bg-zinc-200"
@@ -336,7 +332,6 @@ export default function BudgetsScreen() {
           setModalVisible(false);
           setEditingBudgetId(null);
           setFormError(null);
-          setCategoryDropdownOpen(false);
         }}
         title={editingBudgetId ? 'Edit Monthly Budget' : 'Set Monthly Budget'}
         subtitle="Define spending threshold to stay on track"
@@ -362,66 +357,33 @@ export default function BudgetsScreen() {
               </View>
             )}
 
-            {/* Category Dropdown */}
-            <View className="mb-4">
-              <Text className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider mb-2 ml-0.5">
-                Expense Category
-              </Text>
-              <Pressable
-                onPress={() => setCategoryDropdownOpen(!categoryDropdownOpen)}
-                className="flex-row justify-between items-center px-4 py-3.5 bg-zinc-50 border border-zinc-200/80 rounded-2xl active:bg-zinc-100/70"
-              >
-                <View className="flex-row items-center flex-1 mr-2">
-                  {selectedCatObj ? (
-                    <View
-                      className="w-4 h-4 rounded-full mr-2.5"
-                      style={{ backgroundColor: selectedCatObj.color || '#6366F1' }}
-                    />
-                  ) : null}
-                  <Text className={`text-sm ${selectedCatObj ? 'text-zinc-950 font-bold' : 'text-zinc-400 font-medium'}`}>
-                    {selectedCatObj ? selectedCatObj.name : 'Choose an expense category'}
-                  </Text>
-                </View>
-                <ChevronDown size={18} color="#71717A" />
-              </Pressable>
-
-              {categoryDropdownOpen && (
-                <View className="mt-2 bg-white border border-zinc-200/80 rounded-2xl max-h-52 overflow-hidden shadow-xs">
-                  <ScrollView nestedScrollEnabled className="p-1">
-                    {expenseCategories.map((cat) => {
-                      const isBudgeted = budgets.some((b) => b.category_id === cat.id && b.id !== editingBudgetId);
-                      const isSelected = selectedCategoryId === cat.id;
-                      return (
-                        <Pressable
-                          key={cat.id}
-                          onPress={() => {
-                            setSelectedCategoryId(cat.id);
-                            setFormError(null);
-                            setCategoryDropdownOpen(false);
-                            const existing = budgets.find((b) => b.category_id === cat.id);
-                            if (existing && !monthlyLimit) {
-                              setMonthlyLimit((existing.amount_minor / 100).toString());
-                            }
-                          }}
-                          className={`flex-row justify-between items-center px-3.5 py-3 rounded-xl ${isSelected ? 'bg-indigo-50/80' : 'active:bg-zinc-50'}`}
-                        >
-                          <View className="flex-row items-center flex-1 mr-2">
-                            <View className="w-3.5 h-3.5 rounded-full mr-2.5" style={{ backgroundColor: cat.color }} />
-                            <Text className={`text-sm ${isSelected ? 'font-bold text-indigo-950' : 'font-medium text-zinc-800'}`}>
-                              {cat.name}
-                            </Text>
-                            {isBudgeted && (
-                              <Text className="text-[10px] font-semibold text-zinc-400 ml-2">(Active Limit)</Text>
-                            )}
-                          </View>
-                          {isSelected && <Check size={16} color="#6366F1" />}
-                        </Pressable>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-              )}
-            </View>
+            {/* Standard Mobile Category Selection Field */}
+            <AppSelectField
+              label="Expense Category"
+              title="Select Category"
+              subtitle="Choose an expense category for this budget"
+              value={selectedCategoryId}
+              placeholder="Choose an expense category"
+              options={expenseCategories.map((cat) => {
+                const isBudgeted = budgets.some(
+                  (b) => b.category_id === cat.id && b.id !== editingBudgetId
+                );
+                return {
+                  value: cat.id,
+                  label: cat.name,
+                  color: cat.color,
+                  badge: isBudgeted ? 'Active Limit' : undefined,
+                };
+              })}
+              onSelect={(catId) => {
+                setSelectedCategoryId(catId);
+                setFormError(null);
+                const existing = budgets.find((b) => b.category_id === catId);
+                if (existing && !monthlyLimit) {
+                  setMonthlyLimit((existing.amount_minor / 100).toString());
+                }
+              }}
+            />
 
             <Input
               label="Monthly Limit (₹)"
@@ -444,7 +406,6 @@ export default function BudgetsScreen() {
                   setModalVisible(false);
                   setEditingBudgetId(null);
                   setFormError(null);
-                  setCategoryDropdownOpen(false);
                 }}
               >
                 <Text className="text-zinc-700 font-bold text-sm">Cancel</Text>

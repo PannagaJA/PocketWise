@@ -5,6 +5,7 @@ import { ChevronDown, Check } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { AppBottomSheet } from './ui/AppBottomSheet';
 import { AppLoadingIndicator } from './ui/AppLoadingIndicator';
+import { AppSelectField } from './ui/AppSelectModal';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { useAuth } from '../context/AuthContext';
@@ -35,10 +36,6 @@ export function RecordTransactionModal({
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [selectedDestAccountId, setSelectedDestAccountId] = useState<string>('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
-
-  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
-  const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
-  const [destAccountDropdownOpen, setDestAccountDropdownOpen] = useState(false);
 
   // Queries
   const { data: accounts = [] } = useQuery({
@@ -99,9 +96,6 @@ export function RecordTransactionModal({
     setAmount('');
     setSelectedCategoryId('');
     setSelectedDestAccountId('');
-    setCategoryDropdownOpen(false);
-    setAccountDropdownOpen(false);
-    setDestAccountDropdownOpen(false);
   };
 
   const createTxMutation = useMutation({
@@ -222,143 +216,59 @@ export function RecordTransactionModal({
             containerClassName="mb-4"
           />
 
-          {/* Category Dropdown (Not for transfers) */}
+          {/* Category Selector (Not for transfers) */}
           {type !== 'transfer' && (
-            <View className="mb-4">
-              <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Category</Text>
-              <Pressable
-                onPress={() => {
-                  try { Haptics.selectionAsync(); } catch {}
-                  setCategoryDropdownOpen(!categoryDropdownOpen);
-                }}
-                className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
-              >
-                <Text className={`text-sm ${selectedCatObj ? 'text-zinc-900 font-medium' : 'text-zinc-400'}`}>
-                  {selectedCatObj ? selectedCatObj.name : 'Select Category (Optional)'}
-                </Text>
-                <ChevronDown size={18} color="#71717A" />
-              </Pressable>
-
-              {categoryDropdownOpen && (
-                <View className="mt-1 bg-white border border-zinc-200 rounded-xl max-h-48 overflow-hidden shadow-sm">
-                  <ScrollView nestedScrollEnabled className="p-1">
-                    <Pressable
-                      onPress={() => {
-                        try { Haptics.selectionAsync(); } catch {}
-                        setSelectedCategoryId('');
-                        setCategoryDropdownOpen(false);
-                      }}
-                      className="p-3 rounded-lg flex-row items-center justify-between"
-                    >
-                      <Text className="text-sm text-zinc-500">None</Text>
-                      {!selectedCategoryId && <Check size={16} color="#09090B" />}
-                    </Pressable>
-                    {filteredCategories.map((cat) => (
-                      <Pressable
-                        key={cat.id}
-                        onPress={() => {
-                          try { Haptics.selectionAsync(); } catch {}
-                          setSelectedCategoryId(cat.id);
-                          setCategoryDropdownOpen(false);
-                        }}
-                        className={`flex-row justify-between items-center p-3 rounded-lg ${selectedCategoryId === cat.id ? 'bg-zinc-100' : ''}`}
-                      >
-                        <Text className={`text-sm ${selectedCategoryId === cat.id ? 'font-bold text-zinc-900' : 'text-zinc-700'}`}>
-                          {cat.name}
-                        </Text>
-                        {selectedCategoryId === cat.id && <Check size={16} color="#09090B" />}
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
-            </View>
+            <AppSelectField
+              label="Category"
+              title="Select Category"
+              subtitle="Choose a category for this transaction"
+              value={selectedCategoryId}
+              placeholder="Select Category (Optional)"
+              allowClear={true}
+              clearLabel="None (Uncategorized)"
+              options={filteredCategories.map((cat) => ({
+                value: cat.id,
+                label: cat.name,
+                color: cat.color,
+              }))}
+              onSelect={(catId) => setSelectedCategoryId(catId)}
+            />
           )}
 
-          {/* Account Dropdown */}
-          <View className="mb-4">
-            <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">
-              {type === 'transfer' ? 'From Account' : 'Account'}
-            </Text>
-            <Pressable
-              onPress={() => {
-                try { Haptics.selectionAsync(); } catch {}
-                setAccountDropdownOpen(!accountDropdownOpen);
-              }}
-              className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
-            >
-              <Text className={`text-sm ${selectedAccObj ? 'text-zinc-900 font-medium' : 'text-zinc-400'}`}>
-                {selectedAccObj ? selectedAccObj.name : 'Select Account'}
-              </Text>
-              <ChevronDown size={18} color="#71717A" />
-            </Pressable>
+          {/* Account Selector */}
+          <AppSelectField
+            label={type === 'transfer' ? 'From Account' : 'Account'}
+            title="Select Account"
+            subtitle="Choose account for this transaction"
+            value={selectedAccountId}
+            placeholder="Select Account"
+            options={accounts.map((acc) => ({
+              value: acc.id,
+              label: acc.name,
+              color: acc.color,
+              subLabel: acc.type ? `${acc.type.toUpperCase()} • ₹${((acc.balance || 0) / 100).toLocaleString('en-IN')}` : undefined,
+            }))}
+            onSelect={(accId) => setSelectedAccountId(accId)}
+          />
 
-            {accountDropdownOpen && (
-              <View className="mt-1 bg-white border border-zinc-200 rounded-xl max-h-48 overflow-hidden shadow-sm">
-                <ScrollView nestedScrollEnabled className="p-1">
-                  {accounts.map((acc) => (
-                    <Pressable
-                      key={acc.id}
-                      onPress={() => {
-                        try { Haptics.selectionAsync(); } catch {}
-                        setSelectedAccountId(acc.id);
-                        setAccountDropdownOpen(false);
-                      }}
-                      className={`flex-row justify-between items-center p-3 rounded-lg ${selectedAccountId === acc.id ? 'bg-zinc-100' : ''}`}
-                    >
-                      <Text className={`text-sm ${selectedAccountId === acc.id ? 'font-bold text-zinc-900' : 'text-zinc-700'}`}>
-                        {acc.name}
-                      </Text>
-                      {selectedAccountId === acc.id && <Check size={16} color="#09090B" />}
-                    </Pressable>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-          </View>
-
-          {/* Destination Account Dropdown for Transfer */}
+          {/* Destination Account Selector for Transfer */}
           {type === 'transfer' && (
-            <View className="mb-4">
-              <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">To Account</Text>
-              <Pressable
-                onPress={() => {
-                  try { Haptics.selectionAsync(); } catch {}
-                  setDestAccountDropdownOpen(!destAccountDropdownOpen);
-                }}
-                className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
-              >
-                <Text className={`text-sm ${selectedDestAccObj ? 'text-zinc-900 font-medium' : 'text-zinc-400'}`}>
-                  {selectedDestAccObj ? selectedDestAccObj.name : 'Select Destination Account'}
-                </Text>
-                <ChevronDown size={18} color="#71717A" />
-              </Pressable>
-
-              {destAccountDropdownOpen && (
-                <View className="mt-1 bg-white border border-zinc-200 rounded-xl max-h-48 overflow-hidden shadow-sm">
-                  <ScrollView nestedScrollEnabled className="p-1">
-                    {accounts
-                      .filter((acc) => acc.id !== selectedAccountId)
-                      .map((acc) => (
-                        <Pressable
-                          key={acc.id}
-                          onPress={() => {
-                            try { Haptics.selectionAsync(); } catch {}
-                            setSelectedDestAccountId(acc.id);
-                            setDestAccountDropdownOpen(false);
-                          }}
-                          className={`flex-row justify-between items-center p-3 rounded-lg ${selectedDestAccountId === acc.id ? 'bg-zinc-100' : ''}`}
-                        >
-                          <Text className={`text-sm ${selectedDestAccountId === acc.id ? 'font-bold text-zinc-900' : 'text-zinc-700'}`}>
-                            {acc.name}
-                          </Text>
-                          {selectedDestAccountId === acc.id && <Check size={16} color="#09090B" />}
-                        </Pressable>
-                      ))}
-                  </ScrollView>
-                </View>
-              )}
-            </View>
+            <AppSelectField
+              label="To Account"
+              title="Select Destination Account"
+              subtitle="Choose recipient account for this transfer"
+              value={selectedDestAccountId}
+              placeholder="Select Destination Account"
+              options={accounts
+                .filter((acc) => acc.id !== selectedAccountId)
+                .map((acc) => ({
+                  value: acc.id,
+                  label: acc.name,
+                  color: acc.color,
+                  subLabel: acc.type ? `${acc.type.toUpperCase()} • ₹${((acc.balance || 0) / 100).toLocaleString('en-IN')}` : undefined,
+                }))}
+              onSelect={(accId) => setSelectedDestAccountId(accId)}
+            />
           )}
 
           {/* Action Buttons */}

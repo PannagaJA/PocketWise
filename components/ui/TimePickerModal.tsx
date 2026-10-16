@@ -4,6 +4,7 @@ import { Clock, Check, X, ChevronDown } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { Button } from './Button';
 import { AppBottomSheet } from './AppBottomSheet';
+import { AppSelectModal } from './AppSelectModal';
 
 interface TimePickerModalProps {
   visible: boolean;
@@ -29,8 +30,8 @@ export function TimePickerModal({ visible, onClose, selectedTime24, onSelectTime
   const [minute, setMinute] = useState(initial.minute);
   const [period, setPeriod] = useState<'AM' | 'PM'>(initial.isPm ? 'PM' : 'AM');
 
-  const [hourDropdownOpen, setHourDropdownOpen] = useState(false);
-  const [minuteDropdownOpen, setMinuteDropdownOpen] = useState(false);
+  const [hourModalVisible, setHourModalVisible] = useState(false);
+  const [minuteModalVisible, setMinuteModalVisible] = useState(false);
 
   const format24h = (h: number, m: number, p: 'AM' | 'PM'): string => {
     let h24 = h;
@@ -56,7 +57,7 @@ export function TimePickerModal({ visible, onClose, selectedTime24, onSelectTime
   return (
     <AppBottomSheet
       visible={visible}
-      onClose={() => { setHourDropdownOpen(false); setMinuteDropdownOpen(false); onClose(); }}
+      onClose={() => { setHourModalVisible(false); setMinuteModalVisible(false); onClose(); }}
       title="Select Reminder Time"
       subtitle="Set daily reminder alert"
     >
@@ -72,16 +73,15 @@ export function TimePickerModal({ visible, onClose, selectedTime24, onSelectTime
           </Text>
         </View>
 
-        {/* 2 Dropdowns on the Same Row: Hour & Minute */}
+        {/* 2 Selectors on the Same Row: Hour & Minute */}
         <View className="flex-row gap-3 mb-4">
-          {/* Hour Dropdown */}
+          {/* Hour Selector */}
           <View className="flex-1">
             <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Hour</Text>
             <Pressable
               onPress={() => {
-                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                setHourDropdownOpen(!hourDropdownOpen);
-                setMinuteDropdownOpen(false);
+                try { Haptics.selectionAsync(); } catch {}
+                setHourModalVisible(true);
               }}
               className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl active:bg-zinc-100"
             >
@@ -90,14 +90,13 @@ export function TimePickerModal({ visible, onClose, selectedTime24, onSelectTime
             </Pressable>
           </View>
 
-          {/* Minute Dropdown */}
+          {/* Minute Selector */}
           <View className="flex-1">
             <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Minute</Text>
             <Pressable
               onPress={() => {
-                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                setMinuteDropdownOpen(!minuteDropdownOpen);
-                setHourDropdownOpen(false);
+                try { Haptics.selectionAsync(); } catch {}
+                setMinuteModalVisible(true);
               }}
               className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl active:bg-zinc-100"
             >
@@ -107,52 +106,35 @@ export function TimePickerModal({ visible, onClose, selectedTime24, onSelectTime
           </View>
         </View>
 
-        {/* Dropdown Options List */}
-        {hourDropdownOpen && (
-          <View className="mb-4 bg-white border border-zinc-200 rounded-2xl max-h-48 overflow-hidden shadow-sm p-1">
-            <ScrollView nestedScrollEnabled>
-              {hoursList.map((h) => (
-                <Pressable
-                  key={h}
-                  onPress={() => {
-                    setHour(h);
-                    setHourDropdownOpen(false);
-                    try { Haptics.selectionAsync(); } catch {}
-                  }}
-                  className={`flex-row justify-between items-center p-3 rounded-xl ${hour === h ? 'bg-indigo-50' : 'active:bg-zinc-50'}`}
-                >
-                  <Text className={`text-sm ${hour === h ? 'font-bold text-indigo-600' : 'text-zinc-800'}`}>
-                    {String(h).padStart(2, '0')} Hour
-                  </Text>
-                  {hour === h && <Check size={16} color="#6366F1" />}
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        )}
+        {/* Hour Selection Sheet */}
+        <AppSelectModal
+          visible={hourModalVisible}
+          onClose={() => setHourModalVisible(false)}
+          title="Select Hour"
+          subtitle="Choose reminder hour"
+          selectedValue={hour}
+          options={hoursList.map((h) => ({
+            value: h,
+            label: `${String(h).padStart(2, '0')} Hour`,
+          }))}
+          onSelect={(h) => setHour(h)}
+        />
 
-        {minuteDropdownOpen && (
-          <View className="mb-4 bg-white border border-zinc-200 rounded-2xl max-h-48 overflow-hidden shadow-sm p-1">
-            <ScrollView nestedScrollEnabled>
-              {minutesList.map((m) => (
-                <Pressable
-                  key={m}
-                  onPress={() => {
-                    setMinute(m);
-                    setMinuteDropdownOpen(false);
-                    try { Haptics.selectionAsync(); } catch {}
-                  }}
-                  className={`flex-row justify-between items-center p-3 rounded-xl ${minute === m ? 'bg-indigo-50' : 'active:bg-zinc-50'}`}
-                >
-                  <Text className={`text-sm ${minute === m ? 'font-bold text-indigo-600' : 'text-zinc-800'}`}>
-                    :{String(m).padStart(2, '0')} Minutes
-                  </Text>
-                  {minute === m && <Check size={16} color="#6366F1" />}
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        )}
+        {/* Minute Selection Sheet */}
+        <AppSelectModal
+          visible={minuteModalVisible}
+          onClose={() => setMinuteModalVisible(false)}
+          title="Select Minute"
+          subtitle="Choose reminder minute"
+          selectedValue={minute}
+          searchable={true}
+          searchPlaceholder="Search minute (e.g. 15, 30)..."
+          options={minutesList.map((m) => ({
+            value: m,
+            label: `:${String(m).padStart(2, '0')} Minutes`,
+          }))}
+          onSelect={(m) => setMinute(m)}
+        />
 
         {/* AM / PM Toggle */}
         <View className="mb-6">
@@ -187,8 +169,8 @@ export function TimePickerModal({ visible, onClose, selectedTime24, onSelectTime
             size="md"
             className="flex-1"
             onPress={() => {
-              setHourDropdownOpen(false);
-              setMinuteDropdownOpen(false);
+              setHourModalVisible(false);
+              setMinuteModalVisible(false);
               onClose();
             }}
           >

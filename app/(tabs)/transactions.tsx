@@ -10,6 +10,7 @@ import { Input } from '../../components/ui/Input';
 import { AppBottomSheet } from '../../components/ui/AppBottomSheet';
 import { AppDialog } from '../../components/ui/AppDialog';
 import { AppLoadingIndicator } from '../../components/ui/AppLoadingIndicator';
+import { AppSelectField } from '../../components/ui/AppSelectModal';
 import { useAuth } from '../../context/AuthContext';
 import { transactionService, cleanTransactionDescription } from '../../lib/services/transaction.service';
 import { supabase } from '../../lib/supabase';
@@ -68,9 +69,7 @@ export default function TransactionsScreen() {
     }
   }, [params?.add]);
 
-  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
-  const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
-  const [destAccountDropdownOpen, setDestAccountDropdownOpen] = useState(false);
+
 
   // Search, Type, & Bank Filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -230,8 +229,6 @@ export default function TransactionsScreen() {
   const [editDate, setEditDate] = useState('');
   const [editAccountId, setEditAccountId] = useState('');
   const [editCategoryId, setEditCategoryId] = useState('');
-  const [editCategoryDropdownOpen, setEditCategoryDropdownOpen] = useState(false);
-  const [editAccountDropdownOpen, setEditAccountDropdownOpen] = useState(false);
 
   const handleOpenDetailTx = useCallback((tx: any) => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
@@ -247,8 +244,6 @@ export default function TransactionsScreen() {
     setEditDate(tx.date || new Date().toISOString().substring(0, 10));
     setEditAccountId(tx.account_id || '');
     setEditCategoryId(tx.category_id || '');
-    setEditCategoryDropdownOpen(false);
-    setEditAccountDropdownOpen(false);
     setEditModalVisible(true);
   }, []);
 
@@ -492,9 +487,6 @@ export default function TransactionsScreen() {
     setSelectedAccountId(accounts[0]?.id || '');
     setSelectedDestAccountId('');
     setSelectedCategoryId('');
-    setCategoryDropdownOpen(false);
-    setAccountDropdownOpen(false);
-    setDestAccountDropdownOpen(false);
   };
 
   return (
@@ -884,108 +876,55 @@ export default function TransactionsScreen() {
             />
 
             {type !== 'transfer' && (
-              <View className="mb-4">
-                <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Category</Text>
-                <Pressable
-                  onPress={() => setCategoryDropdownOpen(!categoryDropdownOpen)}
-                  className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
-                >
-                  <Text className={`text-sm ${selectedCatObj ? 'text-zinc-900 font-medium' : 'text-zinc-400'}`}>
-                    {selectedCatObj ? selectedCatObj.name : 'Select a Category'}
-                  </Text>
-                  <ChevronDown size={18} color="#71717A" />
-                </Pressable>
-
-                {categoryDropdownOpen && (
-                  <View className="mt-1 bg-white border border-zinc-200 rounded-xl max-h-48 overflow-hidden shadow-sm">
-                    <ScrollView nestedScrollEnabled className="p-1">
-                      {filteredCategories.map((cat) => (
-                        <Pressable
-                          key={cat.id}
-                          onPress={() => {
-                            setSelectedCategoryId(cat.id);
-                            setCategoryDropdownOpen(false);
-                          }}
-                          className={`flex-row justify-between items-center p-3 rounded-lg ${selectedCategoryId === cat.id ? 'bg-zinc-100' : ''}`}
-                        >
-                          <Text className={`text-sm ${selectedCategoryId === cat.id ? 'font-bold text-zinc-900' : 'text-zinc-700'}`}>{cat.name}</Text>
-                          {selectedCategoryId === cat.id && <Check size={16} color="#09090B" />}
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-              </View>
+              <AppSelectField
+                label="Category"
+                title="Select Category"
+                subtitle="Choose a category for this transaction"
+                value={selectedCategoryId}
+                placeholder="Select a Category"
+                allowClear={true}
+                clearLabel="None (Uncategorized)"
+                options={filteredCategories.map((cat) => ({
+                  value: cat.id,
+                  label: cat.name,
+                  color: cat.color,
+                }))}
+                onSelect={(id) => setSelectedCategoryId(id)}
+              />
             )}
 
-            <View className="mb-4">
-              <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">
-                {type === 'transfer' ? 'From Account' : 'Account'}
-              </Text>
-              <Pressable
-                onPress={() => setAccountDropdownOpen(!accountDropdownOpen)}
-                className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
-              >
-                <Text className={`text-sm ${selectedAccObj ? 'text-zinc-900 font-medium' : 'text-zinc-400'}`}>
-                  {selectedAccObj ? selectedAccObj.name : 'Select Account'}
-                </Text>
-                <ChevronDown size={18} color="#71717A" />
-              </Pressable>
-
-              {accountDropdownOpen && (
-                <View className="mt-1 bg-white border border-zinc-200 rounded-xl max-h-48 overflow-hidden shadow-sm">
-                  <ScrollView nestedScrollEnabled className="p-1">
-                    {accounts.map((acc) => (
-                      <Pressable
-                        key={acc.id}
-                        onPress={() => {
-                          setSelectedAccountId(acc.id);
-                          setAccountDropdownOpen(false);
-                        }}
-                        className={`flex-row justify-between items-center p-3 rounded-lg ${selectedAccountId === acc.id ? 'bg-zinc-100' : ''}`}
-                      >
-                        <Text className={`text-sm ${selectedAccountId === acc.id ? 'font-bold text-zinc-900' : 'text-zinc-700'}`}>{acc.name}</Text>
-                        {selectedAccountId === acc.id && <Check size={16} color="#09090B" />}
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
-            </View>
+            <AppSelectField
+              label={type === 'transfer' ? 'From Account' : 'Account'}
+              title="Select Account"
+              subtitle="Choose account for this transaction"
+              value={selectedAccountId}
+              placeholder="Select Account"
+              options={accounts.map((acc) => ({
+                value: acc.id,
+                label: acc.name,
+                color: acc.color,
+                subLabel: acc.type ? `${acc.type.toUpperCase()} • ₹${((acc.balance || 0) / 100).toLocaleString('en-IN')}` : undefined,
+              }))}
+              onSelect={(id) => setSelectedAccountId(id)}
+            />
 
             {type === 'transfer' && (
-              <View className="mb-4">
-                <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">To Account</Text>
-                <Pressable
-                  onPress={() => setDestAccountDropdownOpen(!destAccountDropdownOpen)}
-                  className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
-                >
-                  <Text className={`text-sm ${selectedDestAccObj ? 'text-zinc-900 font-medium' : 'text-zinc-400'}`}>
-                    {selectedDestAccObj ? selectedDestAccObj.name : 'Select Destination Account'}
-                  </Text>
-                  <ChevronDown size={18} color="#71717A" />
-                </Pressable>
-
-                {destAccountDropdownOpen && (
-                  <View className="mt-1 bg-white border border-zinc-200 rounded-xl max-h-48 overflow-hidden shadow-sm">
-                    <ScrollView nestedScrollEnabled className="p-1">
-                      {accounts.map((acc) => (
-                        <Pressable
-                          key={acc.id}
-                          onPress={() => {
-                            setSelectedDestAccountId(acc.id);
-                            setDestAccountDropdownOpen(false);
-                          }}
-                          className={`flex-row justify-between items-center p-3 rounded-lg ${selectedDestAccountId === acc.id ? 'bg-zinc-100' : ''}`}
-                        >
-                          <Text className={`text-sm ${selectedDestAccountId === acc.id ? 'font-bold text-zinc-900' : 'text-zinc-700'}`}>{acc.name}</Text>
-                          {selectedDestAccountId === acc.id && <Check size={16} color="#09090B" />}
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-              </View>
+              <AppSelectField
+                label="To Account"
+                title="Select Destination Account"
+                subtitle="Choose recipient account for this transfer"
+                value={selectedDestAccountId}
+                placeholder="Select Destination Account"
+                options={accounts
+                  .filter((acc) => acc.id !== selectedAccountId)
+                  .map((acc) => ({
+                    value: acc.id,
+                    label: acc.name,
+                    color: acc.color,
+                    subLabel: acc.type ? `${acc.type.toUpperCase()} • ₹${((acc.balance || 0) / 100).toLocaleString('en-IN')}` : undefined,
+                  }))}
+                onSelect={(id) => setSelectedDestAccountId(id)}
+              />
             )}
 
             {/* Action Buttons */}
@@ -1115,78 +1054,39 @@ export default function TransactionsScreen() {
             </View>
 
             {/* Account Selector */}
-            <View className="mb-4">
-              <Text className="text-xs font-semibold text-zinc-600 mb-1.5 uppercase tracking-wider">Account</Text>
-              <Pressable
-                onPress={() => {
-                  setEditAccountDropdownOpen(!editAccountDropdownOpen);
-                  setEditCategoryDropdownOpen(false);
-                }}
-                className="flex-row items-center justify-between p-3.5 bg-zinc-50 border border-zinc-200 rounded-2xl"
-              >
-                <Text className="text-sm font-semibold text-zinc-900">
-                  {accounts.find((a) => a.id === editAccountId)?.name || 'Select Account'}
-                </Text>
-                <ChevronDown size={18} color="#71717A" />
-              </Pressable>
-
-              {editAccountDropdownOpen && (
-                <View className="mt-2 p-2 bg-white border border-zinc-200 rounded-2xl shadow-sm">
-                  {accounts.map((acc) => (
-                    <Pressable
-                      key={acc.id}
-                      onPress={() => {
-                        setEditAccountId(acc.id);
-                        setEditAccountDropdownOpen(false);
-                      }}
-                      className="flex-row items-center justify-between p-2.5 rounded-xl active:bg-zinc-50"
-                    >
-                      <Text className="text-sm font-medium text-zinc-800">{acc.name}</Text>
-                      {editAccountId === acc.id && <Check size={16} color="#6366F1" />}
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-            </View>
+            <AppSelectField
+              label="Account"
+              title="Select Account"
+              subtitle="Choose account for this transaction"
+              value={editAccountId}
+              placeholder="Select Account"
+              options={accounts.map((acc) => ({
+                value: acc.id,
+                label: acc.name,
+                color: acc.color,
+                subLabel: acc.type ? `${acc.type.toUpperCase()} • ₹${((acc.balance || 0) / 100).toLocaleString('en-IN')}` : undefined,
+              }))}
+              onSelect={(id) => setEditAccountId(id)}
+            />
 
             {/* Category Selector */}
-            <View className="mb-4">
-              <Text className="text-xs font-semibold text-zinc-600 mb-1.5 uppercase tracking-wider">Category</Text>
-              <Pressable
-                onPress={() => {
-                  setEditCategoryDropdownOpen(!editCategoryDropdownOpen);
-                  setEditAccountDropdownOpen(false);
-                }}
-                className="flex-row items-center justify-between p-3.5 bg-zinc-50 border border-zinc-200 rounded-2xl"
-              >
-                <Text className="text-sm font-semibold text-zinc-900">
-                  {categories.find((c) => c.id === editCategoryId)?.name || 'General / Uncategorized'}
-                </Text>
-                <ChevronDown size={18} color="#71717A" />
-              </Pressable>
-
-              {editCategoryDropdownOpen && (
-                <View className="mt-2 p-2 bg-white border border-zinc-200 rounded-2xl shadow-sm max-h-48">
-                  <ScrollView nestedScrollEnabled>
-                    {categories
-                      .filter((cat) => !editingTx?.type || editingTx.type === 'transfer' || cat.type === editingTx.type)
-                      .map((cat) => (
-                        <Pressable
-                          key={cat.id}
-                          onPress={() => {
-                            setEditCategoryId(cat.id);
-                            setEditCategoryDropdownOpen(false);
-                          }}
-                          className="flex-row items-center justify-between p-2.5 rounded-xl active:bg-zinc-50"
-                        >
-                          <Text className="text-sm font-medium text-zinc-800">{cat.name}</Text>
-                          {editCategoryId === cat.id && <Check size={16} color="#6366F1" />}
-                        </Pressable>
-                      ))}
-                  </ScrollView>
-                </View>
-              )}
-            </View>
+            <AppSelectField
+              label="Category"
+              title="Select Category"
+              subtitle="Choose category for this transaction"
+              value={editCategoryId}
+              placeholder="General / Uncategorized"
+              allowClear={true}
+              clearLabel="None (Uncategorized)"
+              options={categories
+                .filter((cat) => !editingTx?.type || editingTx.type === 'transfer' || cat.type === editingTx.type)
+                .map((cat) => ({
+                  value: cat.id,
+                  label: cat.name,
+                  color: cat.color,
+                }))}
+              onSelect={(id) => setEditCategoryId(id)}
+            />
 
             {/* Action Buttons */}
             <View className="flex-row gap-3 mt-4">

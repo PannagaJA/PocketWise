@@ -5,6 +5,7 @@ import { X, ChevronDown, Check, Zap } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { AppBottomSheet } from './ui/AppBottomSheet';
 import { AppLoadingIndicator } from './ui/AppLoadingIndicator';
+import { AppSelectField } from './ui/AppSelectModal';
 import { Button } from './ui/Button';
 import { useAuth } from '../context/AuthContext';
 import { transactionService } from '../lib/services/transaction.service';
@@ -24,9 +25,6 @@ export function QuickExpenseModal() {
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-
-  const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
-  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
 
   const amountInputRef = useRef<TextInput>(null);
 
@@ -69,8 +67,6 @@ export function QuickExpenseModal() {
     setErrorMessage('');
     setSelectedAccountId(accounts[0]?.id || '');
     setSelectedCategoryId(expenseCategories[0]?.id || '');
-    setAccountDropdownOpen(false);
-    setCategoryDropdownOpen(false);
     setVisible(true);
     shakeService.setModalOpen(true);
 
@@ -183,84 +179,37 @@ export function QuickExpenseModal() {
             />
           </View>
 
-          {/* Account Dropdown */}
-          <View className="mb-4">
-            <Text className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">Account</Text>
-            <Pressable
-              onPress={() => {
-                setAccountDropdownOpen(!accountDropdownOpen);
-                setCategoryDropdownOpen(false);
-              }}
-              className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-2xl active:bg-zinc-100"
-            >
-              <Text className="text-sm font-bold text-zinc-900">
-                {selectedAcc ? selectedAcc.name : 'Select Account'}
-              </Text>
-              <ChevronDown size={18} color="#71717A" />
-            </Pressable>
+          {/* Standard Mobile Account Selection Field */}
+          <AppSelectField
+            label="Account"
+            title="Select Account"
+            subtitle="Choose an account to debit this expense"
+            value={selectedAccountId}
+            placeholder="Select Account"
+            options={accounts.map((acc) => ({
+              value: acc.id,
+              label: acc.name,
+              color: acc.color,
+              subLabel: acc.type ? `${acc.type.toUpperCase()} • ₹${((acc.balance || 0) / 100).toLocaleString('en-IN')}` : undefined,
+            }))}
+            onSelect={(id) => setSelectedAccountId(id)}
+          />
 
-            {accountDropdownOpen && (
-              <View className="mt-1 bg-white border border-zinc-200 rounded-2xl max-h-36 overflow-hidden shadow-sm">
-                <ScrollView nestedScrollEnabled className="p-1">
-                  {accounts.map((acc) => (
-                    <Pressable
-                      key={acc.id}
-                      onPress={() => {
-                        setSelectedAccountId(acc.id);
-                        setAccountDropdownOpen(false);
-                      }}
-                      className={`flex-row justify-between items-center p-3 rounded-xl ${
-                        selectedAccountId === acc.id ? 'bg-zinc-100' : 'active:bg-zinc-50'
-                      }`}
-                    >
-                      <Text className="text-sm font-medium text-zinc-900">{acc.name}</Text>
-                      {selectedAccountId === acc.id && <Check size={16} color="#10B981" />}
-                    </Pressable>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-          </View>
-
-          {/* Category Dropdown */}
+          {/* Standard Mobile Category Selection Field */}
           {expenseCategories.length > 0 && (
-            <View className="mb-4">
-              <Text className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">Category</Text>
-              <Pressable
-                onPress={() => {
-                  setCategoryDropdownOpen(!categoryDropdownOpen);
-                  setAccountDropdownOpen(false);
-                }}
-                className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-2xl active:bg-zinc-100"
-              >
-                <Text className="text-sm font-bold text-zinc-900">
-                  {selectedCat ? selectedCat.name : 'General'}
-                </Text>
-                <ChevronDown size={18} color="#71717A" />
-              </Pressable>
-
-              {categoryDropdownOpen && (
-                <View className="mt-1 bg-white border border-zinc-200 rounded-2xl max-h-36 overflow-hidden shadow-sm">
-                  <ScrollView nestedScrollEnabled className="p-1">
-                    {expenseCategories.map((cat) => (
-                      <Pressable
-                        key={cat.id}
-                        onPress={() => {
-                          setSelectedCategoryId(cat.id);
-                          setCategoryDropdownOpen(false);
-                        }}
-                        className={`flex-row justify-between items-center p-3 rounded-xl ${
-                          selectedCategoryId === cat.id ? 'bg-zinc-100' : 'active:bg-zinc-50'
-                        }`}
-                      >
-                        <Text className="text-sm font-medium text-zinc-900">{cat.name}</Text>
-                        {selectedCategoryId === cat.id && <Check size={16} color="#10B981" />}
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
-            </View>
+            <AppSelectField
+              label="Category"
+              title="Select Category"
+              subtitle="Choose an expense category"
+              value={selectedCategoryId}
+              placeholder="General"
+              options={expenseCategories.map((cat) => ({
+                value: cat.id,
+                label: cat.name,
+                color: (cat as any).color,
+              }))}
+              onSelect={(id) => setSelectedCategoryId(id)}
+            />
           )}
 
           {/* Custom Reason Field when 'Others' is selected */}
