@@ -3,7 +3,7 @@ import { View, Text, Pressable, ScrollView } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
-import { AppModal } from './ui/AppModal';
+import { AppBottomSheet } from './ui/AppBottomSheet';
 import { useAuth } from '../context/AuthContext';
 import { accountService } from '../lib/services/account.service';
 import { formatMoney } from '../lib/finance/core';
@@ -95,27 +95,13 @@ export function SmsTransactionReviewModal({
   };
 
   return (
-    <AppModal visible={visible} animationType="slide" onClose={onClose}>
-      <Pressable className="flex-col w-full px-6 pt-3" style={{ maxHeight: '100%', flexShrink: 1 }} onPress={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <View className="flex-row justify-between items-center mb-4">
-          <View className="flex-row items-center gap-2.5">
-            <View className="w-9 h-9 rounded-2xl bg-amber-50 border border-amber-200 items-center justify-center">
-              <AlertCircle size={18} color="#D97706" />
-            </View>
-            <View>
-              <Text className="text-xl font-extrabold text-zinc-900">Transaction Review</Text>
-              <Text className="text-xs text-zinc-500">SMS transaction details</Text>
-            </View>
-          </View>
-          <Pressable
-            onPress={onClose}
-            className="w-8 h-8 rounded-full bg-zinc-100 items-center justify-center active:bg-zinc-200"
-          >
-            <X size={18} color="#71717A" />
-          </Pressable>
-        </View>
-
+    <AppBottomSheet
+      visible={visible}
+      onClose={onClose}
+      title="Transaction Review"
+      subtitle="SMS transaction details"
+    >
+      <View className="px-6 pb-6">
         {step === 'review' ? (
           <ScrollView
             showsVerticalScrollIndicator={true}
@@ -264,7 +250,7 @@ export function SmsTransactionReviewModal({
             </Button>
           </View>
         )}
-      </Pressable>
-    </AppModal>
+      </View>
+    </AppBottomSheet>
   );
 }

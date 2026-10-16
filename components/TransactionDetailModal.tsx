@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { View, Text, Pressable, ScrollView, TouchableOpacity } from 'react-native';
-import { AppModal } from './ui/AppModal';
+import { AppBottomSheet } from './ui/AppBottomSheet';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { formatMoney, formatDate, formatDateTime } from '../lib/finance/core';
@@ -111,53 +111,15 @@ export function TransactionDetailModal({
   };
 
   return (
-    <AppModal visible={visible} onClose={onClose} animationType="slide">
-      <Pressable className="flex-col w-full" style={{ maxHeight: '100%', flexShrink: 1 }} onPress={(e) => e.stopPropagation()}>
-        {/* Modal Header */}
-        <View className="flex-row items-center justify-between px-6 py-3 border-b border-zinc-100">
-          <View className="flex-row items-center gap-2.5">
-            <View
-              className={`w-9 h-9 rounded-xl items-center justify-center ${
-                isIncome ? 'bg-emerald-50' : isExpense ? 'bg-rose-50' : 'bg-indigo-50'
-              }`}
-            >
-              {isIncome ? (
-                <ArrowDownLeft size={18} color="#10B981" />
-              ) : isExpense ? (
-                <ArrowUpRight size={18} color="#EF4444" />
-              ) : (
-                <ArrowRightLeft size={18} color="#6366F1" />
-              )}
-            </View>
-            <View>
-              <Text className="text-lg font-extrabold text-zinc-900">Transaction Details</Text>
-              <Text className="text-xs text-zinc-500">
-                {isIncome ? 'Income Received' : isExpense ? 'Expense Paid' : 'Account Transfer'}
-              </Text>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            onPress={() => {
-              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-              onClose();
-            }}
-            activeOpacity={0.7}
-            className="w-8 h-8 rounded-full bg-zinc-100 items-center justify-center"
-          >
-            <X size={16} color="#71717A" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Content */}
-        <ScrollView
-          className="px-6 pt-4"
-          style={{ flexShrink: 1 }}
-          showsVerticalScrollIndicator={true}
-          persistentScrollbar={true}
-          contentContainerStyle={{ paddingBottom: 20 }}
-        >
-          {/* Hero Amount Box */}
+    <AppBottomSheet
+      visible={visible}
+      onClose={onClose}
+      title="Transaction Details"
+      subtitle={isIncome ? 'Income Received' : isExpense ? 'Expense Paid' : 'Account Transfer'}
+      scrollable={true}
+      contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 }}
+    >
+      {/* Hero Amount Box */}
           <View className="items-center justify-center py-5 px-4 bg-zinc-50 rounded-2xl border border-zinc-200/80 mb-5">
             <View className="flex-row items-center gap-1.5 mb-2">
               <Badge
@@ -345,8 +307,6 @@ export function TransactionDetailModal({
               </TouchableOpacity>
             )}
           </View>
-        </ScrollView>
-      </Pressable>
-    </AppModal>
+    </AppBottomSheet>
   );
 }
