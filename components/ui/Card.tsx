@@ -9,7 +9,7 @@ interface CardProps extends ViewProps {
 export const Card: React.FC<CardProps> = ({ children, className = '', ...props }) => {
   return (
     <View
-      className={`bg-white rounded-2xl p-4 border border-zinc-200/80 shadow-sm ${className}`}
+      className={`bg-white rounded-3xl p-5 border border-zinc-100 shadow-xs ${className}`}
       {...props}
     >
       {children}
@@ -22,13 +22,14 @@ export const CardHeader: React.FC<{ children: React.ReactNode; className?: strin
 );
 
 export const CardTitle: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
-  <Text className={`text-lg font-bold text-zinc-900 ${className}`}>{children}</Text>
+  <Text className={`text-[17px] font-extrabold text-zinc-950 tracking-tight ${className}`}>{children}</Text>
 );
 
 export const CardDescription: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
-  <Text className={`text-sm text-zinc-500 mt-0.5 ${className}`}>{children}</Text>
+  <Text className={`text-xs font-medium text-zinc-500 mt-0.5 ${className}`}>{children}</Text>
 );
 
 export const CardContent: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
   <View className={className}>{children}</View>
 );
+

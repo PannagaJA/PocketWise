@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useFocusEffect } from 'expo-router';
 import Svg, { Path, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { Card } from '../../components/ui/Card';
+import { RecordRow } from '../../components/ui/RecordRow';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
@@ -371,19 +372,19 @@ export default function DashboardScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      <ScrollView className="flex-1 px-4 pt-2" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 140 }}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: '#F8F9FE' }} edges={['top']}>
+      <ScrollView className="flex-1 px-4 pt-2" style={{ backgroundColor: '#F8F9FE' }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 140 }}>
         {/* Modern Header: Avatar Monogram, Greeting, Notifications */}
         <View className="flex-row justify-between items-center mb-3 pt-1">
           <View className="flex-row items-center gap-3">
-            <View className="w-11 h-11 rounded-full bg-violet-100 border border-violet-200 items-center justify-center shadow-xs">
-              <Text className="text-base font-black text-violet-800">
+            <View className="w-10 h-10 rounded-full bg-violet-100 items-center justify-center shadow-xs">
+              <Text className="text-sm font-extrabold text-violet-700">
                 {(user?.user_metadata?.display_name || user?.email || 'U')[0].toUpperCase()}
               </Text>
             </View>
             <View>
-              <Text className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Good {getTimeGreeting()}</Text>
-              <Text className="text-xl font-black text-zinc-900 tracking-tight">
+              <Text className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Good {getTimeGreeting()}</Text>
+              <Text className="text-[18px] font-extrabold text-zinc-950 tracking-tight">
                 {user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'User'}
               </Text>
             </View>
@@ -394,7 +395,7 @@ export default function DashboardScreen() {
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
               setNotifModalVisible(true);
             }}
-            className="w-10 h-10 bg-white border border-zinc-200 rounded-full items-center justify-center shadow-xs relative active:bg-zinc-50"
+            className="w-10 h-10 bg-white border border-zinc-100 rounded-full items-center justify-center shadow-xs relative active:bg-zinc-50"
           >
             <Bell size={18} color="#09090B" />
             {reminders.length > 0 && (
@@ -443,11 +444,11 @@ export default function DashboardScreen() {
           >
             <View
               pointerEvents="none"
-              className="w-14 h-14 rounded-full bg-indigo-50 border border-indigo-200/80 items-center justify-center shadow-xs active:bg-indigo-100"
+              className="w-14 h-14 rounded-full bg-indigo-50/80 border border-indigo-100/60 items-center justify-center shadow-xs active:bg-indigo-100"
             >
-              <TrendingUp size={22} color="#6366F1" strokeWidth={2.2} />
+              <TrendingUp size={22} color="#4F46E5" strokeWidth={2.2} />
             </View>
-            <Text pointerEvents="none" className="text-[11px] font-bold text-zinc-800 mt-2">Analytics</Text>
+            <Text pointerEvents="none" className="text-[12px] font-bold text-zinc-900 mt-2">Analytics</Text>
           </TouchableOpacity>
 
           {/* Financial Model 2: Lend & Borrow Tracker */}
@@ -467,11 +468,11 @@ export default function DashboardScreen() {
           >
             <View
               pointerEvents="none"
-              className="w-14 h-14 rounded-full bg-teal-50 border border-teal-200/80 items-center justify-center shadow-xs active:bg-teal-100"
+              className="w-14 h-14 rounded-full bg-teal-50/80 border border-teal-100/60 items-center justify-center shadow-xs active:bg-teal-100"
             >
               <ArrowRightLeft size={22} color="#0D9488" strokeWidth={2.2} />
             </View>
-            <Text pointerEvents="none" className="text-[11px] font-bold text-zinc-800 mt-2">Lends</Text>
+            <Text pointerEvents="none" className="text-[12px] font-bold text-zinc-900 mt-2">Lends</Text>
           </TouchableOpacity>
 
           {/* Financial Model 3: Savings Goals */}
@@ -491,11 +492,11 @@ export default function DashboardScreen() {
           >
             <View
               pointerEvents="none"
-              className="w-14 h-14 rounded-full bg-purple-50 border border-purple-200/80 items-center justify-center shadow-xs active:bg-purple-100"
+              className="w-14 h-14 rounded-full bg-purple-50/80 border border-purple-100/60 items-center justify-center shadow-xs active:bg-purple-100"
             >
-              <Target size={22} color="#8B5CF6" strokeWidth={2.2} />
+              <Target size={22} color="#7C3AED" strokeWidth={2.2} />
             </View>
-            <Text pointerEvents="none" className="text-[11px] font-bold text-zinc-800 mt-2">Goals</Text>
+            <Text pointerEvents="none" className="text-[12px] font-bold text-zinc-900 mt-2">Goals</Text>
           </TouchableOpacity>
 
           {/* Financial Model 4: Bills & Utilities */}
@@ -515,11 +516,11 @@ export default function DashboardScreen() {
           >
             <View
               pointerEvents="none"
-              className="w-14 h-14 rounded-full bg-orange-50 border border-orange-200/80 items-center justify-center shadow-xs active:bg-orange-100"
+              className="w-14 h-14 rounded-full bg-amber-50/80 border border-amber-100/60 items-center justify-center shadow-xs active:bg-amber-100"
             >
-              <Calendar size={22} color="#EA580C" strokeWidth={2.2} />
+              <Calendar size={22} color="#D97706" strokeWidth={2.2} />
             </View>
-            <Text pointerEvents="none" className="text-[11px] font-bold text-zinc-800 mt-2">Bills</Text>
+            <Text pointerEvents="none" className="text-[12px] font-bold text-zinc-900 mt-2">Bills</Text>
           </TouchableOpacity>
         </View>
 
@@ -550,13 +551,13 @@ export default function DashboardScreen() {
 
 
         {/* Clean Rounded Recent Transactions Panel */}
-        <View className="bg-white border border-zinc-200 rounded-3xl p-5 shadow-xs mb-6 mt-4">
-          <View className="flex-row justify-between items-center mb-4">
+        <View className="bg-white border border-zinc-100 rounded-3xl p-5 shadow-xs mb-6 mt-4">
+          <View className="flex-row justify-between items-center mb-3">
             <View className="flex-row items-center gap-2">
-              <Text className="text-base font-black text-zinc-900 tracking-tight">Recent Transactions</Text>
+              <Text className="text-[17px] font-extrabold text-zinc-950 tracking-tight">Recent Transactions</Text>
               {selectedBankId !== 'all' && (
-                <View className="px-2 py-0.5 bg-zinc-100 rounded-full">
-                  <Text className="text-[10px] font-bold text-zinc-600">
+                <View className="px-2.5 py-1 bg-zinc-100 rounded-full">
+                  <Text className="text-[11px] font-semibold text-zinc-600">
                     {accounts.find((a) => a.id === selectedBankId)?.name || 'Filtered'}
                   </Text>
                 </View>
@@ -568,16 +569,19 @@ export default function DashboardScreen() {
                 useTabStore.getState().requestScrollToTab(1);
               }}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              className="px-2.5 py-1 bg-violet-50 rounded-full"
+              className="py-1 px-1"
             >
-              <Text className="text-xs font-bold text-violet-700">See All</Text>
+              <Text className="text-[13px] font-bold text-indigo-500">See All</Text>
             </Pressable>
           </View>
 
           {filteredRecentTxs.length === 0 ? (
-            <View className="py-6 items-center">
-              <Text className="text-sm font-semibold text-zinc-700">No transactions found</Text>
-              <Text className="text-xs text-zinc-400 mt-0.5 mb-3 text-center">
+            <View className="py-8 items-center">
+              <View className="w-12 h-12 rounded-full bg-zinc-50 items-center justify-center mb-2 border border-zinc-100">
+                <Wallet size={20} color="#A1A1AA" />
+              </View>
+              <Text className="text-sm font-bold text-zinc-800">No transactions found</Text>
+              <Text className="text-xs text-zinc-400 mt-0.5 mb-4 text-center">
                 {selectedBankId === 'all'
                   ? 'Your latest financial activities will show here.'
                   : `No transactions recorded for ${selectedAccount?.name || 'this bank'}.`}
@@ -606,46 +610,19 @@ export default function DashboardScreen() {
                 'General';
 
               const isLast = idx === filteredRecentTxs.length - 1;
+              const formattedAmount = `${tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}${formatMoney(tx.amount_minor)}`;
 
               return (
-                <TouchableOpacity
+                <RecordRow
                   key={tx.id}
-                  activeOpacity={0.7}
-                  delayPressIn={0}
+                  title={cleanTransactionDescription(tx.description, categoryName, tx.type)}
+                  subtitle={`${categoryName} • ${accountName}`}
+                  amount={formattedAmount}
+                  isCredit={tx.type === 'income'}
+                  date={formatDate(tx.date)}
                   onPress={() => handleOpenDetailTx(tx)}
-                  className={`flex-row items-center justify-between py-3 ${!isLast ? 'border-b border-zinc-100' : ''}`}
-                >
-                  <View className="flex-row items-center flex-1 pr-3">
-                    <View className={`w-10 h-10 rounded-2xl items-center justify-center mr-3 ${
-                      tx.type === 'income' ? 'bg-emerald-50 border border-emerald-100' : tx.type === 'expense' ? 'bg-zinc-50 border border-zinc-200' : 'bg-indigo-50 border border-indigo-100'
-                    }`}>
-                      {tx.type === 'income' ? (
-                        <ArrowDownLeft size={16} color="#059669" />
-                      ) : tx.type === 'expense' ? (
-                        <ArrowUpRight size={16} color="#EF4444" />
-                      ) : (
-                        <ArrowRightLeft size={16} color="#6366F1" />
-                      )}
-                    </View>
-                    <View className="flex-1">
-                      <Text className="text-sm font-bold text-zinc-900" numberOfLines={1}>
-                        {cleanTransactionDescription(tx.description, categoryName, tx.type)}
-                      </Text>
-                      <Text className="text-[11px] font-semibold text-zinc-400 mt-0.5">
-                        {categoryName} • {accountName}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View className="items-end">
-                    <Text className={`text-sm font-black ${
-                      tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-zinc-900' : 'text-indigo-600'
-                    }`}>
-                      {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{formatMoney(tx.amount_minor)}
-                    </Text>
-                    <Text className="text-[10px] font-medium text-zinc-400 mt-0.5">{formatDate(tx.date)}</Text>
-                  </View>
-                </TouchableOpacity>
+                  showDivider={!isLast}
+                />
               );
             })
           )}
@@ -654,32 +631,32 @@ export default function DashboardScreen() {
         {/* Upcoming Bills Widget */}
         <View className="mb-6">
           <View className="flex-row justify-between items-center mb-3">
-            <Text className="text-base font-bold text-zinc-900">Upcoming Bills</Text>
+            <Text className="text-[17px] font-extrabold text-zinc-950 tracking-tight">Upcoming Bills</Text>
             <Pressable onPress={() => router.push({ pathname: '/bills', params: { from: 'dashboard' } } as any)}>
-              <Text className="text-xs font-bold text-indigo-600">See All</Text>
+              <Text className="text-[13px] font-bold text-indigo-500">See All</Text>
             </Pressable>
           </View>
           {upcomingBills.length === 0 ? (
-            <Card className="p-6 bg-white border border-zinc-200 items-center rounded-2xl">
+            <Card className="p-6 bg-white border border-zinc-100 items-center rounded-3xl shadow-xs">
               <View className="w-12 h-12 rounded-full bg-amber-50 items-center justify-center mb-2">
-                <ShieldCheck size={24} color="#F59E0B" />
+                <ShieldCheck size={22} color="#D97706" />
               </View>
-              <Text className="text-sm font-bold text-zinc-800">All caught up!</Text>
+              <Text className="text-sm font-bold text-zinc-900">All caught up!</Text>
               <Text className="text-xs text-zinc-400 mt-0.5">No upcoming pending bills due soon.</Text>
             </Card>
           ) : (
             upcomingBills.map((b) => (
-              <Card key={b.id} className="mb-2.5 p-4 bg-white border border-zinc-200 flex-row items-center justify-between">
-                <View className="flex-row items-center">
-                  <View className="w-10 h-10 rounded-xl bg-amber-50 items-center justify-center mr-3">
-                    <Calendar size={18} color="#F59E0B" />
+              <Card key={b.id} className="mb-2.5 p-4 bg-white border border-zinc-100 rounded-2xl flex-row items-center justify-between shadow-xs">
+                <View className="flex-row items-center flex-1 mr-3">
+                  <View className="w-10 h-10 rounded-full bg-amber-50 items-center justify-center mr-3">
+                    <Calendar size={18} color="#D97706" />
                   </View>
-                  <View>
-                    <Text className="text-sm font-bold text-zinc-900">{b.name}</Text>
-                    <Text className="text-xs text-zinc-400">Due {formatDate(b.due_date)}</Text>
+                  <View className="flex-1">
+                    <Text className="text-[15px] font-bold text-zinc-950" numberOfLines={1}>{b.name}</Text>
+                    <Text className="text-[12px] font-medium text-zinc-500 mt-0.5">Due {formatDate(b.due_date)}</Text>
                   </View>
                 </View>
-                <Text className="text-sm font-extrabold text-zinc-900">{formatMoney(b.expected_amount_minor)}</Text>
+                <Text className="text-[15px] font-extrabold text-zinc-950">{formatMoney(b.expected_amount_minor)}</Text>
               </Card>
             ))
           )}
@@ -688,17 +665,17 @@ export default function DashboardScreen() {
         {/* Savings Goals Summary Widget */}
         <View className="mb-8">
           <View className="flex-row justify-between items-center mb-3">
-            <Text className="text-base font-bold text-zinc-900">Savings Goals</Text>
+            <Text className="text-[17px] font-extrabold text-zinc-950 tracking-tight">Savings Goals</Text>
             <Pressable onPress={() => router.push({ pathname: '/goals', params: { from: 'dashboard' } } as any)}>
-              <Text className="text-xs font-bold text-indigo-600">See All</Text>
+              <Text className="text-[13px] font-bold text-indigo-500">See All</Text>
             </Pressable>
           </View>
           {activeGoals.length === 0 ? (
-            <Card className="p-6 bg-white border border-zinc-200 items-center rounded-2xl">
-              <View className="w-12 h-12 rounded-full bg-indigo-50 items-center justify-center mb-2">
-                <Target size={24} color="#6366F1" />
+            <Card className="p-6 bg-white border border-zinc-100 items-center rounded-3xl shadow-xs">
+              <View className="w-12 h-12 rounded-full bg-purple-50 items-center justify-center mb-2">
+                <Target size={22} color="#7C3AED" />
               </View>
-              <Text className="text-sm font-bold text-zinc-800">No active goals</Text>
+              <Text className="text-sm font-bold text-zinc-900">No active goals</Text>
               <Text className="text-xs text-zinc-400 mt-0.5">Create a target goal to start saving!</Text>
             </Card>
           ) : (
@@ -707,13 +684,13 @@ export default function DashboardScreen() {
                 ? Math.min(100, Math.round((g.current_amount_minor / g.target_amount_minor) * 100))
                 : 0;
               return (
-                <Card key={g.id} className="mb-2.5 p-4 bg-white border border-zinc-200">
-                  <View className="flex-row items-center justify-between mb-2">
-                    <View className="flex-row items-center">
-                      <View className="w-8 h-8 rounded-xl bg-indigo-50 items-center justify-center mr-2.5">
-                        <Target size={16} color="#6366F1" />
+                <Card key={g.id} className="mb-2.5 p-4.5 bg-white border border-zinc-100 rounded-2xl shadow-xs">
+                  <View className="flex-row items-center justify-between mb-2.5">
+                    <View className="flex-row items-center flex-1 mr-2">
+                      <View className="w-8 h-8 rounded-full bg-purple-50 items-center justify-center mr-2.5">
+                        <Target size={16} color="#7C3AED" />
                       </View>
-                      <Text className="text-sm font-bold text-zinc-900">{g.name}</Text>
+                      <Text className="text-[15px] font-bold text-zinc-950 flex-1" numberOfLines={1}>{g.name}</Text>
                     </View>
                     <Text className="text-xs font-black text-indigo-600">{pct}%</Text>
                   </View>
