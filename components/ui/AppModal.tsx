@@ -123,34 +123,7 @@ export const AppModal: React.FC<AppModalProps> = ({
     })
   ).current;
 
-  // Pan responder for sheet content (does NOT capture before ScrollView children)
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onStartShouldSetPanResponderCapture: () => false,
-      onMoveShouldSetPanResponderCapture: () => false,
-      onMoveShouldSetPanResponder: (_evt, gestureState) => {
-        if (!isSlideRef.current) return false;
-        return (
-          gestureState.dy > 6 &&
-          Math.abs(gestureState.dy) > Math.abs(gestureState.dx) * 1.2
-        );
-      },
-      onPanResponderGrant: () => {
-        Keyboard.dismiss();
-      },
-      onPanResponderMove: (_evt, gestureState) => {
-        if (gestureState.dy > 0) {
-          slideAnim.setValue(gestureState.dy);
-          fadeAnim.setValue(Math.max(0.1, 1 - gestureState.dy / (screenHeight * 0.55)));
-        } else {
-          slideAnim.setValue(gestureState.dy * 0.12);
-        }
-      },
-      onPanResponderRelease: (_evt, gestureState) => performDismiss(gestureState),
-      onPanResponderTerminate: () => performDismiss({ dy: 0, vy: 0 }),
-    })
-  ).current;
+
 
   // Coordinate modal visibility with global tab bar so floating navigation never overlaps modal
   useEffect(() => {
@@ -315,11 +288,13 @@ export const AppModal: React.FC<AppModalProps> = ({
   };
 
   const topInset = Math.max(insets.top, Platform.OS === 'ios' ? 44 : 24);
-  const bottomInset = Math.max(insets.bottom, Platform.OS === 'ios' ? 24 : 16);
+  const bottomInset = insets.bottom > 0
+    ? insets.bottom
+    : (Platform.OS === 'ios' ? 34 : 24);
 
   // Maximum allowed bottom-sheet height when keyboard is closed
-  // Capped at 88% of screen (or 740px) to guarantee top backdrop visibility and proper sheet proportions
-  const maxSheetHeightNormal = Math.min(screenHeight * 0.88, 740);
+  // Capped at 90% of screen to guarantee top backdrop visibility and proper sheet proportions
+  const maxSheetHeightNormal = Math.min(screenHeight * 0.90, 760);
 
   // When keyboard is open: maximum allowed bottom-sheet height to prevent header cutoff
   // Leaves safe margin below status bar/notch, capped at maxSheetHeightNormal and available space
@@ -387,7 +362,6 @@ export const AppModal: React.FC<AppModalProps> = ({
                   pointerEvents: 'auto' as any,
                 },
               ]}
-              {...panResponder.panHandlers}
             >
               {/* Native Drag Handle Bar */}
               <View style={styles.dragPillContainer} {...handleBarPanResponder.panHandlers}>
@@ -478,7 +452,6 @@ const styles = StyleSheet.create({
   sheetBody: {
     width: '100%',
     flexShrink: 1,
-    maxHeight: '100%',
   },
   dialog: {
     width: '100%',

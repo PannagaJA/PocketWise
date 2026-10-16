@@ -23,6 +23,7 @@ export interface AppBottomSheetProps {
   children: React.ReactNode;
   scrollable?: boolean;
   contentContainerStyle?: any;
+  footer?: React.ReactNode;
 }
 
 export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
@@ -36,6 +37,7 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
   children,
   scrollable = false,
   contentContainerStyle,
+  footer,
 }) => {
   const handleClose = () => {
     try {
@@ -83,14 +85,33 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
           <ScrollView
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
-            style={{ flexShrink: 1 }}
+            nestedScrollEnabled={true}
+            bounces={true}
+            contentContainerStyle={[
+              styles.scrollContent,
+              contentContainerStyle,
+              !footer && { paddingBottom: 44 },
+            ]}
+            style={styles.scrollView}
           >
             {children}
           </ScrollView>
         ) : (
-          <View style={[styles.content, contentContainerStyle]}>
+          <View
+            style={[
+              styles.content,
+              contentContainerStyle,
+              !footer && { paddingBottom: 32 },
+            ]}
+          >
             {children}
+          </View>
+        )}
+
+        {/* Optional Standard Sticky Bottom Action Footer */}
+        {!!footer && (
+          <View style={styles.footerContainer}>
+            {footer}
           </View>
         )}
       </Pressable>
@@ -102,9 +123,7 @@ const styles = StyleSheet.create({
   sheetContainer: {
     backgroundColor: 'transparent',
     width: '100%',
-    maxHeight: '100%',
     flexShrink: 1,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 16,
   },
   headerRow: {
     flexDirection: 'row',
@@ -145,6 +164,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  scrollView: {
+    width: '100%',
+    flexShrink: 1,
+  },
   content: {
     paddingHorizontal: 20,
     paddingTop: 16,
@@ -152,6 +175,15 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 16,
+    paddingBottom: 36,
+  },
+  footerContainer: {
+    width: '100%',
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F4F4F5',
+    backgroundColor: '#FFFFFF',
   },
 });
