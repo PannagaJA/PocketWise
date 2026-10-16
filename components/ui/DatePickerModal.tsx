@@ -3,7 +3,7 @@ import { View, Text, Pressable, ScrollView } from 'react-native';
 import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Check, X } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { Button } from './Button';
-import { AppModal } from './AppModal';
+import { AppBottomSheet } from './AppBottomSheet';
 
 interface DatePickerModalProps {
   label: string;
@@ -104,28 +104,13 @@ export function DatePickerButton({ label, value, onSelectDate, placeholder = 'Pi
       </Pressable>
 
       {/* Interactive Calendar Modal */}
-      <AppModal
+      <AppBottomSheet
         visible={modalVisible}
         onClose={() => { setModalVisible(false); setShowYearSelector(false); }}
-        animationType="fade"
+        title="Pick a Date"
+        subtitle="Select transaction date"
       >
-        <Pressable
-          style={{ width: '100%', padding: 20 }}
-          onPress={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <View className="flex-row justify-between items-center mb-4">
-            <View className="flex-row items-center gap-2">
-              <View className="w-8 h-8 rounded-full bg-indigo-50 items-center justify-center">
-                <Calendar size={18} color="#6366F1" />
-              </View>
-              <Text className="text-lg font-bold text-zinc-900">Pick a Date</Text>
-            </View>
-            <Pressable onPress={() => { setModalVisible(false); setShowYearSelector(false); }} className="p-1">
-              <X size={20} color="#71717A" />
-            </Pressable>
-          </View>
-
+        <View style={{ width: '100%', paddingHorizontal: 20, paddingBottom: 24 }}>
           {/* Month & Year Navigation Header Button */}
           <View className="flex-row justify-between items-center bg-zinc-50 border border-zinc-200 rounded-2xl px-3 py-2 mb-4">
             <Pressable onPress={handlePrevMonth} className="p-1.5 rounded-xl bg-white active:bg-zinc-100 shadow-xs">
@@ -262,8 +247,8 @@ export function DatePickerButton({ label, value, onSelectDate, placeholder = 'Pi
               <Text className="text-white font-bold text-xs">Select Date</Text>
             </Button>
           </View>
-        </Pressable>
-      </AppModal>
+        </View>
+      </AppBottomSheet>
     </View>
   );
 }

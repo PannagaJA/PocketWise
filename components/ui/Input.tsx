@@ -1,24 +1,87 @@
-import React from 'react';
-import { View, Text, TextInput, TextInputProps } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TextInput, TextInputProps, StyleSheet } from 'react-native';
 
-interface InputProps extends TextInputProps {
+export interface InputProps extends TextInputProps {
   label?: string;
   error?: string;
   containerClassName?: string;
 }
 
-export const Input: React.FC<InputProps> = ({ label, error, containerClassName = '', className = '', ...props }) => {
+export const Input: React.FC<InputProps> = ({
+  label,
+  error,
+  containerClassName = '',
+  className = '',
+  onFocus,
+  onBlur,
+  style,
+  ...props
+}) => {
+  const [isFocused, setIsFocused] = useState(false);
+
   return (
-    <View className={`w-full mb-3 ${containerClassName}`}>
-      {label && <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">{label}</Text>}
-      <TextInput
-        placeholderTextColor="#9CA3AF"
-        className={`w-full bg-white border ${
-          error ? 'border-red-500' : 'border-zinc-200'
-        } rounded-xl px-4 py-3 text-base text-zinc-900 ${className}`}
-        {...props}
-      />
-      {error && <Text className="text-xs text-red-500 mt-1 font-medium">{error}</Text>}
+    <View className={`w-full mb-3.5 ${containerClassName}`}>
+      {!!label && (
+        <Text className="text-[13px] font-semibold text-zinc-700 mb-1.5 ml-0.5">
+          {label}
+        </Text>
+      )}
+      <View
+        style={[
+          styles.inputContainer,
+          isFocused && styles.inputFocused,
+          !!error && styles.inputError,
+        ]}
+      >
+        <TextInput
+          placeholderTextColor="#A1A1AA"
+          onFocus={(e) => {
+            setIsFocused(true);
+            onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setIsFocused(false);
+            onBlur?.(e);
+          }}
+          style={[styles.input, style]}
+          {...props}
+        />
+      </View>
+      {!!error && (
+        <Text className="text-xs text-rose-500 mt-1.5 ml-1 font-medium">{error}</Text>
+      )}
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  inputContainer: {
+    width: '100%',
+    backgroundColor: '#F4F4F5',
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    height: 52,
+    justifyContent: 'center',
+  },
+  inputFocused: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#09090B',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  inputError: {
+    borderColor: '#EF4444',
+  },
+  input: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#09090B',
+    height: '100%',
+    width: '100%',
+  },
+});
