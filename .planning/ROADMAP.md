@@ -48,11 +48,13 @@
   - [x] 07-01: Implement layered card stack component with spring entrance motion, balance typography, and multi-card visual accents.
   - [x] 07-02: Redesign Dashboard layout, action buttons, and transaction list while preserving 100% of underlying hooks, queries, and mutations.
 
-### Phase 8: Floating Pill Navigation, Transitions & Global Loading Skeletons
-- **Goal:** Modernize bottom tab navigation into floating pill style and replace generic spinners with component-matched skeleton loaders.
+### Phase 8: Floating Pill Navigation, Modal Design System & Loading Redesign (Completed)
+- **Goal:** Modernize bottom tab navigation into floating pill style, create reference-matched Magpie modal & bottom sheet system, Add Card flow with two-dot blue loading animation, and app-wide modal migration.
 - **Plans:**
-  - [ ] 08-01: Implement floating black pill bottom navigation bar with active state indicators and safe area handling.
-  - [ ] 08-02: Create coordinated skeleton loaders matching redesigned dashboard and transaction cards.
+  - [x] 08-01: Implement floating black pill bottom navigation bar with active state indicators and safe area handling.
+  - [x] 08-02: Create shared modal components (`AppBottomSheet`, `AppDialog`, `AppLoadingIndicator`, `AppTextInput`).
+  - [x] 08-03: Implement Magpie reference Add Card modal flow with real-time validation and alternating two-dot blue loading state.
+  - [x] 08-04: Migrate all existing application modals, bottom sheets, and confirmation dialogs to unified design system.
 
 ### Phase 9: Verification, Polish & Regression Defense Gate
 - **Goal:** Complete regression testing across all financial features, auth, biometric lock, push notifications, offline outbox, and run TypeScript/test/doctor suites.
