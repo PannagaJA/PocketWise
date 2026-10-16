@@ -456,7 +456,7 @@ export default function LendsScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: '#F8F9FE' }} edges={['top']}>
       <View className="px-4 pt-2 flex-1">
         {/* Header */}
         <View className="flex-row justify-between items-center mb-4">
@@ -465,8 +465,8 @@ export default function LendsScreen() {
               <ArrowLeft size={22} color="#09090B" />
             </Pressable>
             <View className="flex-1">
-              <Text className="text-2xl font-black text-zinc-900">Money Lends</Text>
-              <Text className="text-xs text-zinc-500 mt-0.5" numberOfLines={1} ellipsizeMode="tail">Track money given & collection reminders</Text>
+              <Text className="text-[22px] font-extrabold text-zinc-950 tracking-tight">Money Lends</Text>
+              <Text className="text-xs font-medium text-zinc-500 mt-0.5" numberOfLines={1} ellipsizeMode="tail">Track money given & collection reminders</Text>
             </View>
           </View>
 
@@ -474,7 +474,7 @@ export default function LendsScreen() {
             variant="primary"
             size="sm"
             style={{ flexShrink: 0 }}
-            className="flex-row items-center gap-1.5 px-3.5 py-2.5"
+            className="flex-row items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-zinc-950 shadow-xs"
             onPress={() => {
               resetForm();
               setShowAdd(true);
@@ -487,27 +487,29 @@ export default function LendsScreen() {
 
         {/* Outstanding Commitment Summary Card */}
         {activeRecords.length > 0 && (
-          <Card className="bg-zinc-900 border-zinc-800 p-5 mb-3.5 rounded-3xl shadow-md flex-row items-center justify-between">
+          <Card className="bg-white border border-zinc-100 p-5 mb-3.5 rounded-3xl shadow-xs flex-row items-center justify-between">
             <View className="flex-1 pr-3">
               <View className="flex-row items-center gap-1.5 mb-1">
-                <HandCoins size={14} color="#6366F1" />
-                <Text className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">
+                <View className="w-6 h-6 rounded-full bg-teal-50 items-center justify-center">
+                  <HandCoins size={13} color="#0D9488" />
+                </View>
+                <Text className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
                   Total Outstanding Lent
                 </Text>
               </View>
 
-              <Text className="text-2xl font-black text-white">
+              <Text className="text-[24px] font-extrabold text-zinc-950 tracking-tight">
                 {formatMoney(totalOutstanding)}
               </Text>
-              <Text className="text-xs text-zinc-400 mt-0.5">
+              <Text className="text-xs font-medium text-zinc-500 mt-0.5">
                 {activeRecords.length} pending lend{activeRecords.length !== 1 ? 's' : ''} to collect
               </Text>
 
               {overdueCount > 0 && (
                 <View className="mt-2.5 flex-row items-center">
-                  <View className="bg-rose-500/20 px-2.5 py-0.5 rounded-full border border-rose-500/30 flex-row items-center gap-1">
+                  <View className="bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200/60 flex-row items-center gap-1">
                     <AlertTriangle size={11} color="#EF4444" />
-                    <Text className="text-[11px] font-bold text-rose-400">
+                    <Text className="text-[11px] font-bold text-rose-600">
                       {overdueCount} Overdue
                     </Text>
                   </View>
@@ -515,22 +517,22 @@ export default function LendsScreen() {
               )}
             </View>
 
-            <View className="w-14 h-14 bg-indigo-500/20 rounded-2xl border border-indigo-500/30 items-center justify-center">
-              <HandCoins size={28} color="#818CF8" />
+            <View className="w-14 h-14 bg-teal-50 rounded-full items-center justify-center">
+              <HandCoins size={26} color="#0D9488" />
             </View>
           </Card>
         )}
 
         {/* Tab Pills: Pending vs Collected */}
-        <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-3">
+        <View className="flex-row bg-zinc-100/80 p-1 rounded-2xl mb-3">
           <Pressable
             onPress={() => {
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
               setActiveTab('active');
             }}
-            className={`flex-1 py-2 rounded-xl items-center ${activeTab === 'active' ? 'bg-white' : ''}`}
+            className={`flex-1 py-2 rounded-xl items-center ${activeTab === 'active' ? 'bg-white shadow-xs' : ''}`}
           >
-            <Text className={`font-semibold text-xs ${activeTab === 'active' ? 'text-zinc-900 font-bold' : 'text-zinc-500'}`}>
+            <Text className={`font-bold text-xs ${activeTab === 'active' ? 'text-zinc-950' : 'text-zinc-500'}`}>
               Pending ({activeRecords.length})
             </Text>
           </Pressable>
@@ -540,9 +542,9 @@ export default function LendsScreen() {
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
               setActiveTab('collected');
             }}
-            className={`flex-1 py-2 rounded-xl items-center ${activeTab === 'collected' ? 'bg-white' : ''}`}
+            className={`flex-1 py-2 rounded-xl items-center ${activeTab === 'collected' ? 'bg-white shadow-xs' : ''}`}
           >
-            <Text className={`font-semibold text-xs ${activeTab === 'collected' ? 'text-emerald-600 font-bold' : 'text-zinc-500'}`}>
+            <Text className={`font-bold text-xs ${activeTab === 'collected' ? 'text-emerald-600' : 'text-zinc-500'}`}>
               Collected ({collectedRecords.length})
             </Text>
           </Pressable>
@@ -559,14 +561,14 @@ export default function LendsScreen() {
               <ActivityIndicator size="small" color="#09090B" />
             </View>
           ) : displayedRecords.length === 0 ? (
-            <Card className="p-6 bg-white border border-zinc-200 items-center mt-2 rounded-2xl">
+            <Card className="p-8 bg-white border border-zinc-100 items-center mt-2 rounded-3xl shadow-xs">
               <View
-                className={`w-12 h-12 rounded-2xl items-center justify-center mb-3 ${
-                  activeTab === 'active' ? 'bg-indigo-50' : 'bg-emerald-50'
+                className={`w-14 h-14 rounded-full items-center justify-center mb-3 ${
+                  activeTab === 'active' ? 'bg-teal-50' : 'bg-emerald-50'
                 }`}
               >
                 {activeTab === 'active' ? (
-                  <HandCoins size={24} color="#6366F1" />
+                  <HandCoins size={24} color="#0D9488" />
                 ) : (
                   <CheckCircle2 size={24} color="#10B981" />
                 )}
@@ -583,6 +585,7 @@ export default function LendsScreen() {
                 <Button
                   size="sm"
                   variant="primary"
+                  className="px-6 py-2.5 rounded-full"
                   onPress={() => {
                     resetForm();
                     setShowAdd(true);
@@ -599,25 +602,25 @@ export default function LendsScreen() {
               const dayBadge = getDaysLabel(record.dueDate, record.status);
 
               return (
-                <Card key={record.id} className="mb-3 p-4 bg-white border border-zinc-200 rounded-2xl">
+                <Card key={record.id} className="mb-3 p-4.5 bg-white border border-zinc-100 rounded-3xl shadow-xs">
                   {/* Top Row: Person & Amount */}
                   <View className="flex-row justify-between items-center mb-2">
                     <View className="flex-row items-center flex-1 pr-2">
                       <View
-                        className={`w-10 h-10 rounded-xl items-center justify-center mr-2.5 ${
-                          isCollected ? 'bg-emerald-50' : isOverdue ? 'bg-rose-50' : 'bg-indigo-50'
+                        className={`w-10 h-10 rounded-full items-center justify-center mr-2.5 ${
+                          isCollected ? 'bg-emerald-50' : isOverdue ? 'bg-rose-50' : 'bg-teal-50'
                         }`}
                       >
                         {isCollected ? (
-                          <CheckCircle2 size={20} color="#10B981" />
+                          <CheckCircle2 size={18} color="#10B981" />
                         ) : isOverdue ? (
-                          <AlertTriangle size={20} color="#EF4444" />
+                          <AlertTriangle size={18} color="#EF4444" />
                         ) : (
-                          <User size={20} color="#6366F1" />
+                          <User size={18} color="#0D9488" />
                         )}
                       </View>
                       <View className="flex-1">
-                        <Text className="text-base font-bold text-zinc-900" numberOfLines={1}>
+                        <Text className="text-[16px] font-bold text-zinc-950" numberOfLines={1}>
                           {record.personName}
                         </Text>
                         <View className="flex-row items-center gap-1.5 mt-0.5 flex-wrap">

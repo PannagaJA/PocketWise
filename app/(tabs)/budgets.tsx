@@ -119,14 +119,14 @@ export default function BudgetsScreen() {
   });
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: '#F8F9FE' }} edges={['top']}>
       <View className="px-4 pt-2 flex-1">
         {/* Header */}
-        <View className="flex-row justify-between items-center mb-3">
+        <View className="flex-row justify-between items-center mb-4">
           <View className="flex-1 mr-3">
-            <Text className="text-2xl font-black text-zinc-900">Budgets</Text>
-            <Text className="text-xs text-zinc-500 mt-0.5" numberOfLines={1} ellipsizeMode="tail">
-              Control category-wise spending targets
+            <Text className="text-[22px] font-extrabold text-zinc-950 tracking-tight">Budgets</Text>
+            <Text className="text-xs font-medium text-zinc-500 mt-0.5" numberOfLines={1} ellipsizeMode="tail">
+              Control monthly category spending
             </Text>
           </View>
 
@@ -134,7 +134,7 @@ export default function BudgetsScreen() {
             variant="primary"
             size="sm"
             style={{ flexShrink: 0 }}
-            className="flex-row items-center gap-1.5 px-3.5 py-2.5"
+            className="flex-row items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-zinc-950 shadow-xs"
             onPress={() => {
               setEditingBudgetId(null);
               setSelectedCategoryId('');
@@ -150,29 +150,29 @@ export default function BudgetsScreen() {
         </View>
 
         {/* Unique Radial Donut Chart Overview Card */}
-        <Card className="bg-zinc-900 border-zinc-800 p-5 mb-4 rounded-3xl shadow-md">
+        <Card className="bg-white border border-zinc-100 p-5 mb-4 rounded-3xl shadow-xs">
           <View className="flex-row items-center justify-between">
             {/* Left Metrics */}
             <View className="flex-1 pr-3">
               <View className="flex-row items-center gap-2 mb-2">
-                <View className="w-7 h-7 rounded-xl bg-indigo-500/20 border border-indigo-500/30 items-center justify-center">
-                  <Target size={14} color="#818CF8" />
+                <View className="w-7 h-7 rounded-full bg-indigo-50 items-center justify-center">
+                  <Target size={14} color="#6366F1" />
                 </View>
-                <Text className="text-xs font-bold text-indigo-300 uppercase tracking-widest">
+                <Text className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">
                   Monthly Target
                 </Text>
               </View>
 
-              <Text className="text-2xl font-black text-white">{formatMoney(totalLimit)}</Text>
+              <Text className="text-[24px] font-extrabold text-zinc-950 tracking-tight">{formatMoney(totalLimit)}</Text>
 
               <View className="mt-3 gap-1">
                 <View className="flex-row items-center justify-between">
-                  <Text className="text-[11px] text-zinc-400">Total Spent:</Text>
-                  <Text className="text-[11px] font-bold text-rose-400">{formatMoney(totalSpent)}</Text>
+                  <Text className="text-[11px] font-medium text-zinc-500">Total Spent:</Text>
+                  <Text className="text-[11px] font-bold text-zinc-900">{formatMoney(totalSpent)}</Text>
                 </View>
                 <View className="flex-row items-center justify-between">
-                  <Text className="text-[11px] text-zinc-400">Remaining:</Text>
-                  <Text className="text-[11px] font-bold text-emerald-400">{formatMoney(remainingBudget)}</Text>
+                  <Text className="text-[11px] font-medium text-zinc-500">Remaining:</Text>
+                  <Text className="text-[11px] font-bold text-emerald-600">{formatMoney(remainingBudget)}</Text>
                 </View>
               </View>
             </View>
@@ -187,7 +187,7 @@ export default function BudgetsScreen() {
                       cx={size / 2}
                       cy={size / 2}
                       r={radius}
-                      stroke="#27272A"
+                      stroke="#F4F4F5"
                       strokeWidth={strokeWidth}
                       fill="transparent"
                     />
@@ -206,13 +206,14 @@ export default function BudgetsScreen() {
                   </G>
                 </Svg>
                 <View className="absolute items-center justify-center">
-                  <Text className="text-base font-black text-white">{overallPercentage}%</Text>
+                  <Text className="text-base font-extrabold text-zinc-950">{overallPercentage}%</Text>
                   <Text className="text-[9px] font-bold text-zinc-400 uppercase">Used</Text>
                 </View>
               </View>
             </View>
           </View>
         </Card>
+
 
         {/* Budgets List */}
         <ScrollView showsVerticalScrollIndicator={false} className="flex-1" contentContainerStyle={{ paddingBottom: 140 }}>
@@ -254,11 +255,11 @@ export default function BudgetsScreen() {
               const isExceeded = percentage >= 100;
 
               return (
-                <Card key={b.id} className="mb-3 p-4 bg-white border border-zinc-200 rounded-2xl shadow-xs">
+                <Card key={b.id} className="mb-3 p-4.5 bg-white border border-zinc-100 rounded-3xl shadow-xs">
                   <View className="flex-row justify-between items-center mb-2">
                     <View className="flex-row items-center flex-1 mr-2">
                       <View className="w-3.5 h-3.5 rounded-full mr-2.5" style={{ backgroundColor: b.category_color || '#10B981' }} />
-                      <Text className="text-base font-bold text-zinc-900 flex-1" numberOfLines={1}>{b.category_name}</Text>
+                      <Text className="text-[16px] font-bold text-zinc-950 flex-1" numberOfLines={1}>{b.category_name}</Text>
                     </View>
                     <View className="flex-row items-center gap-1.5">
                       <Badge
@@ -275,9 +276,9 @@ export default function BudgetsScreen() {
                           setCategoryDropdownOpen(false);
                           setModalVisible(true);
                         }}
-                        className="p-1.5 rounded-lg bg-zinc-100 active:bg-zinc-200"
+                        className="p-2 rounded-full bg-zinc-100 active:bg-zinc-200"
                       >
-                        <Pencil size={13} color="#27272A" />
+                        <Pencil size={12} color="#27272A" />
                       </Pressable>
                       <Pressable
                         onPress={() => {
@@ -287,19 +288,17 @@ export default function BudgetsScreen() {
                             { text: 'Delete', style: 'destructive', onPress: () => deleteBudgetMutation.mutate(b.id) },
                           ]);
                         }}
-                        className="p-1.5 rounded-lg bg-rose-50 active:bg-rose-100"
+                        className="p-2 rounded-full bg-rose-50 active:bg-rose-100"
                       >
-                        <Trash2 size={13} color="#EF4444" />
+                        <Trash2 size={12} color="#EF4444" />
                       </Pressable>
                     </View>
                   </View>
 
-                  {/* Dynamic Gradient / Category Color Progress Bar */}
-                  <View className="w-full h-3.5 bg-zinc-100/90 rounded-full overflow-hidden my-3 border border-zinc-200/60 p-0.5 shadow-inner">
+                  {/* Modern Slim Progress Bar */}
+                  <View className="w-full h-2 bg-zinc-100 rounded-full overflow-hidden my-3">
                     <View
-                      className={`h-full rounded-full ${
-                        isExceeded ? 'bg-rose-500' : isWarning ? 'bg-amber-500' : ''
-                      }`}
+                      className="h-full rounded-full"
                       style={{
                         width: `${Math.min(percentage, 100)}%`,
                         backgroundColor: isExceeded ? '#EF4444' : isWarning ? '#F59E0B' : (b.category_color || '#10B981'),
@@ -317,7 +316,7 @@ export default function BudgetsScreen() {
                   </View>
 
                   {isExceeded && (
-                    <View className="mt-2 pt-2 border-t border-rose-100 flex-row items-center gap-1.5">
+                    <View className="mt-2.5 pt-2 border-t border-rose-100 flex-row items-center gap-1.5">
                       <AlertTriangle size={14} color="#EF4444" />
                       <Text className="text-xs font-semibold text-rose-600">
                         Over budget by {formatMoney(spent - limit)}

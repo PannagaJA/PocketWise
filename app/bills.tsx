@@ -214,7 +214,7 @@ export default function BillsScreen() {
   });
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: '#F8F9FE' }} edges={['top']}>
       <View className="px-4 pt-2 flex-1">
         {/* Header */}
         <View className="flex-row justify-between items-center mb-4">
@@ -223,8 +223,8 @@ export default function BillsScreen() {
               <ArrowLeft size={22} color="#09090B" />
             </Pressable>
             <View className="flex-1">
-              <Text className="text-2xl font-black text-zinc-900">Upcoming Bills</Text>
-              <Text className="text-xs text-zinc-500 mt-0.5" numberOfLines={1} ellipsizeMode="tail">Automated bill reminders & status</Text>
+              <Text className="text-[22px] font-extrabold text-zinc-950 tracking-tight">Upcoming Bills</Text>
+              <Text className="text-xs font-medium text-zinc-500 mt-0.5" numberOfLines={1} ellipsizeMode="tail">Automated bill reminders & status</Text>
             </View>
           </View>
 
@@ -232,7 +232,7 @@ export default function BillsScreen() {
             variant="primary"
             size="sm"
             style={{ flexShrink: 0 }}
-            className="flex-row items-center gap-1.5 px-3.5 py-2.5"
+            className="flex-row items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-zinc-950 shadow-xs"
             onPress={() => setModalVisible(true)}
           >
             <Plus size={16} color="#FFF" />
@@ -241,33 +241,33 @@ export default function BillsScreen() {
         </View>
 
         {/* Unique Outstanding Bill Commitment Card */}
-        <Card className="bg-zinc-900 border-zinc-800 p-5 mb-4 rounded-3xl shadow-md">
+        <Card className="bg-white border border-zinc-100 p-5 mb-4 rounded-3xl shadow-xs">
           <View className="flex-row justify-between items-start mb-3">
             <View>
-              <Text className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">
+              <Text className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
                 Total Unpaid Commitment
               </Text>
-              <Text className="text-2xl font-black text-white mt-1">
+              <Text className="text-[24px] font-extrabold text-zinc-950 tracking-tight mt-1">
                 {formatMoney(totalUnpaidMinor)}
               </Text>
             </View>
 
             {overdueCount > 0 ? (
-              <View className="bg-rose-500/20 px-2.5 py-1 rounded-full flex-row items-center border border-rose-500/30 gap-1">
+              <View className="bg-rose-50 px-2.5 py-1 rounded-full flex-row items-center border border-rose-200/60 gap-1">
                 <ShieldAlert size={12} color="#EF4444" />
-                <Text className="text-[11px] font-bold text-rose-400">{overdueCount} Overdue</Text>
+                <Text className="text-[11px] font-bold text-rose-600">{overdueCount} Overdue</Text>
               </View>
             ) : (
-              <View className="bg-emerald-500/20 px-2.5 py-1 rounded-full flex-row items-center border border-emerald-500/30 gap-1">
+              <View className="bg-emerald-50 px-2.5 py-1 rounded-full flex-row items-center border border-emerald-200/60 gap-1">
                 <CheckCircle2 size={12} color="#10B981" />
-                <Text className="text-[11px] font-bold text-emerald-400">On Track</Text>
+                <Text className="text-[11px] font-bold text-emerald-600">On Track</Text>
               </View>
             )}
           </View>
 
-          <View className="pt-3 border-t border-zinc-800 flex-row justify-between items-center">
-            <Text className="text-xs text-zinc-400">Pending Bills: <Text className="font-bold text-white">{unpaidBills.length}</Text></Text>
-            <Text className="text-xs text-zinc-400">Auto Reminders: <Text className="font-bold text-emerald-400">Active</Text></Text>
+          <View className="pt-3 border-t border-zinc-100 flex-row justify-between items-center">
+            <Text className="text-xs text-zinc-500">Pending Bills: <Text className="font-bold text-zinc-900">{unpaidBills.length}</Text></Text>
+            <Text className="text-xs text-zinc-500">Auto Reminders: <Text className="font-bold text-emerald-600">Active</Text></Text>
           </View>
         </Card>
 
@@ -278,15 +278,15 @@ export default function BillsScreen() {
               <ActivityIndicator size="small" color="#09090B" />
             </View>
           ) : bills.length === 0 ? (
-            <Card className="p-6 bg-white border border-zinc-200 items-center mt-2 rounded-2xl">
-              <View className="w-12 h-12 rounded-2xl bg-amber-50 items-center justify-center mb-3">
-                <Calendar size={24} color="#F59E0B" />
+            <Card className="p-8 bg-white border border-zinc-100 items-center mt-2 rounded-3xl shadow-xs">
+              <View className="w-14 h-14 rounded-full bg-amber-50 items-center justify-center mb-3">
+                <Calendar size={24} color="#D97706" />
               </View>
               <Text className="text-sm font-bold text-zinc-900">No upcoming bills</Text>
               <Text className="text-xs text-zinc-500 mt-1 mb-4 text-center">
                 Add your recurring electricity, internet, or card bills to get push alerts.
               </Text>
-              <Button size="sm" variant="primary" className="px-6 py-2.5" onPress={() => setModalVisible(true)}>
+              <Button size="sm" variant="primary" className="px-6 py-2.5 rounded-full" onPress={() => setModalVisible(true)}>
                 Add Bill
               </Button>
             </Card>
@@ -297,30 +297,30 @@ export default function BillsScreen() {
               const isOverdue = !isPaid && b.due_date < today;
 
               return (
-                <Card key={b.id} className="mb-3 p-4 bg-white border border-zinc-200 rounded-2xl">
+                <Card key={b.id} className="mb-3 p-4.5 bg-white border border-zinc-100 rounded-3xl shadow-xs">
                   <View className="flex-row items-center justify-between mb-3">
                     <View className="flex-row items-center flex-1 pr-2">
-                      <View className={`w-10 h-10 rounded-xl items-center justify-center mr-3 ${
-                        isPaid ? 'bg-emerald-50' : isOverdue ? 'bg-rose-50' : 'bg-indigo-50'
+                      <View className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${
+                        isPaid ? 'bg-emerald-50' : isOverdue ? 'bg-rose-50' : 'bg-amber-50'
                       }`}>
                         {isPaid ? (
-                          <CheckCircle2 size={20} color="#10B981" />
+                          <CheckCircle2 size={18} color="#10B981" />
                         ) : isOverdue ? (
-                          <AlertCircle size={20} color="#EF4444" />
+                          <AlertCircle size={18} color="#EF4444" />
                         ) : (
-                          <Clock size={20} color="#6366F1" />
+                          <Clock size={18} color="#D97706" />
                         )}
                       </View>
                       <View className="flex-1">
-                        <Text className="text-base font-bold text-zinc-900">{b.name}</Text>
-                        <Text className="text-xs text-zinc-500 mt-0.5">
+                        <Text className="text-[16px] font-bold text-zinc-950" numberOfLines={1}>{b.name}</Text>
+                        <Text className="text-xs font-medium text-zinc-500 mt-0.5">
                           Due {formatDate(b.due_date)} • {b.category_name || 'General'}
                         </Text>
                       </View>
                     </View>
 
                     <View className="items-end gap-1">
-                      <Text className="text-base font-extrabold text-zinc-900">{formatMoney(b.expected_amount_minor)}</Text>
+                      <Text className="text-[16px] font-extrabold text-zinc-950">{formatMoney(b.expected_amount_minor)}</Text>
                       <View className="flex-row items-center gap-1.5">
                         {b.frequency && b.frequency !== 'one_time' && (
                           <Badge label={b.frequency} variant="subscription" />
@@ -335,24 +335,22 @@ export default function BillsScreen() {
 
                   <View className="flex-row items-center gap-2 mt-1">
                     {!isPaid && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 border-emerald-300 bg-emerald-50/40"
+                      <Pressable
+                        className="flex-1 py-2 px-3 bg-emerald-50 border border-emerald-200/60 rounded-full active:bg-emerald-100 items-center justify-center"
                         onPress={() => {
                           try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
                           setBillToPay(b);
                         }}
                       >
                         <Text className="text-emerald-700 font-bold text-xs">Mark as Paid</Text>
-                      </Button>
+                      </Pressable>
                     )}
 
                     <Pressable
                       onPress={() => handleOpenEditBill(b)}
-                      className="p-2.5 rounded-xl bg-zinc-100 active:bg-zinc-200 border border-zinc-200"
+                      className="p-2 rounded-full bg-zinc-100 active:bg-zinc-200 border border-zinc-200/60 items-center justify-center"
                     >
-                      <Pencil size={15} color="#18181B" />
+                      <Pencil size={13} color="#27272A" />
                     </Pressable>
                   </View>
                 </Card>

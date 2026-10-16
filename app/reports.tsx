@@ -138,7 +138,7 @@ export default function ReportsScreen() {
   const hasNoData = !summary || (summary.totalIncome === 0 && summary.totalExpense === 0);
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: '#F8F9FE' }} edges={['top']}>
       <View className="px-4 pt-2 flex-1">
         {/* Header */}
         <View className="flex-row items-center justify-between mb-4">
@@ -151,8 +151,8 @@ export default function ReportsScreen() {
               <ArrowLeft size={20} color="#09090B" />
             </TouchableOpacity>
             <View className="flex-1">
-              <Text className="text-2xl font-black text-zinc-900">Financial Analytics</Text>
-              <Text className="text-xs text-zinc-500 mt-0.5">Real-time spending & performance breakdown</Text>
+              <Text className="text-[22px] font-extrabold text-zinc-950 tracking-tight">Financial Analytics</Text>
+              <Text className="text-xs font-medium text-zinc-500 mt-0.5">Real-time spending & performance breakdown</Text>
             </View>
           </View>
           <TouchableOpacity
@@ -161,9 +161,9 @@ export default function ReportsScreen() {
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
               setExportModalVisible(true);
             }}
-            className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 items-center justify-center ml-2"
+            className="w-10 h-10 rounded-full bg-white border border-zinc-100 items-center justify-center ml-2 shadow-xs"
           >
-            <Share2 size={18} color="#6366F1" />
+            <Share2 size={18} color="#09090B" />
           </TouchableOpacity>
         </View>
 
@@ -190,10 +190,10 @@ export default function ReportsScreen() {
                     setPeriod(item.id as PeriodOption);
                   }}
                   style={{
-                    backgroundColor: isSelected ? '#18181b' : '#ffffff',
-                    borderColor: isSelected ? '#18181b' : '#e4e4e7',
+                    backgroundColor: isSelected ? '#09090B' : '#ffffff',
+                    borderColor: isSelected ? '#09090B' : '#F4F4F5',
                   }}
-                  className="px-4 py-2.5 rounded-2xl border"
+                  className="px-4 py-2 rounded-full border shadow-xs"
                 >
                   <Text
                     numberOfLines={1}
@@ -220,9 +220,9 @@ export default function ReportsScreen() {
               <ActivityIndicator size="small" color="#09090B" />
             </View>
           ) : hasNoData ? (
-            <Card className="p-8 bg-white border border-zinc-200 items-center mt-4 rounded-3xl">
-              <View className="w-14 h-14 rounded-full bg-zinc-100 items-center justify-center mb-3">
-                <PieIcon size={28} color="#A1A1AA" />
+            <Card className="p-8 bg-white border border-zinc-100 items-center mt-4 rounded-3xl shadow-xs">
+              <View className="w-14 h-14 rounded-full bg-zinc-50 items-center justify-center mb-3 border border-zinc-100">
+                <PieIcon size={26} color="#A1A1AA" />
               </View>
               <Text className="text-base font-bold text-zinc-900 text-center">No financial data yet</Text>
               <Text className="text-xs text-zinc-500 mt-1 text-center">
@@ -232,48 +232,48 @@ export default function ReportsScreen() {
           ) : (
             <>
               {/* Financial Summary Card */}
-              <Card className="bg-zinc-900 border-zinc-800 p-5 mb-5 rounded-3xl shadow-md">
+              <Card className="bg-white border border-zinc-100 p-5 mb-5 rounded-3xl shadow-xs">
                 {/* Hero Top: Net Savings & Savings Rate */}
                 <View className="flex-row justify-between items-center mb-4">
                   <View>
-                    <Text className="text-[11px] font-extrabold text-zinc-400 uppercase tracking-widest">
+                    <Text className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
                       Period Summary
                     </Text>
-                    <Text className="text-2xl font-black text-white mt-1">
+                    <Text className="text-[24px] font-extrabold text-zinc-950 tracking-tight mt-1">
                       {formatMoney(summary?.savings || 0)}
                     </Text>
-                    <Text className="text-xs font-semibold text-zinc-400 mt-0.5">Net Period Savings</Text>
+                    <Text className="text-xs font-medium text-zinc-500 mt-0.5">Net Period Savings</Text>
                   </View>
 
-                  <View className="bg-zinc-800/90 px-3.5 py-2 rounded-2xl flex-row items-center gap-2 border border-zinc-700/60">
+                  <View className="bg-emerald-50 px-3.5 py-2 rounded-2xl flex-row items-center gap-2 border border-emerald-100/60">
                     <TrendingUp size={16} color="#10B981" />
                     <View>
-                      <Text className="text-[9px] font-bold text-zinc-400 uppercase">Savings Rate</Text>
-                      <Text className="text-sm font-black text-emerald-400">{summary?.savingsRate || 0}%</Text>
+                      <Text className="text-[9px] font-bold text-zinc-500 uppercase">Savings Rate</Text>
+                      <Text className="text-sm font-extrabold text-emerald-600">{summary?.savingsRate || 0}%</Text>
                     </View>
                   </View>
                 </View>
 
                 {/* 2-Column Full-Width Breakdown: Income & Expenses */}
-                <View className="flex-row gap-3 pt-3.5 border-t border-zinc-800">
+                <View className="flex-row gap-3 pt-3.5 border-t border-zinc-100">
                   {/* Income */}
-                  <View className="flex-1 bg-zinc-800/80 p-3.5 rounded-2xl border border-zinc-700/50">
+                  <View className="flex-1 bg-emerald-50/60 p-3.5 rounded-2xl border border-emerald-100/50">
                     <View className="flex-row items-center gap-1.5 mb-1.5">
-                      <View className="w-2 h-2 rounded-full bg-emerald-400" />
-                      <Text className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Total Income</Text>
+                      <View className="w-2 h-2 rounded-full bg-emerald-500" />
+                      <Text className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Total Income</Text>
                     </View>
-                    <Text className="text-base font-black text-emerald-400">
+                    <Text className="text-base font-extrabold text-emerald-600">
                       +{formatMoney(summary?.totalIncome || 0)}
                     </Text>
                   </View>
 
                   {/* Expenses */}
-                  <View className="flex-1 bg-zinc-800/80 p-3.5 rounded-2xl border border-zinc-700/50">
+                  <View className="flex-1 bg-rose-50/60 p-3.5 rounded-2xl border border-rose-100/50">
                     <View className="flex-row items-center gap-1.5 mb-1.5">
-                      <View className="w-2 h-2 rounded-full bg-rose-400" />
-                      <Text className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Total Expenses</Text>
+                      <View className="w-2 h-2 rounded-full bg-rose-500" />
+                      <Text className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Total Expenses</Text>
                     </View>
-                    <Text className="text-base font-black text-rose-400">
+                    <Text className="text-base font-extrabold text-zinc-950">
                       -{formatMoney(summary?.totalExpense || 0)}
                     </Text>
                   </View>
@@ -284,7 +284,7 @@ export default function ReportsScreen() {
               <Text className="text-xs font-extrabold text-zinc-400 uppercase tracking-widest mb-3 ml-1">
                 Top Expense Categories
               </Text>
-              <Card className="p-5 bg-white border border-zinc-200 mb-5 rounded-3xl shadow-sm">
+              <Card className="p-5 bg-white border border-zinc-100 mb-5 rounded-3xl shadow-xs">
                 {categories.length === 0 ? (
                   <Text className="text-xs text-zinc-400 text-center py-2">No category expenses recorded</Text>
                 ) : (
@@ -309,7 +309,7 @@ export default function ReportsScreen() {
                           </Text>
                         </View>
                       </View>
-                      <View className="w-full h-2.5 bg-zinc-100 rounded-full overflow-hidden border border-zinc-200/50 p-0.5">
+                      <View className="w-full h-2 bg-zinc-100 rounded-full overflow-hidden">
                         <View
                           className="h-full rounded-full"
                           style={{
@@ -328,12 +328,12 @@ export default function ReportsScreen() {
                 Subscription & Upcoming Commitments
               </Text>
               <View className="flex-row gap-3 mb-5">
-                <Card className="flex-1 p-4 bg-white border border-zinc-200 rounded-3xl">
-                  <View className="w-8 h-8 rounded-xl bg-indigo-50 items-center justify-center mb-2">
-                    <CreditCard size={18} color="#6366F1" />
+                <Card className="flex-1 p-4.5 bg-white border border-zinc-100 rounded-3xl shadow-xs">
+                  <View className="w-8 h-8 rounded-full bg-indigo-50 items-center justify-center mb-2">
+                    <CreditCard size={16} color="#6366F1" />
                   </View>
-                  <Text className="text-[10px] font-bold text-zinc-400 uppercase">Monthly Subs</Text>
-                  <Text className="text-base font-black text-zinc-900 mt-0.5">
+                  <Text className="text-[10px] font-bold text-zinc-500 uppercase">Monthly Subs</Text>
+                  <Text className="text-[16px] font-extrabold text-zinc-950 mt-0.5">
                     {formatMoney(subsAnalytics?.monthlyTotalMinor || 0)}
                   </Text>
                   <Text className="text-[10px] font-medium text-zinc-400 mt-1">
@@ -341,17 +341,18 @@ export default function ReportsScreen() {
                   </Text>
                 </Card>
 
-                <Card className="flex-1 p-4 bg-white border border-zinc-200 rounded-3xl">
-                  <View className="w-8 h-8 rounded-xl bg-amber-50 items-center justify-center mb-2">
-                    <Calendar size={18} color="#F59E0B" />
+                <Card className="flex-1 p-4.5 bg-white border border-zinc-100 rounded-3xl shadow-xs">
+                  <View className="w-8 h-8 rounded-full bg-amber-50 items-center justify-center mb-2">
+                    <Calendar size={16} color="#D97706" />
                   </View>
-                  <Text className="text-[10px] font-bold text-zinc-400 uppercase">Upcoming Bills</Text>
-                  <Text className="text-base font-black text-zinc-900 mt-0.5">
+                  <Text className="text-[10px] font-bold text-zinc-500 uppercase">Upcoming Bills</Text>
+                  <Text className="text-[16px] font-extrabold text-zinc-950 mt-0.5">
                     {formatMoney(commitments?.billsMinor || 0)}
                   </Text>
                   <Text className="text-[10px] font-medium text-zinc-400 mt-1">Unpaid commitments</Text>
                 </Card>
               </View>
+
 
               {/* Budget Performance */}
               {budgets.length > 0 && (

@@ -56,13 +56,13 @@
   - [x] 08-03: Implement Magpie reference Add Card modal flow with real-time validation and alternating two-dot blue loading state.
   - [x] 08-04: Migrate all existing application modals, bottom sheets, and confirmation dialogs to unified design system.
 
-### Phase 9: Magpie UI Redesign: Cards, Records, Typography & Screen Surfaces (Active)
+### Phase 9: Magpie UI Redesign: Cards, Records, Typography & Screen Surfaces (Completed)
 - **Goal:** Redesign cards, record lists, typography, section layouts, and content presentation across all app screens (Dashboard, Transactions, Subscriptions, Budgets, Goals, Bills, Lends, Reports) to faithfully match the Magpie reference visual standards while strictly isolating protected components.
 - **Plans:**
-  - [ ] 09-01: Update reusable design primitives (`Card.tsx`, `RecordRow.tsx`, `Badge.tsx`) with Magpie tokens.
-  - [ ] 09-02: Redesign Dashboard layout, action buttons, Recent Transactions card container, and Upcoming Bills.
-  - [ ] 09-03: Redesign Transactions list, search bar, date groupings, and filter pills.
-  - [ ] 09-04: Redesign financial module screens (Subscriptions, Budgets, Goals, Bills, Lends, Reports).
+  - [x] 09-01: Update reusable design primitives (`Card.tsx`, `RecordRow.tsx`, `Badge.tsx`) with Magpie tokens.
+  - [x] 09-02: Redesign Dashboard layout, action buttons, Recent Transactions card container, and Upcoming Bills.
+  - [x] 09-03: Redesign Transactions list, search bar, date groupings, and filter pills.
+  - [x] 09-04: Redesign financial module screens (Subscriptions, Budgets, Goals, Bills, Lends, Reports, More).
 
 ### Phase 10: Verification, Polish & Regression Defense Gate
 - **Goal:** Complete regression testing across all financial features, auth, biometric lock, push notifications, offline outbox, and run TypeScript/test/doctor suites.
