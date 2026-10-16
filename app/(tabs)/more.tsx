@@ -6,7 +6,8 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
-import { AppModal } from '../../components/ui/AppModal';
+import { AppBottomSheet } from '../../components/ui/AppBottomSheet';
+import { AppDialog } from '../../components/ui/AppDialog';
 import { useAuth } from '../../context/AuthContext';
 import { appLockService } from '../../lib/security/app-lock.service';
 import { Fingerprint, Bell, Database, LogOut, ChevronRight, Calendar, Target, Lock, PieChart, X, Smartphone, Zap, HandCoins, Clock } from 'lucide-react-native';
@@ -23,6 +24,7 @@ export default function MoreScreen() {
 
   // Pin setup modal state
   const [pinModalVisible, setPinModalVisible] = useState(false);
+  const [signOutDialogVisible, setSignOutDialogVisible] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [confirmPinInput, setConfirmPinInput] = useState('');
 
@@ -96,23 +98,8 @@ export default function MoreScreen() {
   };
 
   const handleSignOut = () => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch { }
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out of PocketWise?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            await appLockService.clearPin();
-            await signOut();
-            router.replace('/(auth)/login');
-          },
-        },
-      ]
-    );
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+    setSignOutDialogVisible(true);
   };
 
   return (
@@ -332,61 +319,61 @@ export default function MoreScreen() {
       </ScrollView>
 
       {/* Set PIN Modal */}
-      <AppModal
+      <AppBottomSheet
         visible={pinModalVisible}
         onClose={() => setPinModalVisible(false)}
-        animationType="slide"
+        title="Set 4-Digit App PIN"
+        subtitle="Protect PocketWise with a passcode"
+        scrollable={true}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 }}
       >
-        <Pressable
-          className="bg-white rounded-t-3xl p-6 pb-6 border-t border-zinc-200"
-          style={{ maxHeight: '100%', flexShrink: 1 }}
-          onPress={(e) => e.stopPropagation()}
-        >
-          <ScrollView
-            style={{ flexShrink: 1 }}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={true}
-            persistentScrollbar={true}
-            contentContainerStyle={{ paddingBottom: 32 }}
+        <View>
+          <Input
+            label="Enter 4-Digit PIN"
+            placeholder="••••"
+            keyboardType="numeric"
+            maxLength={4}
+            secureTextEntry
+            value={pinInput}
+            onChangeText={setPinInput}
+          />
+
+          <Input
+            label="Confirm 4-Digit PIN"
+            placeholder="••••"
+            keyboardType="numeric"
+            maxLength={4}
+            secureTextEntry
+            value={confirmPinInput}
+            onChangeText={setConfirmPinInput}
+          />
+
+          <Button
+            variant="primary"
+            size="lg"
+            className="mt-2 mb-4"
+            onPress={handleSavePin}
           >
-            <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-xl font-bold text-zinc-900">Set 4-Digit App PIN</Text>
-              <Pressable onPress={() => setPinModalVisible(false)} className="p-1">
-                <X size={20} color="#71717A" />
-              </Pressable>
-            </View>
+            <Text className="text-white font-semibold">Enable App Lock</Text>
+          </Button>
+        </View>
+      </AppBottomSheet>
 
-            <Input
-              label="Enter 4-Digit PIN"
-              placeholder="••••"
-              keyboardType="numeric"
-              maxLength={4}
-              secureTextEntry
-              value={pinInput}
-              onChangeText={setPinInput}
-            />
-
-            <Input
-              label="Confirm 4-Digit PIN"
-              placeholder="••••"
-              keyboardType="numeric"
-              maxLength={4}
-              secureTextEntry
-              value={confirmPinInput}
-              onChangeText={setConfirmPinInput}
-            />
-
-            <Button
-              variant="primary"
-              size="lg"
-              className="mt-2 mb-4"
-              onPress={handleSavePin}
-            >
-              <Text className="text-white font-semibold">Enable App Lock</Text>
-            </Button>
-          </ScrollView>
-        </Pressable>
-      </AppModal>
+      {/* Sign Out Confirmation Dialog */}
+      <AppDialog
+        visible={signOutDialogVisible}
+        onClose={() => setSignOutDialogVisible(false)}
+        title="Sign Out?"
+        description="Are you sure you want to sign out of PocketWise? Your local app lock passcode will also be reset."
+        confirmLabel="Sign Out"
+        destructive={true}
+        onConfirm={async () => {
+          setSignOutDialogVisible(false);
+          await appLockService.clearPin();
+          await signOut();
+          router.replace('/(auth)/login');
+        }}
+      />
     </SafeAreaView>
   );
 }

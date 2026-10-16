@@ -8,7 +8,6 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
-import { AppModal } from '../../components/ui/AppModal';
 import { useAuth } from '../../context/AuthContext';
 import { useAppLock } from '../../components/AppLockGate';
 import { accountService, Account } from '../../lib/services/account.service';
@@ -18,10 +17,14 @@ import { goalService } from '../../lib/services/goal.service';
 import { reminderService, Reminder } from '../../lib/services/reminder.service';
 import { financialAnalyticsEngine } from '../../lib/finance/analyticsEngine';
 import { formatMoney, formatDate, formatDateTime, parseSignedMoneyToMinor } from '../../lib/finance/core';
-import { ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight, ChevronDown, Check, Building2, ShieldCheck, TrendingUp, TrendingDown, ArrowRightLeft, X, Clock, Trash2, LogOut, Pencil, RotateCcw } from 'lucide-react-native';
+import { ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight, ChevronDown, Check, Building2, ShieldCheck, TrendingUp, TrendingDown, ArrowRightLeft, X, Clock, Trash2, LogOut, Pencil, RotateCcw, Plus } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTabStore } from '../../lib/stores/tabStore';
 
+import { AppBottomSheet } from '../../components/ui/AppBottomSheet';
+import { AppDialog } from '../../components/ui/AppDialog';
+import { AppLoadingIndicator } from '../../components/ui/AppLoadingIndicator';
+import { AddCardModal } from '../../components/AddCardModal';
 import { SmsOnboardingModal } from '../../components/SmsOnboardingCard';
 import { SmsTransactionReviewModal } from '../../components/SmsTransactionReviewModal';
 import { RecordTransactionModal } from '../../components/RecordTransactionModal';
@@ -105,6 +108,7 @@ export default function DashboardScreen() {
 
   const [selectedBankId, setSelectedBankId] = useState<string>('all');
   const [bankSelectModalVisible, setBankSelectModalVisible] = useState(false);
+  const [addCardModalVisible, setAddCardModalVisible] = useState(false);
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const [recordTxModalVisible, setRecordTxModalVisible] = useState(false);
   const [smsOnboardingVisible, setSmsOnboardingVisible] = useState(false);
@@ -724,123 +728,116 @@ export default function DashboardScreen() {
       </ScrollView>
 
       {/* Notifications Drawer Modal */}
-      <AppModal
+      <AppBottomSheet
         visible={notifModalVisible}
         onClose={() => setNotifModalVisible(false)}
-        animationType="slide"
+        title="Notifications"
+        subtitle="Recent push alerts & reminders"
+        headerRight={
+          reminders.length > 0 ? (
+            <Pressable
+              onPress={async () => {
+                if (user?.id) {
+                  await reminderService.clearAllReminders(user.id);
+                  refetchReminders();
+                }
+              }}
+              className="px-2.5 py-1 rounded-full bg-rose-50 border border-rose-200 active:bg-rose-100 mr-2"
+            >
+              <Text className="text-xs font-bold text-rose-600">Clear All</Text>
+            </Pressable>
+          ) : undefined
+        }
+        scrollable={true}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 }}
       >
-        <Pressable
-          onPress={(e) => e.stopPropagation()}
-          className="flex-col w-full"
-        >
-          {/* Header */}
-          <View className="flex-row justify-between items-center p-5 pb-3 border-b border-zinc-100">
-            <View className="flex-row items-center gap-3">
-              <View className="w-10 h-10 rounded-2xl bg-indigo-50 items-center justify-center">
-                <Bell size={20} color="#6366F1" />
-              </View>
-              <View>
-                <Text className="text-xl font-extrabold text-zinc-900">Notifications</Text>
-                <Text className="text-xs text-zinc-500 mt-0.5">Recent push alerts & reminders</Text>
-              </View>
+        {reminders.length === 0 ? (
+          <View className="items-center py-10">
+            <View className="w-12 h-12 rounded-full bg-zinc-100 items-center justify-center mb-2">
+              <Bell size={22} color="#A1A1AA" />
             </View>
-
-            <View className="flex-row items-center gap-2">
-              {reminders.length > 0 && (
-                <Pressable
-                  onPress={async () => {
-                    if (user?.id) {
-                      await reminderService.clearAllReminders(user.id);
-                      refetchReminders();
-                    }
-                  }}
-                  className="px-2.5 py-1 rounded-full bg-rose-50 border border-rose-200 active:bg-rose-100"
-                >
-                  <Text className="text-xs font-bold text-rose-600">Clear All</Text>
-                </Pressable>
-              )}
-              <Pressable
-                onPress={() => setNotifModalVisible(false)}
-                className="w-8 h-8 rounded-full bg-zinc-100 items-center justify-center active:bg-zinc-200"
-              >
-                <X size={18} color="#71717A" />
-              </Pressable>
-            </View>
+            <Text className="text-sm font-bold text-zinc-800">No recent notifications</Text>
+            <Text className="text-xs text-zinc-400 mt-1 text-center">
+              Your upcoming bill & budget push notifications will appear here.
+            </Text>
           </View>
-
-          <ScrollView
-            showsVerticalScrollIndicator={true}
-            persistentScrollbar={true}
-            style={{ flexShrink: 1 }}
-            className="px-5 pt-3"
-            contentContainerStyle={{ paddingBottom: 24 }}
-          >
-            {reminders.length === 0 ? (
-              <View className="items-center py-10">
-                <View className="w-12 h-12 rounded-full bg-zinc-100 items-center justify-center mb-2">
-                  <Bell size={22} color="#A1A1AA" />
-                </View>
-                <Text className="text-sm font-bold text-zinc-800">No recent notifications</Text>
-                <Text className="text-xs text-zinc-400 mt-1 text-center">Your upcoming bill & budget push notifications will appear here.</Text>
-              </View>
-            ) : (
-              reminders.map((r) => (
-                <SwipeableNotificationItem
-                  key={r.id}
-                  item={r}
-                  onDismiss={async (id) => {
-                    await reminderService.deleteReminder(id);
-                    refetchReminders();
-                  }}
-                />
-              ))
-            )}
-          </ScrollView>
-        </Pressable>
-      </AppModal>
+        ) : (
+          reminders.map((r) => (
+            <SwipeableNotificationItem
+              key={r.id}
+              item={r}
+              onDismiss={async (id) => {
+                await reminderService.deleteReminder(id);
+                refetchReminders();
+              }}
+            />
+          ))
+        )}
+      </AppBottomSheet>
 
       {/* Bank Selection Dropdown Modal */}
-      <AppModal
+      <AppBottomSheet
         visible={bankSelectModalVisible}
         onClose={() => setBankSelectModalVisible(false)}
-        animationType="slide"
+        title="Select Account"
+        subtitle="Filter dashboard metrics, charts, & transactions"
+        scrollable={true}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 }}
       >
-        <View className="flex-col w-full">
-          {/* Fixed Header */}
-          <View className="flex-row justify-between items-center px-5 py-3 border-b border-zinc-100">
-            <View className="flex-row items-center gap-3">
-              <View className="w-10 h-10 rounded-2xl bg-emerald-50 border border-emerald-100 items-center justify-center">
-                <Building2 size={20} color="#10B981" />
-              </View>
-              <View>
-                <Text className="text-xl font-extrabold text-zinc-900">Select Account</Text>
-                <Text className="text-xs text-zinc-500 mt-0.5">Filter dashboard metrics, charts, & transactions</Text>
-              </View>
+        {/* All Accounts Option */}
+        <TouchableOpacity
+          onPress={() => handleSelectBank('all')}
+          activeOpacity={0.7}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: 16,
+            marginBottom: 12,
+            borderRadius: 16,
+            borderWidth: 1,
+            backgroundColor: selectedBankId === 'all' ? '#18181b' : '#fafafa',
+            borderColor: selectedBankId === 'all' ? '#18181b' : '#e4e4e7',
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, marginRight: 8 }}>
+            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#27272a', alignItems: 'center', justifyContent: 'center' }}>
+              <Wallet size={18} color="#10B981" />
             </View>
-            <TouchableOpacity
-              onPress={() => {
-                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                setBankSelectModalVisible(false);
-              }}
-              activeOpacity={0.7}
-              className="w-8 h-8 rounded-full bg-zinc-100 items-center justify-center"
-            >
-              <X size={16} color="#71717A" />
-            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: selectedBankId === 'all' ? '#ffffff' : '#09090b' }}>
+                All Accounts
+              </Text>
+              <Text style={{ fontSize: 12, marginTop: 2, color: selectedBankId === 'all' ? '#a1a1aa' : '#71717a' }}>
+                {accounts.length} linked bank{accounts.length !== 1 ? 's' : ''} combined
+              </Text>
+            </View>
           </View>
 
-          {/* Scrollable Content */}
-          <ScrollView
-            className="px-5 pt-3"
-            style={{ flexShrink: 1 }}
-            showsVerticalScrollIndicator={true}
-            persistentScrollbar={true}
-            keyboardShouldPersistTaps="always"
-            contentContainerStyle={{ paddingBottom: 24 }}
-          >
-            {/* All Accounts Option */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: '900',
+                color: selectedBankId === 'all'
+                  ? (totalBalance < 0 ? '#f87171' : '#34d399')
+                  : (totalBalance < 0 ? '#ef4444' : '#09090b'),
+              }}
+            >
+              {formatMoney(totalBalance)}
+            </Text>
+            {selectedBankId === 'all' && <Check size={18} color="#10B981" />}
+          </View>
+        </TouchableOpacity>
+
+        {/* Individual Banks */}
+        {accounts.map((acc) => {
+          const isSelected = selectedBankId === acc.id;
+          const isAccNeg = (acc.balance || 0) < 0;
+          return (
             <TouchableOpacity
-              onPress={() => handleSelectBank('all')}
+              key={acc.id}
+              onPress={() => handleSelectBank(acc.id)}
               activeOpacity={0.7}
               style={{
                 flexDirection: 'row',
@@ -850,20 +847,32 @@ export default function DashboardScreen() {
                 marginBottom: 12,
                 borderRadius: 16,
                 borderWidth: 1,
-                backgroundColor: selectedBankId === 'all' ? '#18181b' : '#fafafa',
-                borderColor: selectedBankId === 'all' ? '#18181b' : '#e4e4e7',
+                backgroundColor: isSelected ? '#18181b' : '#fafafa',
+                borderColor: isSelected ? '#18181b' : '#e4e4e7',
               }}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, marginRight: 8 }}>
-                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#27272a', alignItems: 'center', justifyContent: 'center' }}>
-                  <Wallet size={18} color="#10B981" />
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 12,
+                    backgroundColor: acc.color || '#6366F1',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Building2 size={18} color="#FFFFFF" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: selectedBankId === 'all' ? '#ffffff' : '#09090b' }}>
-                    All Accounts
+                  <Text
+                    style={{ fontSize: 14, fontWeight: '700', color: isSelected ? '#ffffff' : '#09090b' }}
+                    numberOfLines={1}
+                  >
+                    {acc.name}
                   </Text>
-                  <Text style={{ fontSize: 12, marginTop: 2, color: selectedBankId === 'all' ? '#a1a1aa' : '#71717a' }}>
-                    {accounts.length} linked bank{accounts.length !== 1 ? 's' : ''} combined
+                  <Text style={{ fontSize: 12, marginTop: 2, color: isSelected ? '#a1a1aa' : '#71717a' }}>
+                    {acc.type ? acc.type.toUpperCase() : 'BANK'}
                   </Text>
                 </View>
               </View>
@@ -873,200 +882,141 @@ export default function DashboardScreen() {
                   style={{
                     fontSize: 14,
                     fontWeight: '900',
-                    color: selectedBankId === 'all'
-                      ? (totalBalance < 0 ? '#f87171' : '#34d399')
-                      : (totalBalance < 0 ? '#ef4444' : '#09090b'),
+                    color: isSelected
+                      ? (isAccNeg ? '#f87171' : '#34d399')
+                      : (isAccNeg ? '#ef4444' : '#09090b'),
                   }}
                 >
-                  {formatMoney(totalBalance)}
+                  {formatMoney(acc.balance || 0)}
                 </Text>
-                {selectedBankId === 'all' && <Check size={18} color="#10B981" />}
-              </View>
-            </TouchableOpacity>
-
-            {/* Individual Banks */}
-            {accounts.map((acc) => {
-              const isSelected = selectedBankId === acc.id;
-              const isAccNeg = (acc.balance || 0) < 0;
-              return (
+                {isSelected && <Check size={18} color="#10B981" />}
                 <TouchableOpacity
-                  key={acc.id}
-                  onPress={() => handleSelectBank(acc.id)}
+                  onPress={(e: GestureResponderEvent) => handleOpenEditAccount(acc, e)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   activeOpacity={0.7}
                   style={{
-                    flexDirection: 'row',
+                    width: 30,
+                    height: 30,
+                    borderRadius: 8,
+                    backgroundColor: isSelected ? '#27272a' : '#f4f4f5',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: 16,
-                    marginBottom: 12,
-                    borderRadius: 16,
-                    borderWidth: 1,
-                    backgroundColor: isSelected ? '#18181b' : '#fafafa',
-                    borderColor: isSelected ? '#18181b' : '#e4e4e7',
+                    justifyContent: 'center',
+                    marginLeft: 4,
                   }}
                 >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, marginRight: 8 }}>
-                    <View
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 12,
-                        backgroundColor: acc.color || '#6366F1',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <Building2 size={18} color="#FFFFFF" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={{ fontSize: 14, fontWeight: '700', color: isSelected ? '#ffffff' : '#09090b' }}
-                        numberOfLines={1}
-                      >
-                        {acc.name}
-                      </Text>
-                      <Text style={{ fontSize: 12, marginTop: 2, color: isSelected ? '#a1a1aa' : '#71717a' }}>
-                        {acc.type ? acc.type.toUpperCase() : 'BANK'}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        fontWeight: '900',
-                        color: isSelected
-                          ? (isAccNeg ? '#f87171' : '#34d399')
-                          : (isAccNeg ? '#ef4444' : '#09090b'),
-                      }}
-                    >
-                      {formatMoney(acc.balance || 0)}
-                    </Text>
-                    {isSelected && <Check size={18} color="#10B981" />}
-                    <TouchableOpacity
-                      onPress={(e: GestureResponderEvent) => handleOpenEditAccount(acc, e)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      activeOpacity={0.7}
-                      style={{
-                        width: 30,
-                        height: 30,
-                        borderRadius: 8,
-                        backgroundColor: isSelected ? '#27272a' : '#f4f4f5',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginLeft: 4,
-                      }}
-                    >
-                      <Pencil size={13} color={isSelected ? '#ffffff' : '#71717a'} />
-                    </TouchableOpacity>
-                  </View>
+                  <Pencil size={13} color={isSelected ? '#ffffff' : '#71717a'} />
                 </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-      </AppModal>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+
+        {/* Add New Card / Account Button */}
+        <TouchableOpacity
+          onPress={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+            setBankSelectModalVisible(false);
+            setAddCardModalVisible(true);
+          }}
+          activeOpacity={0.7}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            padding: 16,
+            marginTop: 4,
+            marginBottom: 8,
+            borderRadius: 16,
+            borderWidth: 1.5,
+            borderStyle: 'dashed',
+            borderColor: '#CBD5E1',
+            backgroundColor: '#F8FAFC',
+          }}
+        >
+          <Plus size={18} color="#2563EB" strokeWidth={2.5} />
+          <Text style={{ fontSize: 14, fontWeight: '700', color: '#2563EB' }}>
+            Add New Card or Account
+          </Text>
+        </TouchableOpacity>
+      </AppBottomSheet>
 
       {/* Edit / Adjust Account Modal */}
-      <AppModal
+      <AppBottomSheet
         visible={!!editingAccount}
         onClose={() => setEditingAccount(null)}
-        animationType="fade"
+        title="Edit Account"
+        subtitle="Adjust balance or account name"
+        scrollable={true}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 }}
       >
-        <Pressable
-          style={{
-            backgroundColor: '#ffffff',
-            borderRadius: 24,
-            padding: 24,
-            borderWidth: 1,
-            borderColor: '#e4e4e7',
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 10 },
-            shadowOpacity: 0.15,
-            shadowRadius: 20,
-            elevation: 10,
-          }}
-          onPress={(e) => e.stopPropagation()}
-        >
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#f4f4f5', alignItems: 'center', justifyContent: 'center' }}>
-                <Building2 size={20} color="#09090b" />
-              </View>
-              <View>
-                <Text style={{ fontSize: 16, fontWeight: '800', color: '#09090b' }}>Edit Account</Text>
-                <Text style={{ fontSize: 12, color: '#71717a' }}>Adjust balance or account name</Text>
-              </View>
-            </View>
-            <Pressable
-              onPress={() => setEditingAccount(null)}
-              style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#f4f4f5', alignItems: 'center', justifyContent: 'center' }}
-            >
-              <X size={16} color="#71717a" />
-            </Pressable>
+        {isSavingAccount ? (
+          <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+            <AppLoadingIndicator message="Updating account..." />
           </View>
+        ) : (
+          <View>
+            <Input
+              label="Account Name"
+              value={editAccName}
+              onChangeText={setEditAccName}
+              placeholder="e.g. Bank of Baroda"
+            />
 
-          <Input
-            label="Account Name"
-            value={editAccName}
-            onChangeText={setEditAccName}
-            placeholder="e.g. Bank of Baroda"
-          />
+            <Input
+              label="Current Balance (₹)"
+              value={editAccBalance}
+              onChangeText={setEditAccBalance}
+              placeholder="e.g. 10000 or -200"
+              keyboardType="numbers-and-punctuation"
+            />
 
-          <Input
-            label="Current Balance (₹)"
-            value={editAccBalance}
-            onChangeText={setEditAccBalance}
-            placeholder="e.g. 10000 or -200"
-            keyboardType="numbers-and-punctuation"
-          />
-
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: 2, marginBottom: 16 }}>
-            <Pressable
-              onPress={handleRecalculateBalance}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 6,
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                borderRadius: 10,
-                backgroundColor: '#f4f4f5',
-                borderWidth: 1,
-                borderColor: '#e4e4e7',
-              }}
-            >
-              <RotateCcw size={13} color="#4f46e5" />
-              <Text style={{ fontSize: 11, fontWeight: '700', color: '#4f46e5' }}>Calculate from Transactions</Text>
-            </Pressable>
-          </View>
-
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <View style={{ flex: 1 }}>
-              <Button
-                variant="outline"
-                size="md"
-                onPress={handleDeleteAccount}
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 2, marginBottom: 16 }}>
+              <Pressable
+                onPress={handleRecalculateBalance}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 10,
+                  backgroundColor: '#f4f4f5',
+                  borderWidth: 1,
+                  borderColor: '#e4e4e7',
+                }}
               >
-                <Trash2 size={16} color="#ef4444" />
-                <Text style={{ fontSize: 12, fontWeight: '700', color: '#ef4444', marginLeft: 4 }}>Archive</Text>
-              </Button>
+                <RotateCcw size={13} color="#4f46e5" />
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#4f46e5' }}>Calculate from Transactions</Text>
+              </Pressable>
             </View>
 
-            <View style={{ flex: 2 }}>
-              <Button
-                variant="primary"
-                size="md"
-                loading={isSavingAccount}
-                onPress={handleSaveAccount}
-              >
-                <Text style={{ fontSize: 13, fontWeight: '700', color: '#ffffff' }}>Save Changes</Text>
-              </Button>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <View style={{ flex: 1 }}>
+                <Button
+                  variant="outline"
+                  size="md"
+                  onPress={handleDeleteAccount}
+                >
+                  <Trash2 size={16} color="#ef4444" />
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#ef4444', marginLeft: 4 }}>Archive</Text>
+                </Button>
+              </View>
+
+              <View style={{ flex: 2 }}>
+                <Button
+                  variant="primary"
+                  size="md"
+                  loading={isSavingAccount}
+                  onPress={handleSaveAccount}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#ffffff' }}>Save Changes</Text>
+                </Button>
+              </View>
             </View>
           </View>
-        </Pressable>
-      </AppModal>
+        )}
+      </AppBottomSheet>
 
       {/* Direct Add Transaction Modal */}
       <RecordTransactionModal
@@ -1076,6 +1026,16 @@ export default function DashboardScreen() {
         onSuccess={() => {
           refetchTx();
           refetchAcc();
+        }}
+      />
+
+      {/* Magpie Benchmark Add Card Modal */}
+      <AddCardModal
+        visible={addCardModalVisible}
+        onClose={() => setAddCardModalVisible(false)}
+        onSuccess={() => {
+          refetchAcc();
+          refetchTx();
         }}
       />
 
@@ -1098,53 +1058,20 @@ export default function DashboardScreen() {
         }}
       />
 
-      {/* Beautiful Bottom-Sheet Exit App Confirmation Modal */}
-      <AppModal
+      {/* Beautiful Centered Exit App Confirmation Dialog */}
+      <AppDialog
         visible={exitModalVisible}
         onClose={() => setExitModalVisible(false)}
-        animationType="slide"
-      >
-        <Pressable
-          className="bg-white rounded-t-3xl p-6 border-t border-zinc-200 shadow-2xl"
-          onPress={(e) => e.stopPropagation()}
-        >
-          <View className="items-center my-2">
-            <View className="w-14 h-14 rounded-full bg-rose-50 items-center justify-center mb-3.5 border border-rose-100">
-              <LogOut size={26} color="#EF4444" />
-            </View>
-            <Text className="text-xl font-black text-zinc-900 text-center">Exit PocketWise?</Text>
-            <Text className="text-xs text-zinc-500 mt-1.5 text-center px-4 leading-relaxed">
-              Are you sure you want to close the application? All your financial transactions and goals are safely saved.
-            </Text>
-          </View>
-
-          <View className="flex-row gap-3 mt-6 mb-2">
-            <Button
-              variant="outline"
-              size="lg"
-              className="flex-1 border-zinc-200 bg-zinc-50"
-              onPress={() => {
-                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                setExitModalVisible(false);
-              }}
-            >
-              <Text className="text-zinc-800 font-bold text-sm">Stay in App</Text>
-            </Button>
-
-            <Button
-              variant="destructive"
-              size="lg"
-              className="flex-1 bg-rose-600 active:bg-rose-700 shadow-sm"
-              onPress={() => {
-                try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); } catch {}
-                BackHandler.exitApp();
-              }}
-            >
-              <Text className="text-white font-bold text-sm">Exit App</Text>
-            </Button>
-          </View>
-        </Pressable>
-      </AppModal>
+        title="Exit PocketWise?"
+        description="Are you sure you want to close the application? All your financial transactions and goals are safely saved."
+        confirmLabel="Exit App"
+        cancelLabel="Stay in App"
+        destructive={true}
+        onConfirm={() => {
+          try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); } catch {}
+          BackHandler.exitApp();
+        }}
+      />
 
       {/* Transaction Details View Modal */}
       <TransactionDetailModal
