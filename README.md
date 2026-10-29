@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?style=flat-square&logo=supabase&logoColor=white" alt="Supabase" />
   <img src="https://img.shields.io/badge/TanStack_Query-v5-FF4154?style=flat-square&logo=reactquery&logoColor=white" alt="TanStack Query" />
   <img src="https://img.shields.io/badge/TailwindCSS-NativeWind_v4-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white" alt="NativeWind" />
-  <img src="https://img.shields.io/badge/Tests-54_Passing-success?style=flat-square" alt="Tests Passing" />
+  <img src="https://img.shields.io/badge/Tests-120_Passing-success?style=flat-square" alt="Tests Passing" />
   <img src="https://img.shields.io/badge/Platform-Android_%7C_iOS-blue?style=flat-square" alt="Platform Support" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="MIT License" />
 </p>
@@ -179,7 +179,7 @@ PocketWise/
 │   ├── sms/                      # Native Android SMS parser
 │   └── supabase.ts               # Supabase client with retry interceptor
 ├── android/                      # Native Android project configuration
-├── __tests__/                    # Comprehensive test suite (54+ tests)
+├── __tests__/                    # Comprehensive test suite (120+ tests)
 ├── assets/                       # App icons, splash screens, and illustrations
 ├── global.css                    # Tailwind CSS definitions
 └── package.json                  # Dependencies and build scripts

@@ -1,7 +1,28 @@
 {
-  "name": "temp_expo",
+  "name": "pocketwise",
   "version": "1.0.0",
+  "description": "Privacy-first, offline-first personal wealth & expense tracker for Android & iOS built with React Native (Expo SDK 57), Supabase, on-device SMS parsing & biometric lock.",
   "main": "index.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PannagaJA/PocketWise.git"
+  },
+  "keywords": [
+    "react-native",
+    "expo",
+    "typescript",
+    "supabase",
+    "personal-finance",
+    "expense-tracker",
+    "budget-manager",
+    "android",
+    "ios",
+    "offline-first",
+    "sms-parser",
+    "fintech"
+  ],
+  "author": "PannagaJA",
+  "license": "MIT",
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-firebase/app": "^26.1.0",

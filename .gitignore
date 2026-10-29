@@ -50,3 +50,11 @@ yarn-error.*
 .idea/
 *.swp
 *.swo
+
+# Planning & AI Tooling artifacts
+.planning/
+.claude/
+.code-review-graph/
+AGENTS.md
+CLAUDE.md
+
