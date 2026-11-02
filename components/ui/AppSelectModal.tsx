@@ -6,6 +6,7 @@ import {
   TextInput,
   ScrollView,
   StyleSheet,
+  Keyboard,
 } from 'react-native';
 import { ChevronDown, Check, Search, X } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -230,22 +231,54 @@ export function AppSelectField<T = string>({
   title,
   subtitle,
   searchable,
-  searchPlaceholder,
-  allowClear,
-  clearLabel,
+  searchPlaceholder = 'Search options...',
+  allowClear = false,
+  clearLabel = 'None / Clear',
   disabled = false,
   containerClassName,
 }: AppSelectFieldProps<T>) {
-  const [modalOpen, setModalOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const selectedOption = options.find((o) => o.value === value);
+  const showSearch = searchable ?? options.length > 7;
 
-  const handleOpen = () => {
+  const filteredOptions = useMemo(() => {
+    if (!searchQuery.trim()) return options;
+    const q = searchQuery.toLowerCase().trim();
+    return options.filter(
+      (opt) =>
+        opt.label.toLowerCase().includes(q) ||
+        (opt.subLabel && opt.subLabel.toLowerCase().includes(q))
+    );
+  }, [options, searchQuery]);
+
+  const handleToggle = () => {
     if (disabled) return;
+    Keyboard.dismiss();
     try {
       Haptics.selectionAsync();
     } catch {}
-    setModalOpen(true);
+    setIsOpen((prev) => !prev);
+    setSearchQuery('');
+  };
+
+  const handleSelect = (val: T) => {
+    try {
+      Haptics.selectionAsync();
+    } catch {}
+    onSelect(val);
+    setIsOpen(false);
+    setSearchQuery('');
+  };
+
+  const handleClear = () => {
+    try {
+      Haptics.selectionAsync();
+    } catch {}
+    onSelect('' as unknown as T);
+    setIsOpen(false);
+    setSearchQuery('');
   };
 
   return (
@@ -257,10 +290,11 @@ export function AppSelectField<T = string>({
       )}
 
       <Pressable
-        onPress={handleOpen}
+        onPress={handleToggle}
         disabled={disabled}
         style={[
           styles.fieldTrigger,
+          isOpen && styles.fieldTriggerOpen,
           disabled && styles.fieldTriggerDisabled,
         ]}
         accessibilityRole="combobox"
@@ -289,22 +323,126 @@ export function AppSelectField<T = string>({
           </Text>
         </View>
 
-        <ChevronDown size={18} color="#71717A" />
+        <ChevronDown
+          size={18}
+          color={isOpen ? '#6366F1' : '#71717A'}
+          style={isOpen ? { transform: [{ rotate: '180deg' }] } : undefined}
+        />
       </Pressable>
 
-      <AppSelectModal<T>
-        visible={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title={title || label || 'Select Option'}
-        subtitle={subtitle}
-        options={options}
-        selectedValue={value}
-        onSelect={onSelect}
-        searchable={searchable}
-        searchPlaceholder={searchPlaceholder}
-        allowClear={allowClear}
-        clearLabel={clearLabel}
-      />
+      {isOpen && (
+        <View style={styles.dropdownContainer}>
+          {showSearch && (
+            <View style={styles.dropdownSearchWrapper}>
+              <Search size={14} color="#71717A" style={styles.dropdownSearchIcon} />
+              <TextInput
+                style={styles.dropdownSearchInput}
+                placeholder={searchPlaceholder}
+                placeholderTextColor="#A1A1AA"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoCorrect={false}
+              />
+              {!!searchQuery && (
+                <Pressable
+                  onPress={() => setSearchQuery('')}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <X size={14} color="#71717A" />
+                </Pressable>
+              )}
+            </View>
+          )}
+
+          {allowClear && (
+            <Pressable
+              onPress={handleClear}
+              style={[
+                styles.optionItem,
+                !value && styles.optionItemSelected,
+              ]}
+            >
+              <View style={styles.optionLeft}>
+                <View style={[styles.colorDot, { backgroundColor: '#D4D4D8' }]} />
+                <Text
+                  style={[
+                    styles.optionLabel,
+                    !value ? styles.optionLabelSelected : styles.optionLabelMuted,
+                  ]}
+                >
+                  {clearLabel}
+                </Text>
+              </View>
+              {!value && <Check size={16} color="#6366F1" strokeWidth={2.4} />}
+            </Pressable>
+          )}
+
+          <ScrollView
+            nestedScrollEnabled={true}
+            keyboardShouldPersistTaps="handled"
+            style={styles.dropdownScrollView}
+            showsVerticalScrollIndicator={true}
+          >
+            {filteredOptions.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No matching options</Text>
+              </View>
+            ) : (
+              filteredOptions.map((opt) => {
+                const isSelected = value === opt.value;
+                return (
+                  <Pressable
+                    key={String(opt.value)}
+                    onPress={() => handleSelect(opt.value)}
+                    style={[
+                      styles.optionItem,
+                      isSelected && styles.optionItemSelected,
+                    ]}
+                  >
+                    <View style={styles.optionLeft}>
+                      {opt.color ? (
+                        <View
+                          style={[styles.colorDot, { backgroundColor: opt.color }]}
+                        />
+                      ) : opt.icon ? (
+                        <View style={styles.iconContainer}>{opt.icon}</View>
+                      ) : null}
+
+                      <View style={styles.labelCol}>
+                        <View style={styles.labelRow}>
+                          <Text
+                            style={[
+                              styles.optionLabel,
+                              isSelected && styles.optionLabelSelected,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {opt.label}
+                          </Text>
+                          {opt.badge && (
+                            <View style={styles.badgeContainer}>
+                              <Text style={styles.badgeText}>{opt.badge}</Text>
+                            </View>
+                          )}
+                        </View>
+                        {opt.subLabel && (
+                          <Text style={styles.optionSubLabel} numberOfLines={1}>
+                            {opt.subLabel}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+
+                    {isSelected && (
+                      <Check size={16} color="#6366F1" strokeWidth={2.4} />
+                    )}
+                  </Pressable>
+                );
+              })
+            )}
+          </ScrollView>
+        </View>
+      )}
     </View>
   );
 }
@@ -440,8 +578,49 @@ const styles = StyleSheet.create({
     borderColor: '#E4E4E7',
     borderRadius: 16,
   },
+  fieldTriggerOpen: {
+    borderColor: '#6366F1',
+    backgroundColor: '#FFFFFF',
+    borderBottomLeftRadius: 6,
+    borderBottomRightRadius: 6,
+  },
   fieldTriggerDisabled: {
     opacity: 0.5,
+  },
+  dropdownContainer: {
+    marginTop: 4,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E4E4E7',
+    borderRadius: 16,
+    padding: 8,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  dropdownSearchWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F4F4F5',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    height: 38,
+    marginBottom: 8,
+  },
+  dropdownSearchIcon: {
+    marginRight: 6,
+  },
+  dropdownSearchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#09090B',
+    height: '100%',
+    paddingVertical: 0,
+  },
+  dropdownScrollView: {
+    maxHeight: 220,
   },
   triggerContent: {
     flexDirection: 'row',
