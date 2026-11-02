@@ -207,7 +207,10 @@ export default function GoalsScreen() {
                 </Text>
               </View>
 
-              <Text className="text-[24px] font-extrabold text-zinc-950 tracking-tight">
+              <Text
+                className="text-[24px] font-extrabold text-zinc-950 tracking-tight"
+                style={{ lineHeight: 32 }}
+              >
                 {formatMoney(totalSavedMinor)}
               </Text>
               <Text className="text-xs font-medium text-zinc-500 mt-0.5">
