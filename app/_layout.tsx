@@ -15,6 +15,8 @@ import { notificationService } from '../lib/notifications/notification.service';
 import { financialAnalyticsEngine } from '../lib/finance/analyticsEngine';
 import { smsListenerService } from '../lib/sms/service/smsListenerService';
 import { QuickExpenseModal } from '../components/QuickExpenseModal';
+import { AppUpdateModal } from '../components/AppUpdateModal';
+import { useUpdateStore } from '../lib/stores/updateStore';
 import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -86,7 +88,15 @@ function GlobalRealtimeSync() {
     const cleanupListener = deepLinkService.registerNotificationListener();
     deepLinkService.checkColdStartNotification();
 
-    if (!user?.id) return;
+    // Silently check for live app updates in background (4h cooldown)
+    const updateTimer = setTimeout(() => {
+      useUpdateStore.getState().checkForUpdates(false).catch(() => {});
+    }, 4000);
+
+    if (!user?.id) return () => {
+      clearTimeout(updateTimer);
+      if (cleanupListener) cleanupListener();
+    };
 
     // Listen to real-time postgres changes across all financial tables for the user
     const channel = supabase
@@ -179,6 +189,9 @@ export default function RootLayout() {
                   </Stack>
                   {/* QuickExpenseModal is a screen-agnostic overlay — rendered after Stack so it floats above all screens */}
                   <QuickExpenseModal />
+
+                  {/* In-App APK Live Update Modal */}
+                  <AppUpdateModal />
                 </AppLockGate>
 
                 {/* Seamless Animated Splash Screen Overlay: mounts immediately, covers route loading */}

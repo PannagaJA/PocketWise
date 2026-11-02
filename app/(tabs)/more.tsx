@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Switch, Alert, Pressable, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
+import { View, Text, ScrollView, Switch, Alert, Pressable, KeyboardAvoidingView, Platform, Keyboard, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Card } from '../../components/ui/Card';
@@ -10,7 +10,9 @@ import { AppBottomSheet } from '../../components/ui/AppBottomSheet';
 import { AppDialog } from '../../components/ui/AppDialog';
 import { useAuth } from '../../context/AuthContext';
 import { appLockService } from '../../lib/security/app-lock.service';
-import { Fingerprint, Bell, Database, LogOut, ChevronRight, Calendar, Target, Lock, PieChart, X, Smartphone, Zap, HandCoins, Clock } from 'lucide-react-native';
+import { useUpdateStore } from '../../lib/stores/updateStore';
+import { updateService } from '../../lib/services/update.service';
+import { Fingerprint, Bell, Database, LogOut, ChevronRight, Calendar, Target, Lock, PieChart, X, Smartphone, Zap, HandCoins, Clock, CloudDownload, Sparkles } from 'lucide-react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as Haptics from 'expo-haptics';
 
@@ -27,6 +29,30 @@ export default function MoreScreen() {
   const [signOutDialogVisible, setSignOutDialogVisible] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [confirmPinInput, setConfirmPinInput] = useState('');
+
+  // Live App Update state
+  const { updateInfo, checkForUpdates } = useUpdateStore();
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const currentAppVersion = updateService.getCurrentVersion();
+
+  const handleCheckUpdateManual = async () => {
+    setIsCheckingUpdate(true);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const found = await checkForUpdates(true);
+      if (!found) {
+        Alert.alert(
+          "You're Up to Date! 🎉",
+          `PocketWise v${currentAppVersion} is currently the latest version. No new updates are available.`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch {
+      Alert.alert('Update Check Failed', 'Could not reach GitHub Releases. Please check your internet connection.');
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  };
 
   useEffect(() => {
     loadSecurityState();
@@ -308,6 +334,42 @@ export default function MoreScreen() {
               </View>
             </View>
             <ChevronRight size={18} color="#A1A1AA" />
+          </Pressable>
+
+          {/* Live App Updates Check Row */}
+          <Pressable
+            onPress={handleCheckUpdateManual}
+            disabled={isCheckingUpdate}
+            className="p-4 flex-row items-center justify-between active:bg-zinc-50 border-t border-zinc-100"
+          >
+            <View className="flex-row items-center flex-1 pr-2">
+              <View className="w-10 h-10 rounded-2xl bg-indigo-50 items-center justify-center mr-3.5">
+                <CloudDownload size={20} color="#4F46E5" />
+              </View>
+              <View className="flex-1">
+                <View className="flex-row items-center gap-2">
+                  <Text className="text-[15px] font-bold text-zinc-950">App Updates</Text>
+                  {updateInfo && (
+                    <View className="bg-indigo-100 px-2 py-0.5 rounded-full flex-row items-center">
+                      <Sparkles size={10} color="#4338CA" style={{ marginRight: 2 }} />
+                      <Text className="text-[10px] font-extrabold text-indigo-700">UPDATE READY</Text>
+                    </View>
+                  )}
+                </View>
+                <Text className="text-xs font-medium text-zinc-500 mt-0.5">
+                  {isCheckingUpdate
+                    ? 'Checking for latest release...'
+                    : updateInfo
+                    ? `v${updateInfo.version} available (Current: v${currentAppVersion})`
+                    : `Version ${currentAppVersion} • Tap to check for updates`}
+                </Text>
+              </View>
+            </View>
+            {isCheckingUpdate ? (
+              <ActivityIndicator size="small" color="#6366F1" />
+            ) : (
+              <ChevronRight size={18} color="#A1A1AA" />
+            )}
           </Pressable>
         </Card>
 
