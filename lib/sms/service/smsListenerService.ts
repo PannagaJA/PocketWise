@@ -5,6 +5,7 @@ import { isDuplicateTransaction, createTransactionFingerprint } from '../parser/
 import { smsStorage } from '../storage/smsStore';
 import { useAppStore } from '../../../store/useAppStore';
 import { supabase } from '../../supabase';
+import { queryClient } from '../../queryClient';
 import { transactionService } from '../../services/transaction.service';
 import { accountService } from '../../services/account.service';
 import { notificationEngine } from '../../notifications/notification.engine';
@@ -130,6 +131,9 @@ class SmsListenerService {
     const hasPermission = await this.checkSmsPermissions();
     if (!hasPermission) {
       console.log('[SMS Listener] Running in standby mode (Permission not granted or iOS/Expo Go)');
+    } else {
+      // Sync recent inbox messages in background so past transactions aren't missed
+      this.syncRecentInboxSms().catch((err) => console.log('[SMS Listener] Background inbox sync:', err));
     }
 
     // Subscribe to real-time native SMS receiver events
@@ -148,6 +152,55 @@ class SmsListenerService {
 
       // Process any background queued SMS that arrived while app was closed
       this.flushBackgroundQueue();
+    }
+  }
+
+  /**
+   * Scan and sync recent bank transactions from the Android SMS Inbox (content://sms/inbox).
+   */
+  async syncRecentInboxSms(): Promise<{ total: number; detected: number; saved: number }> {
+    if (Platform.OS !== 'android' || !PocketWiseSmsModule?.readRecentInboxSms) {
+      return { total: 0, detected: 0, saved: 0 };
+    }
+
+    const hasPermission = await this.checkSmsPermissions();
+    if (!hasPermission) {
+      return { total: 0, detected: 0, saved: 0 };
+    }
+
+    try {
+      const messages: RawSMS[] = await PocketWiseSmsModule.readRecentInboxSms();
+      if (!Array.isArray(messages) || messages.length === 0) {
+        return { total: 0, detected: 0, saved: 0 };
+      }
+
+      let detectedCount = 0;
+      let savedCount = 0;
+
+      // Process oldest to newest so balances & ledger build chronologically
+      const chronological = [...messages].reverse();
+
+      for (const msg of chronological) {
+        if (!msg.body) continue;
+        const result = await this.processIncomingSms(msg);
+        if (result) {
+          detectedCount++;
+          if (!result.needsReview) {
+            savedCount++;
+          }
+        }
+      }
+
+      if (detectedCount > 0) {
+        queryClient.invalidateQueries({ queryKey: ['transactions'] });
+        queryClient.invalidateQueries({ queryKey: ['accounts'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      }
+
+      return { total: messages.length, detected: detectedCount, saved: savedCount };
+    } catch (err) {
+      console.warn('[SMS Listener] Error syncing recent inbox SMS:', err);
+      return { total: 0, detected: 0, saved: 0 };
     }
   }
 
@@ -220,8 +273,8 @@ class SmsListenerService {
 
       // 4. Check duplicate against active Supabase DB transactions for logged-in user
       try {
-        const { data: authData } = await supabase.auth.getUser();
-        const userId = authData?.user?.id;
+        const session = typeof supabase.auth?.getSession === 'function' ? (await supabase.auth.getSession()).data?.session : null;
+        const userId = session?.user?.id || (typeof supabase.auth?.getUser === 'function' ? (await supabase.auth.getUser()).data?.user?.id : undefined);
         if (userId) {
           const recentTxs = await transactionService.getTransactions(userId, 100);
           if (isDuplicateTransaction(parsedTx, recentTxs)) {
@@ -349,8 +402,8 @@ class SmsListenerService {
 
     // 2. Persist to Supabase Database for logged-in user
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      const userId = authData?.user?.id;
+      const session = typeof supabase.auth?.getSession === 'function' ? (await supabase.auth.getSession()).data?.session : null;
+      const userId = session?.user?.id || (typeof supabase.auth?.getUser === 'function' ? (await supabase.auth.getUser()).data?.user?.id : undefined);
 
       if (userId) {
         const userAccounts = await accountService.getAccounts(userId);
@@ -398,6 +451,11 @@ class SmsListenerService {
           date: txDateStr,
           notes: parsedTx.referenceNumber ? `Ref: ${parsedTx.referenceNumber}` : (parsedTx.upiReference ? `UPI Ref: ${parsedTx.upiReference}` : undefined),
         });
+
+        // Instantly invalidate TanStack Query caches so dashboard & transactions update immediately
+        queryClient.invalidateQueries({ queryKey: ['transactions'] });
+        queryClient.invalidateQueries({ queryKey: ['accounts'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       }
     } catch (err) {
       console.warn('[SMS Listener] Error persisting to Supabase:', err);

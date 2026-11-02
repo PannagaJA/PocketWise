@@ -3,7 +3,6 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
-import { QueryClient, QueryCache, MutationCache } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -18,6 +17,7 @@ import { QuickExpenseModal } from '../components/QuickExpenseModal';
 import { AppUpdateModal } from '../components/AppUpdateModal';
 import { useUpdateStore } from '../lib/stores/updateStore';
 import { supabase } from '../lib/supabase';
+import { queryClient } from '../lib/queryClient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import '../global.css';
@@ -26,32 +26,6 @@ const asyncStoragePersister = createAsyncStoragePersister({
   storage: AsyncStorage,
   key: 'POCKETWISE_OFFLINE_CACHE_V1',
   throttleTime: 1000,
-});
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes fresh in cache for instant tab switches
-      gcTime: 1000 * 60 * 60 * 24, // 24 hours garbage collection time
-      refetchOnWindowFocus: false, // Don't trigger refetch on every focus change
-      refetchOnReconnect: true,
-      refetchOnMount: false,     // Use in-memory / persistent cache immediately on mount
-    },
-  },
-  queryCache: new QueryCache({
-    onError: (error, query) => {
-      console.error(`[Query Error] [${query.queryKey.join('/')}]:`, error);
-    },
-  }),
-  mutationCache: new MutationCache({
-    onError: (error) => {
-      console.error('[Mutation Error]:', error);
-    },
-    onSuccess: () => {
-      // Invalidate all TanStack Query caches instantly on ANY mutation across the app
-      queryClient.invalidateQueries();
-    },
-  }),
 });
 
 /**

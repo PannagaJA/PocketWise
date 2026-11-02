@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Switch, Pressable } from 'react-native';
+import { View, Text, ScrollView, Switch, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
-import { ChevronLeft, ShieldCheck, Smartphone, Building2, CheckCircle2, AlertTriangle } from 'lucide-react-native';
+import { ChevronLeft, ShieldCheck, Smartphone, Building2, CheckCircle2, AlertTriangle, RefreshCw, Sparkles, Info } from 'lucide-react-native';
 import { smsStorage } from '../lib/sms/storage/smsStore';
 import { smsListenerService } from '../lib/sms/service/smsListenerService';
 import { AccountMapping, SmsTrackingSettings, ParsedSmsTransaction } from '../lib/sms/types';
@@ -26,6 +26,7 @@ export default function SmsSettingsScreen() {
   const [pendingReviews, setPendingReviews] = useState<ParsedSmsTransaction[]>([]);
   const [selectedReviewTx, setSelectedReviewTx] = useState<ParsedSmsTransaction | null>(null);
   const [notificationListenerEnabled, setNotificationListenerEnabled] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
 
   useEffect(() => {
     loadSmsSettings();
@@ -53,9 +54,48 @@ export default function SmsSettingsScreen() {
         permissionGranted: granted,
       });
       setSettings((prev) => ({ ...prev, autoTrackingEnabled: granted, permissionGranted: granted }));
+      if (granted) {
+        handleScanInbox(true);
+      }
     } else {
       await smsStorage.saveSettings({ autoTrackingEnabled: false });
       setSettings((prev) => ({ ...prev, autoTrackingEnabled: false }));
+    }
+  };
+
+  const handleScanInbox = async (silent = false) => {
+    if (isScanning) return;
+    setIsScanning(true);
+    try {
+      const result = await smsListenerService.syncRecentInboxSms();
+      await loadSmsSettings();
+      if (!silent) {
+        if (result.detected > 0) {
+          Alert.alert(
+            'SMS Scan Complete! 🎉',
+            `Scanned ${result.total} recent messages and detected ${result.detected} bank transaction(s).\n\n${result.saved} transaction(s) were automatically saved to your accounts!`,
+            [{ text: 'Great' }]
+          );
+        } else if (result.total > 0) {
+          Alert.alert(
+            'Scan Finished',
+            `Scanned ${result.total} recent SMS messages, but no new bank debit/credit transactions were found.\n\nMake sure your bank sends transaction alerts with debited/credited amount text.`,
+            [{ text: 'OK' }]
+          );
+        } else {
+          Alert.alert(
+            'Permissions Needed',
+            'SMS permission is required to scan your inbox for bank transactions. Please grant SMS permissions first.',
+            [{ text: 'OK' }]
+          );
+        }
+      }
+    } catch (e: any) {
+      if (!silent) {
+        Alert.alert('Scan Failed', e?.message || 'Unable to read SMS inbox');
+      }
+    } finally {
+      setIsScanning(false);
     }
   };
 
@@ -124,21 +164,55 @@ export default function SmsSettingsScreen() {
               <Text className="text-xs font-black text-zinc-900">{settings.totalDetectedCount} total</Text>
             </View>
           </View>
+          {/* Manual SMS Inbox Scan */}
+          <View className="mt-4 pt-4 border-t border-zinc-100">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isScanning}
+              onPress={() => handleScanInbox(false)}
+              className="border-indigo-200 bg-indigo-50/50"
+            >
+              <View className="flex-row items-center justify-center gap-2">
+                {isScanning ? (
+                  <ActivityIndicator size="small" color="#6366F1" />
+                ) : (
+                  <RefreshCw size={16} color="#6366F1" />
+                )}
+                <Text className="text-xs font-bold text-indigo-700">
+                  {isScanning ? 'Scanning SMS Inbox...' : 'Scan SMS Inbox Now (Catch Past Transactions)'}
+                </Text>
+              </View>
+            </Button>
+            <Text className="text-[11px] text-zinc-400 mt-2 text-center">
+              Scans your last 50 SMS messages for recent bank debits/credits.
+            </Text>
+          </View>
         </Card>
 
         {/* Automatic SMS Detection via Google Messages Notifications */}
-        <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3 ml-1">Automatic SMS Detection</Text>
+        <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3 ml-1">Live SMS & App Notifications</Text>
         <Card className="mb-6 p-4 bg-white border border-zinc-200">
           <Text className="text-xs font-medium text-zinc-600 leading-5 mb-3">
-            PocketWise can read bank transaction notifications from Google Messages to automatically detect your transactions.
+            PocketWise reads bank transaction notifications from Google Messages, Samsung Messages, and Truecaller to capture transactions in real time.
           </Text>
+          
           <View className="flex-row items-center justify-between p-3 bg-zinc-50 rounded-xl border border-zinc-100 mb-3">
             <Text className="text-xs font-bold text-zinc-800">Notification Access</Text>
             <Badge
-              label={notificationListenerEnabled ? 'Enabled' : 'Not Enabled'}
+              label={notificationListenerEnabled ? 'Connected' : 'Not Connected'}
               variant={notificationListenerEnabled ? 'income' : 'expense'}
             />
           </View>
+
+          {/* Android Reconnect Hint */}
+          <View className="p-3 bg-blue-50/70 border border-blue-200/70 rounded-xl flex-row items-start gap-2.5 mb-3">
+            <Info size={16} color="#2563EB" className="mt-0.5" />
+            <Text className="text-[11px] text-blue-900 leading-4 flex-1">
+              <Text className="font-bold">Important after app updates:</Text> Android may pause notification listeners when updating an APK. If incoming bank alerts stop appearing, open Settings below, turn Notification Access <Text className="font-bold">OFF and back ON</Text> to re-link.
+            </Text>
+          </View>
+
           <Button
             variant={notificationListenerEnabled ? 'outline' : 'primary'}
             size="sm"
@@ -147,7 +221,7 @@ export default function SmsSettingsScreen() {
             }}
           >
             <Text className={`text-xs font-bold ${notificationListenerEnabled ? 'text-zinc-800' : 'text-white'}`}>
-              {notificationListenerEnabled ? 'Manage Notification Access' : 'Enable Notification Access'}
+              {notificationListenerEnabled ? 'Manage Notification Access (Re-link)' : 'Enable Notification Access'}
             </Text>
           </Button>
         </Card>
