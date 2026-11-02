@@ -163,7 +163,12 @@ export default function BudgetsScreen() {
                 </Text>
               </View>
 
-              <Text className="text-[24px] font-extrabold text-zinc-950 tracking-tight">{formatMoney(totalLimit)}</Text>
+              <Text
+                className="text-[24px] font-extrabold text-zinc-950 tracking-tight"
+                style={{ lineHeight: 32 }}
+              >
+                {formatMoney(totalLimit)}
+              </Text>
 
               <View className="mt-3 gap-1">
                 <View className="flex-row items-center justify-between">
