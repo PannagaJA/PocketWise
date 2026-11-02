@@ -28,6 +28,7 @@ export default function ReportsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [exportModalVisible, setExportModalVisible] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [exportingMessage, setExportingMessage] = useState('Preparing export statement...');
 
   const getDateRange = (selectedPeriod: PeriodOption) => {
     const now = new Date();
@@ -43,9 +44,16 @@ export default function ReportsScreen() {
       start = new Date(now.getFullYear(), 0, 1);
     }
 
+    const formatLocalDate = (d: Date) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
     return {
-      startDate: start.toISOString().split('T')[0],
-      endDate: now.toISOString().split('T')[0],
+      startDate: formatLocalDate(start),
+      endDate: formatLocalDate(now),
     };
   };
 
@@ -100,24 +108,66 @@ export default function ReportsScreen() {
     setRefreshing(false);
   };
 
+  const handleExportPDF = async () => {
+    if (!summary || !user?.id) return;
+    setIsExporting(true);
+    setExportingMessage('Generating your PDF statement...');
+    try {
+      const txs = await transactionService.getTransactionsByDateRange(user.id, startDate, endDate);
+      setExportModalVisible(false);
+      await exportService.exportPDFStatement({
+        periodName: period.replace('_', ' '),
+        startDate,
+        endDate,
+        summary,
+        categories,
+        transactions: txs,
+        userName: (user as any)?.user_metadata?.full_name || (user as any)?.user_metadata?.name || 'Account Holder',
+        userEmail: user?.email,
+      });
+    } catch (err: any) {
+      if (
+        err?.name !== 'AbortError' &&
+        !err?.message?.includes('canceled') &&
+        !err?.message?.includes('cancelled') &&
+        !err?.message?.includes('dismissed')
+      ) {
+        Alert.alert('Export Error', 'Failed to generate PDF statement. Please try again.');
+      }
+    } finally {
+      setIsExporting(false);
+      setExportingMessage('Preparing export statement...');
+    }
+  };
+
   const handleExportCSV = async () => {
     if (!user?.id) return;
     setIsExporting(true);
+    setExportingMessage('Preparing CSV spreadsheet...');
     try {
       const txs = await transactionService.getTransactionsByDateRange(user.id, startDate, endDate);
-      const csvData = exportService.generateTransactionsCSV(txs);
-      await exportService.shareContent(csvData, 'PocketWise Transactions Statement');
       setExportModalVisible(false);
-    } catch {
-      Alert.alert('Export Error', 'Failed to export CSV statement.');
+      const filename = `PocketWise_Transactions_${startDate}_to_${endDate}.csv`;
+      await exportService.exportTransactionsCSV(txs, filename);
+    } catch (err: any) {
+      if (
+        err?.name !== 'AbortError' &&
+        !err?.message?.includes('canceled') &&
+        !err?.message?.includes('cancelled') &&
+        !err?.message?.includes('dismissed')
+      ) {
+        Alert.alert('Export Error', 'Failed to export CSV statement.');
+      }
     } finally {
       setIsExporting(false);
+      setExportingMessage('Preparing export statement...');
     }
   };
 
   const handleExportSummary = async () => {
     if (!summary) return;
     setIsExporting(true);
+    setExportingMessage('Preparing text summary...');
     try {
       const summaryText = exportService.generateFinancialSummaryText({
         periodName: period.replace('_', ' '),
@@ -126,12 +176,20 @@ export default function ReportsScreen() {
         summary,
         categories,
       });
-      await exportService.shareContent(summaryText, 'PocketWise Financial Summary');
       setExportModalVisible(false);
-    } catch {
-      Alert.alert('Export Error', 'Failed to export summary report.');
+      await exportService.shareContent(summaryText, 'PocketWise Financial Summary');
+    } catch (err: any) {
+      if (
+        err?.name !== 'AbortError' &&
+        !err?.message?.includes('canceled') &&
+        !err?.message?.includes('cancelled') &&
+        !err?.message?.includes('dismissed')
+      ) {
+        Alert.alert('Export Error', 'Failed to export summary report.');
+      }
     } finally {
       setIsExporting(false);
+      setExportingMessage('Preparing export statement...');
     }
   };
 
@@ -465,38 +523,67 @@ export default function ReportsScreen() {
       >
         {isExporting ? (
           <View className="py-12">
-            <AppLoadingIndicator message="Preparing export statement..." />
+            <AppLoadingIndicator message={exportingMessage} />
           </View>
         ) : (
           <View>
             <View className="gap-3 mb-4">
+              {/* Option 1: PDF Document (Primary / Recommended) */}
+              <TouchableOpacity
+                activeOpacity={0.7}
+                disabled={isExporting}
+                onPress={handleExportPDF}
+                className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-200/90 flex-row items-center active:bg-indigo-100/80"
+              >
+                <View className="w-11 h-11 rounded-2xl bg-indigo-600 items-center justify-center mr-3 shadow-sm shadow-indigo-300">
+                  <FileText size={22} color="#FFFFFF" />
+                </View>
+                <View className="flex-1">
+                  <View className="flex-row items-center gap-2">
+                    <Text className="text-sm font-bold text-zinc-950">Financial Statement (PDF)</Text>
+                    <View className="bg-indigo-100 px-2 py-0.5 rounded-full border border-indigo-200/60">
+                      <Text className="text-[9px] font-extrabold text-indigo-700 tracking-wider">RECOMMENDED</Text>
+                    </View>
+                  </View>
+                  <Text className="text-xs font-medium text-zinc-500 mt-0.5">
+                    Beautiful executive statement with summary cards, charts & itemized ledger
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Option 2: CSV Spreadsheet */}
               <TouchableOpacity
                 activeOpacity={0.7}
                 disabled={isExporting}
                 onPress={handleExportCSV}
                 className="p-4 rounded-2xl bg-zinc-50/80 border border-zinc-200/80 flex-row items-center active:bg-zinc-100"
               >
-                <View className="w-10 h-10 rounded-2xl bg-emerald-50 items-center justify-center mr-3 border border-emerald-100/60">
-                  <FileSpreadsheet size={20} color="#10B981" />
+                <View className="w-11 h-11 rounded-2xl bg-emerald-50 items-center justify-center mr-3 border border-emerald-100/60">
+                  <FileSpreadsheet size={22} color="#10B981" />
                 </View>
                 <View className="flex-1">
                   <Text className="text-sm font-bold text-zinc-950">Transactions Spreadsheet (CSV)</Text>
-                  <Text className="text-xs font-medium text-zinc-500 mt-0.5">Full itemized statement with dates, categories & amounts</Text>
+                  <Text className="text-xs font-medium text-zinc-500 mt-0.5">
+                    Itemized raw statement file compatible with Excel, Sheets & bookkeeping
+                  </Text>
                 </View>
               </TouchableOpacity>
 
+              {/* Option 3: Quick Summary Plain Text */}
               <TouchableOpacity
                 activeOpacity={0.7}
                 disabled={isExporting}
                 onPress={handleExportSummary}
                 className="p-4 rounded-2xl bg-zinc-50/80 border border-zinc-200/80 flex-row items-center active:bg-zinc-100"
               >
-                <View className="w-10 h-10 rounded-2xl bg-indigo-50 items-center justify-center mr-3 border border-indigo-100/60">
-                  <FileText size={20} color="#6366F1" />
+                <View className="w-11 h-11 rounded-2xl bg-zinc-100 items-center justify-center mr-3 border border-zinc-200/60">
+                  <Share2 size={20} color="#64748B" />
                 </View>
                 <View className="flex-1">
-                  <Text className="text-sm font-bold text-zinc-950">Financial Summary Report (Text)</Text>
-                  <Text className="text-xs font-medium text-zinc-500 mt-0.5">Savings rate, income/expense breakdown & totals</Text>
+                  <Text className="text-sm font-bold text-zinc-950">Quick Summary (Plain Text)</Text>
+                  <Text className="text-xs font-medium text-zinc-500 mt-0.5">
+                    Lightweight text breakdown for quick sharing or copy
+                  </Text>
                 </View>
               </TouchableOpacity>
             </View>

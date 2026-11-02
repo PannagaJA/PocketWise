@@ -1,4 +1,7 @@
 const mockShare = jest.fn().mockResolvedValue({ action: 'sharedAction' });
+const mockPrintToFile = jest.fn().mockResolvedValue({ uri: 'file:///mock/statement.pdf' });
+const mockShareAsync = jest.fn().mockResolvedValue(true);
+const mockWriteAsString = jest.fn().mockResolvedValue(undefined);
 
 jest.mock('react-native', () => ({
   Platform: { OS: 'ios' },
@@ -7,6 +10,22 @@ jest.mock('react-native', () => ({
     sharedAction: 'sharedAction',
     dismissedAction: 'dismissedAction',
   },
+}));
+
+jest.mock('expo-print', () => ({
+  printToFileAsync: (...args: any[]) => mockPrintToFile(...args),
+  printAsync: jest.fn().mockResolvedValue(true),
+}));
+
+jest.mock('expo-sharing', () => ({
+  isAvailableAsync: jest.fn().mockResolvedValue(true),
+  shareAsync: (...args: any[]) => mockShareAsync(...args),
+}));
+
+jest.mock('expo-file-system/legacy', () => ({
+  cacheDirectory: 'file:///mock/cache/',
+  writeAsStringAsync: (...args: any[]) => mockWriteAsString(...args),
+  EncodingType: { UTF8: 'utf8' },
 }));
 
 
@@ -152,6 +171,152 @@ describe('Stage 5: Financial Reports Export & Release Gate', () => {
     test('Invokes Native Share API with content and title', async () => {
       const result = await exportService.shareContent('CSV data here', 'PocketWise Statement');
       expect(mockShare).toHaveBeenCalled();
+      expect(result).toBe(true);
+    });
+  });
+
+  describe('PDF Statement Generation & Export', () => {
+    const mockSummary: FinancialSummary = {
+      totalIncome: 1500000,
+      totalExpense: 650000,
+      savings: 850000,
+      savingsRate: 57,
+    };
+
+    const mockCategories: CategorySpending[] = [
+      {
+        categoryId: 'c1',
+        categoryName: 'Food & Dining',
+        categoryColor: '#EF4444',
+        amountMinor: 400000,
+        percentage: 62,
+      },
+      {
+        categoryId: 'c2',
+        categoryName: 'Transport',
+        categoryColor: '#3B82F6',
+        amountMinor: 250000,
+        percentage: 38,
+      },
+    ];
+
+    const mockTxs: Transaction[] = [
+      {
+        id: 'tx_1',
+        user_id: 'user_1',
+        account_id: 'acc_1',
+        type: 'expense',
+        amount_minor: 400000,
+        currency: 'INR',
+        description: 'Supermarket Groceries',
+        date: '2026-09-15',
+        category: { name: 'Food & Dining' },
+        account: { name: 'HDFC Bank' },
+      },
+      {
+        id: 'tx_2',
+        user_id: 'user_1',
+        account_id: 'acc_1',
+        type: 'income',
+        amount_minor: 1500000,
+        currency: 'INR',
+        description: 'Monthly Salary',
+        date: '2026-09-01',
+        category: { name: 'Salary' },
+        account: { name: 'HDFC Bank' },
+      },
+    ];
+
+    test('Generates executive HTML document for 3 Months statement', () => {
+      const html = exportService.generateFinancialStatementHtml({
+        periodName: '3 months',
+        startDate: '2026-08-02',
+        endDate: '2026-11-02',
+        summary: mockSummary,
+        categories: mockCategories,
+        transactions: mockTxs,
+        userName: 'Alex Johnson',
+        userEmail: 'alex@example.com',
+      });
+
+      // Branding & Period
+      expect(html).toContain('PocketWise');
+      expect(html).toContain('3 MONTHS');
+      expect(html).toContain('2026-08-02 &mdash; 2026-11-02');
+      expect(html).toContain('Alex Johnson');
+      expect(html).toContain('alex@example.com');
+
+      // KPI Metrics
+      expect(html).toContain('Total Income');
+      expect(html).toContain('Total Expense');
+      expect(html).toContain('Net Savings');
+      expect(html).toContain('57%');
+
+      // Category breakdown
+      expect(html).toContain('Food &amp; Dining');
+      expect(html).toContain('62%');
+      expect(html).toContain('Transport');
+
+      // Transactions Ledger
+      expect(html).toContain('Supermarket Groceries');
+      expect(html).toContain('Monthly Salary');
+      expect(html).toContain('EXPENSE');
+      expect(html).toContain('INCOME');
+    });
+
+    test('Handles empty statement data gracefully in HTML', () => {
+      const emptyHtml = exportService.generateFinancialStatementHtml({
+        periodName: 'this month',
+        startDate: '2026-11-01',
+        endDate: '2026-11-30',
+        summary: { totalIncome: 0, totalExpense: 0, savings: 0, savingsRate: 0 },
+        categories: [],
+        transactions: [],
+      });
+
+      expect(emptyHtml).toContain('No categorized expenses recorded in this period.');
+      expect(emptyHtml).not.toContain('<table class="tx-table">');
+    });
+
+    test('Invokes expo-print and expo-sharing on exportPDFStatement', async () => {
+      mockPrintToFile.mockClear();
+      mockShareAsync.mockClear();
+
+      const result = await exportService.exportPDFStatement({
+        periodName: '3 months',
+        startDate: '2026-08-02',
+        endDate: '2026-11-02',
+        summary: mockSummary,
+        categories: mockCategories,
+        transactions: mockTxs,
+      });
+
+      expect(mockPrintToFile).toHaveBeenCalledTimes(1);
+      expect(mockShareAsync).toHaveBeenCalledWith('file:///mock/statement.pdf', {
+        mimeType: 'application/pdf',
+        dialogTitle: 'PocketWise Financial Statement (PDF)',
+        UTI: 'com.adobe.pdf',
+      });
+      expect(result).toBe(true);
+    });
+
+    test('Writes CSV file and shares via expo-sharing on exportTransactionsCSV', async () => {
+      mockWriteAsString.mockClear();
+      mockShareAsync.mockClear();
+
+      const result = await exportService.exportTransactionsCSV(
+        mockTxs,
+        'PocketWise_Transactions_2026-08-02_to_2026-11-02.csv'
+      );
+
+      expect(mockWriteAsString).toHaveBeenCalledTimes(1);
+      expect(mockShareAsync).toHaveBeenCalledWith(
+        'file:///mock/cache/PocketWise_Transactions_2026-08-02_to_2026-11-02.csv',
+        expect.objectContaining({
+          mimeType: 'text/csv',
+          dialogTitle: 'PocketWise Transactions Statement (CSV)',
+        })
+      );
       expect(result).toBe(true);
     });
   });

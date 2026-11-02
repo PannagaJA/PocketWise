@@ -61,30 +61,93 @@ export const SpendChartCard = memo(function SpendChartCard({
     return accounts.reduce((sum, a) => sum + (a.balance || 0), 0);
   }, [accounts, selectedAccount]);
 
-  // Filter transactions for selected account and parse timestamps
-  const sortedTxs = useMemo(() => {
+  // Helper to parse date string into local date components safely without UTC timezone slip
+  const parseTxDate = (dateStr?: string) => {
+    if (!dateStr) return { year: 1970, month: 1, day: 1, str: '1970-01-01', time: 0 };
+    const str = dateStr.substring(0, 10);
+    const parts = str.split('-');
+    const year = parseInt(parts[0], 10) || 1970;
+    const month = parseInt(parts[1], 10) || 1;
+    const day = parseInt(parts[2], 10) || 1;
+    const time = new Date(year, month - 1, day, 12, 0, 0).getTime();
+    return { year, month, day, str, time };
+  };
+
+  // Filter and sort expense transactions based on selected account
+  const { sortedExpenseTxs, periodSummaryMeta } = useMemo(() => {
     const list = selectedAccountId && selectedAccountId !== 'all'
       ? transactions.filter((t) => t.account_id === selectedAccountId)
       : transactions;
 
-    return list
+    const expenses = list
+      .filter((t) => t.type === 'expense')
       .map((t) => ({
         ...t,
-        time: t.date ? new Date(t.date).getTime() : NaN,
+        dateInfo: parseTxDate(t.date),
       }))
-      .filter((t) => !isNaN(t.time))
-      .sort((a, b) => a.time - b.time);
-  }, [transactions, selectedAccountId]);
+      .sort((a, b) => a.dateInfo.time - b.dateInfo.time || (a.id || '').localeCompare(b.id || ''));
 
-  // Build Time Series Data Points STRICTLY BASED ON SPEND
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const thisMonthStr = todayStr.substring(0, 7);
+    const thisYear = now.getFullYear();
+
+    const latestTx = expenses[expenses.length - 1];
+
+    let targetLabel = '';
+    let targetTxCount = 0;
+    let computedTotal = 0;
+
+    if (period === 'Day') {
+      const todayTxs = expenses.filter((t) => t.dateInfo.str === todayStr);
+      const targetDayStr = todayTxs.length > 0 ? todayStr : (latestTx ? latestTx.dateInfo.str : todayStr);
+      const targetTxs = expenses.filter((t) => t.dateInfo.str === targetDayStr);
+      computedTotal = targetTxs.reduce((sum, t) => sum + t.amount_minor, 0);
+      targetTxCount = targetTxs.length;
+
+      const parts = targetDayStr.split('-');
+      const dObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      const dayName = dObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      targetLabel = targetDayStr === todayStr ? 'Today' : dayName;
+    } else if (period === 'Month') {
+      const thisMonthTxs = expenses.filter((t) => t.dateInfo.str.startsWith(thisMonthStr));
+      const targetMonthStr = thisMonthTxs.length > 0 ? thisMonthStr : (latestTx ? latestTx.dateInfo.str.substring(0, 7) : thisMonthStr);
+      const targetTxs = expenses.filter((t) => t.dateInfo.str.startsWith(targetMonthStr));
+      computedTotal = targetTxs.reduce((sum, t) => sum + t.amount_minor, 0);
+      targetTxCount = targetTxs.length;
+
+      const parts = targetMonthStr.split('-');
+      const mObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, 1);
+      targetLabel = mObj.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    } else {
+      const thisYearTxs = expenses.filter((t) => t.dateInfo.year === thisYear);
+      const targetYear = thisYearTxs.length > 0 ? thisYear : (latestTx ? latestTx.dateInfo.year : thisYear);
+      const targetTxs = expenses.filter((t) => t.dateInfo.year === targetYear);
+      computedTotal = targetTxs.reduce((sum, t) => sum + t.amount_minor, 0);
+      targetTxCount = targetTxs.length;
+      targetLabel = `${targetYear}`;
+    }
+
+    return {
+      sortedExpenseTxs: expenses,
+      periodSummaryMeta: {
+        targetLabel,
+        targetTxCount,
+        computedTotal,
+      },
+    };
+  }, [transactions, selectedAccountId, period]);
+
+  // Build Time Series Data Points STRICTLY BASED ON PROPER SPEND
   const chartPoints = useMemo(() => {
     const now = new Date();
-    const nowTime = now.getTime();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
-    const currentDate = now.getDate();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const thisMonthStr = todayStr.substring(0, 7);
+    const thisYear = now.getFullYear();
 
-    let rawPoints: {
+    const latestTx = sortedExpenseTxs[sortedExpenseTxs.length - 1];
+
+    let points: {
       timestamp: number;
       dateLabel: string;
       subLabel: string;
@@ -94,160 +157,143 @@ export const SpendChartCard = memo(function SpendChartCard({
     }[] = [];
 
     if (period === 'Day') {
-      const startOfDay = new Date(currentYear, currentMonth, currentDate, 0, 0, 0, 0);
-      const startOfDayTime = startOfDay.getTime();
-      const endOfDayTime = new Date(currentYear, currentMonth, currentDate, 23, 59, 59, 999).getTime();
+      const todayTxs = sortedExpenseTxs.filter((t) => t.dateInfo.str === todayStr);
+      const targetDayStr = todayTxs.length > 0 ? todayStr : (latestTx ? latestTx.dateInfo.str : todayStr);
+      const targetTxs = sortedExpenseTxs.filter((t) => t.dateInfo.str === targetDayStr);
 
-      const todayExpenseTxs = sortedTxs.filter(
-        (t) => t.type === 'expense' && t.time >= startOfDayTime && t.time <= endOfDayTime
-      );
+      const parts = targetDayStr.split('-');
+      const dObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      const dayLabel = dObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-      let cumulativeSpent = 0;
-
-      // Start of day baseline
-      rawPoints.push({
-        timestamp: startOfDayTime,
-        dateLabel: `${startOfDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, 12:00 AM`,
+      points.push({
+        timestamp: dObj.getTime(),
+        dateLabel: `${dayLabel}, 12:00 AM`,
         subLabel: 'Start of Day',
         spent: 0,
         deltaSpent: 0,
         txCount: 0,
       });
 
-      todayExpenseTxs.forEach((tx) => {
-        cumulativeSpent += tx.amount_minor;
-        rawPoints.push({
-          timestamp: tx.time,
-          dateLabel: formatDateTime(tx.date),
-          subLabel: tx.description || 'Expense',
-          spent: cumulativeSpent,
+      let running = 0;
+      targetTxs.forEach((tx, idx) => {
+        running += tx.amount_minor;
+        points.push({
+          timestamp: tx.dateInfo.time + idx + 1,
+          dateLabel: `${dayLabel} (#${idx + 1})`,
+          subLabel: `${tx.description || 'Expense'} (+${formatMoney(tx.amount_minor)})`,
+          spent: running,
           deltaSpent: tx.amount_minor,
           txCount: 1,
         });
       });
 
-      if (rawPoints[rawPoints.length - 1].timestamp < nowTime) {
-        rawPoints.push({
-          timestamp: nowTime,
-          dateLabel: formatDateTime(now.toISOString()),
-          subLabel: 'Now',
-          spent: cumulativeSpent,
-          deltaSpent: 0,
-          txCount: todayExpenseTxs.length,
-        });
-      }
-
-      if (todayExpenseTxs.length === 0) {
-        rawPoints = [0, 6, 12, 18, now.getHours()].map((h) => {
-          const ptDate = new Date(currentYear, currentMonth, currentDate, Math.min(h, now.getHours()), 0);
-          return {
-            timestamp: ptDate.getTime(),
-            dateLabel: formatDateTime(ptDate.toISOString()),
-            subLabel: 'No spending yet',
-            spent: 0,
-            deltaSpent: 0,
-            txCount: 0,
-          };
-        });
-      }
+      points.push({
+        timestamp: dObj.getTime() + 86400000,
+        dateLabel: `${dayLabel}, Total`,
+        subLabel: `Day Total: ${formatMoney(running)}`,
+        spent: running,
+        deltaSpent: 0,
+        txCount: targetTxs.length,
+      });
     } else if (period === 'Month') {
-      const startOfMonthTime = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0).getTime();
-      const monthExpenseTxs = sortedTxs.filter(
-        (t) => t.type === 'expense' && t.time >= startOfMonthTime && t.time <= nowTime
-      );
+      const thisMonthTxs = sortedExpenseTxs.filter((t) => t.dateInfo.str.startsWith(thisMonthStr));
+      const targetMonthStr = thisMonthTxs.length > 0 ? thisMonthStr : (latestTx ? latestTx.dateInfo.str.substring(0, 7) : thisMonthStr);
+      const targetTxs = sortedExpenseTxs.filter((t) => t.dateInfo.str.startsWith(targetMonthStr));
 
-      const daysInMonthSoFar = currentDate;
-      let cumulativeSpent = 0;
-      let txIdx = 0;
+      const parts = targetMonthStr.split('-');
+      const mObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, 1);
+      const mLabel = mObj.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
 
-      for (let day = 1; day <= daysInMonthSoFar; day++) {
-        const dayStart = new Date(currentYear, currentMonth, day, 0, 0, 0, 0);
-        const dayEnd = new Date(currentYear, currentMonth, day, 23, 59, 59, 999);
-        const dayEndTime = dayEnd.getTime();
+      points.push({
+        timestamp: mObj.getTime(),
+        dateLabel: `${mLabel}, 1st`,
+        subLabel: 'Start of Month',
+        spent: 0,
+        deltaSpent: 0,
+        txCount: 0,
+      });
 
-        let daySpent = 0;
-        let dayTxCount = 0;
-
-        while (txIdx < monthExpenseTxs.length && monthExpenseTxs[txIdx].time <= dayEndTime) {
-          const tx = monthExpenseTxs[txIdx];
-          daySpent += tx.amount_minor;
-          dayTxCount++;
-          txIdx++;
-        }
-
-        cumulativeSpent += daySpent;
-
-        rawPoints.push({
-          timestamp: dayEndTime,
-          dateLabel: dayStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          subLabel: dayTxCount > 0 ? `+${formatMoney(daySpent)} spent (${dayTxCount} tx)` : 'No expenses',
-          spent: cumulativeSpent,
-          deltaSpent: daySpent,
-          txCount: dayTxCount,
+      let running = 0;
+      targetTxs.forEach((tx, idx) => {
+        running += tx.amount_minor;
+        const txDateObj = new Date(tx.dateInfo.year, tx.dateInfo.month - 1, tx.dateInfo.day);
+        const txDayLabel = txDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        points.push({
+          timestamp: tx.dateInfo.time + idx + 1,
+          dateLabel: `${txDayLabel} (#${idx + 1})`,
+          subLabel: `${tx.description || 'Expense'} (+${formatMoney(tx.amount_minor)})`,
+          spent: running,
+          deltaSpent: tx.amount_minor,
+          txCount: 1,
         });
-      }
+      });
+
+      const daysInMonth = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10), 0).getDate();
+      const endMonthTime = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, daysInMonth, 23, 59, 59).getTime();
+
+      points.push({
+        timestamp: endMonthTime,
+        dateLabel: `${mLabel}, Total`,
+        subLabel: `Month Total: ${formatMoney(running)}`,
+        spent: running,
+        deltaSpent: 0,
+        txCount: targetTxs.length,
+      });
     } else {
       // Year Period
-      const startOfYearTime = new Date(currentYear, 0, 1, 0, 0, 0, 0).getTime();
-      const yearExpenseTxs = sortedTxs.filter(
-        (t) => t.type === 'expense' && t.time >= startOfYearTime && t.time <= nowTime
-      );
+      const thisYearTxs = sortedExpenseTxs.filter((t) => t.dateInfo.year === thisYear);
+      const targetYear = thisYearTxs.length > 0 ? thisYear : (latestTx ? latestTx.dateInfo.year : thisYear);
+      const targetTxs = sortedExpenseTxs.filter((t) => t.dateInfo.year === targetYear);
 
-      let cumulativeSpent = 0;
-      let txIdx = 0;
+      const yObj = new Date(targetYear, 0, 1);
 
-      for (let m = 0; m <= currentMonth; m++) {
-        const monthStart = new Date(currentYear, m, 1, 0, 0, 0, 0);
-        const daysInM = new Date(currentYear, m + 1, 0).getDate();
-        const monthEnd = new Date(currentYear, m, daysInM, 23, 59, 59, 999);
-        const monthEndTime = monthEnd.getTime();
+      points.push({
+        timestamp: yObj.getTime(),
+        dateLabel: `${targetYear}, Jan 1`,
+        subLabel: 'Start of Year',
+        spent: 0,
+        deltaSpent: 0,
+        txCount: 0,
+      });
 
-        let monthSpent = 0;
-        let monthTxCount = 0;
-
-        while (txIdx < yearExpenseTxs.length && yearExpenseTxs[txIdx].time <= monthEndTime) {
-          const tx = yearExpenseTxs[txIdx];
-          monthSpent += tx.amount_minor;
-          monthTxCount++;
-          txIdx++;
-        }
-
-        cumulativeSpent += monthSpent;
-        const monthName = monthStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-
-        rawPoints.push({
-          timestamp: monthEndTime,
-          dateLabel: monthName,
-          subLabel: monthTxCount > 0 ? `+${formatMoney(monthSpent)} (${monthTxCount} tx)` : 'No expenses',
-          spent: cumulativeSpent,
-          deltaSpent: monthSpent,
-          txCount: monthTxCount,
+      let running = 0;
+      targetTxs.forEach((tx, idx) => {
+        running += tx.amount_minor;
+        const txDateObj = new Date(tx.dateInfo.year, tx.dateInfo.month - 1, tx.dateInfo.day);
+        const txLabel = txDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        points.push({
+          timestamp: tx.dateInfo.time + idx + 1,
+          dateLabel: `${txLabel}`,
+          subLabel: `${tx.description || 'Expense'} (+${formatMoney(tx.amount_minor)})`,
+          spent: running,
+          deltaSpent: tx.amount_minor,
+          txCount: 1,
         });
-      }
+      });
+
+      const endYearTime = new Date(targetYear, 11, 31, 23, 59, 59).getTime();
+      points.push({
+        timestamp: endYearTime,
+        dateLabel: `${targetYear}, Total`,
+        subLabel: `Year Total: ${formatMoney(running)}`,
+        spent: running,
+        deltaSpent: 0,
+        txCount: targetTxs.length,
+      });
     }
 
-    const uniquePoints = rawPoints.filter((pt, idx, arr) => idx === 0 || pt.timestamp !== arr[idx - 1].timestamp);
+    // Y-Axis Scaling: STRICTLY SCALED ON SPEND WITH ZERO BASELINE
+    const spents = points.map((p) => p.spent);
+    const maxSpent = Math.max(0, ...spents);
+    const minS = 0;
+    // Provide 15% headroom above the peak spend so the curve never clips the top
+    const maxS = maxSpent > 0 ? maxSpent * 1.15 : 1000;
 
-    // Y-Axis Scaling: STRICTLY SCALED ON SPEND
-    const spents = uniquePoints.map((p) => p.spent);
-    let minS = Math.min(...spents);
-    let maxS = Math.max(...spents);
-
-    if (minS === maxS) {
-      minS = 0;
-      maxS = Math.max(1000, maxS);
-    } else {
-      // Give headroom at the top so the curve doesn't clip
-      const diff = maxS - minS;
-      minS = Math.max(0, minS - diff * 0.05);
-      maxS += diff * 0.12;
-    }
-
-    const count = uniquePoints.length;
+    const count = points.length;
     const chartW = SVG_WIDTH - 2 * PADDING_X;
     const chartH = SVG_HEIGHT - 2 * PADDING_Y;
 
-    return uniquePoints.map((pt, i) => {
+    return points.map((pt, i) => {
       const x = count === 1 ? SVG_WIDTH / 2 : PADDING_X + (i / (count - 1)) * chartW;
       const sRatio = (pt.spent - minS) / (maxS - minS || 1);
       const y = PADDING_Y + chartH * (1 - sRatio);
@@ -258,28 +304,29 @@ export const SpendChartCard = memo(function SpendChartCard({
         y: Math.round(y * 100) / 100,
       };
     });
-  }, [period, sortedTxs]);
+  }, [period, sortedExpenseTxs]);
 
   // Total Spent in Selected Period
   const totalSpentPeriod = useMemo(() => {
-    if (chartPoints.length === 0) return 0;
-    return chartPoints[chartPoints.length - 1].spent;
-  }, [chartPoints]);
+    return periodSummaryMeta.computedTotal;
+  }, [periodSummaryMeta]);
 
-  // Generate Smooth Cubic Bezier Curves for SPEND
+  // Generate Smooth Monotonic Cubic Bezier Curves for SPEND
   const svgPaths = useMemo(() => {
+    const baselineY = SVG_HEIGHT - PADDING_Y;
+
     if (chartPoints.length === 0) {
       return {
-        line: `M 0 ${SVG_HEIGHT - PADDING_Y} L ${SVG_WIDTH} ${SVG_HEIGHT - PADDING_Y}`,
-        area: `M 0 ${SVG_HEIGHT - PADDING_Y} L ${SVG_WIDTH} ${SVG_HEIGHT - PADDING_Y} L ${SVG_WIDTH} ${SVG_HEIGHT} L 0 ${SVG_HEIGHT} Z`,
+        line: `M ${PADDING_X} ${baselineY} L ${SVG_WIDTH - PADDING_X} ${baselineY}`,
+        area: `M ${PADDING_X} ${baselineY} L ${SVG_WIDTH - PADDING_X} ${baselineY} Z`,
       };
     }
 
     if (chartPoints.length === 1) {
       const y = chartPoints[0].y;
       return {
-        line: `M 0 ${y} L ${SVG_WIDTH} ${y}`,
-        area: `M 0 ${y} L ${SVG_WIDTH} ${y} L ${SVG_WIDTH} ${SVG_HEIGHT} L 0 ${SVG_HEIGHT} Z`,
+        line: `M ${PADDING_X} ${y} L ${SVG_WIDTH - PADDING_X} ${y}`,
+        area: `M ${PADDING_X} ${y} L ${SVG_WIDTH - PADDING_X} ${y} L ${SVG_WIDTH - PADDING_X} ${baselineY} L ${PADDING_X} ${baselineY} Z`,
       };
     }
 
@@ -292,14 +339,21 @@ export const SpendChartCard = memo(function SpendChartCard({
       const p3 = chartPoints[i + 2 < chartPoints.length ? i + 2 : i + 1];
 
       const cp1x = p1.x + (p2.x - p0.x) / 6;
-      const cp1y = p1.y + (p2.y - p0.y) / 6;
+      let cp1y = p1.y + (p2.y - p0.y) / 6;
       const cp2x = p2.x - (p3.x - p1.x) / 6;
-      const cp2y = p2.y - (p3.y - p1.y) / 6;
+      let cp2y = p2.y - (p3.y - p1.y) / 6;
+
+      // Monotonic clamp to prevent overshooting beyond local extremes
+      const minY = Math.min(p1.y, p2.y);
+      const maxY = Math.max(p1.y, p2.y);
+      cp1y = Math.max(minY, Math.min(maxY, cp1y));
+      cp2y = Math.max(minY, Math.min(maxY, cp2y));
+
       d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
     }
 
     const lastX = chartPoints[chartPoints.length - 1].x;
-    const areaD = `${d} L ${lastX} ${SVG_HEIGHT} L ${chartPoints[0].x} ${SVG_HEIGHT} Z`;
+    const areaD = `${d} L ${lastX} ${baselineY} L ${chartPoints[0].x} ${baselineY} Z`;
 
     return {
       line: d,
@@ -449,11 +503,17 @@ export const SpendChartCard = memo(function SpendChartCard({
               </Text>
             </View>
 
-            {/* Sub-label during scrub (e.g. +₹450 on this day) */}
+            {/* Sub-label during scrub (e.g. +₹450 on this day) OR period summary context */}
             {activeInterpolatedState && activeInterpolatedState.subLabel ? (
-              <View className="bg-rose-500/20 px-2 py-0.5 rounded-full border border-rose-500/30">
+              <View className="bg-rose-500/20 px-2.5 py-1 rounded-full border border-rose-500/30">
                 <Text className="text-[10px] font-bold text-rose-300">
                   {activeInterpolatedState.subLabel}
+                </Text>
+              </View>
+            ) : periodSummaryMeta.targetLabel ? (
+              <View className="bg-zinc-800/80 px-2.5 py-1 rounded-full border border-zinc-700/60">
+                <Text className="text-[11px] font-bold text-zinc-400">
+                  {periodSummaryMeta.targetLabel} • {periodSummaryMeta.targetTxCount} {periodSummaryMeta.targetTxCount === 1 ? 'tx' : 'txs'}
                 </Text>
               </View>
             ) : null}
@@ -554,9 +614,9 @@ export const SpendChartCard = memo(function SpendChartCard({
             <>
               <Line
                 x1={activeInterpolatedState.x}
-                y1={0}
+                y1={PADDING_Y}
                 x2={activeInterpolatedState.x}
-                y2={SVG_HEIGHT}
+                y2={SVG_HEIGHT - PADDING_Y}
                 stroke="#F43F5E"
                 strokeWidth="1.5"
                 strokeDasharray="3, 3"
