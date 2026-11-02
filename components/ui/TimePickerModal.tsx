@@ -4,7 +4,6 @@ import { Clock, Check, X, ChevronDown } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { Button } from './Button';
 import { AppBottomSheet } from './AppBottomSheet';
-import { AppSelectModal } from './AppSelectModal';
 
 interface TimePickerModalProps {
   visible: boolean;
@@ -30,8 +29,8 @@ export function TimePickerModal({ visible, onClose, selectedTime24, onSelectTime
   const [minute, setMinute] = useState(initial.minute);
   const [period, setPeriod] = useState<'AM' | 'PM'>(initial.isPm ? 'PM' : 'AM');
 
-  const [hourModalVisible, setHourModalVisible] = useState(false);
-  const [minuteModalVisible, setMinuteModalVisible] = useState(false);
+  const [hourPickerOpen, setHourPickerOpen] = useState(false);
+  const [minutePickerOpen, setMinutePickerOpen] = useState(false);
 
   const format24h = (h: number, m: number, p: 'AM' | 'PM'): string => {
     let h24 = h;
@@ -50,16 +49,17 @@ export function TimePickerModal({ visible, onClose, selectedTime24, onSelectTime
   };
 
   const hoursList = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-  const minutesList = Array.from({ length: 60 }, (_, i) => i);
+  const commonMinutes = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
 
   const formattedDisplay = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} ${period}`;
 
   return (
     <AppBottomSheet
       visible={visible}
-      onClose={() => { setHourModalVisible(false); setMinuteModalVisible(false); onClose(); }}
+      onClose={() => { setHourPickerOpen(false); setMinutePickerOpen(false); onClose(); }}
       title="Select Reminder Time"
       subtitle="Set daily reminder alert"
+      scrollable={true}
     >
       <View className="w-full">
 
@@ -81,12 +81,19 @@ export function TimePickerModal({ visible, onClose, selectedTime24, onSelectTime
             <Pressable
               onPress={() => {
                 try { Haptics.selectionAsync(); } catch {}
-                setHourModalVisible(true);
+                setMinutePickerOpen(false);
+                setHourPickerOpen(!hourPickerOpen);
               }}
-              className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl active:bg-zinc-100"
+              className={`flex-row justify-between items-center p-3.5 bg-zinc-50 border rounded-xl active:bg-zinc-100 ${
+                hourPickerOpen ? 'border-indigo-600 bg-indigo-50/40' : 'border-zinc-200'
+              }`}
             >
               <Text className="text-sm font-bold text-zinc-900">{String(hour).padStart(2, '0')} Hr</Text>
-              <ChevronDown size={16} color="#71717A" />
+              <ChevronDown
+                size={16}
+                color={hourPickerOpen ? '#4F46E5' : '#71717A'}
+                style={hourPickerOpen ? { transform: [{ rotate: '180deg' }] } : undefined}
+              />
             </Pressable>
           </View>
 
@@ -96,45 +103,84 @@ export function TimePickerModal({ visible, onClose, selectedTime24, onSelectTime
             <Pressable
               onPress={() => {
                 try { Haptics.selectionAsync(); } catch {}
-                setMinuteModalVisible(true);
+                setHourPickerOpen(false);
+                setMinutePickerOpen(!minutePickerOpen);
               }}
-              className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl active:bg-zinc-100"
+              className={`flex-row justify-between items-center p-3.5 bg-zinc-50 border rounded-xl active:bg-zinc-100 ${
+                minutePickerOpen ? 'border-indigo-600 bg-indigo-50/40' : 'border-zinc-200'
+              }`}
             >
               <Text className="text-sm font-bold text-zinc-900">:{String(minute).padStart(2, '0')} Min</Text>
-              <ChevronDown size={16} color="#71717A" />
+              <ChevronDown
+                size={16}
+                color={minutePickerOpen ? '#4F46E5' : '#71717A'}
+                style={minutePickerOpen ? { transform: [{ rotate: '180deg' }] } : undefined}
+              />
             </Pressable>
           </View>
         </View>
 
-        {/* Hour Selection Sheet */}
-        <AppSelectModal
-          visible={hourModalVisible}
-          onClose={() => setHourModalVisible(false)}
-          title="Select Hour"
-          subtitle="Choose reminder hour"
-          selectedValue={hour}
-          options={hoursList.map((h) => ({
-            value: h,
-            label: `${String(h).padStart(2, '0')} Hour`,
-          }))}
-          onSelect={(h) => setHour(h)}
-        />
+        {/* Inline Hour Grid Picker */}
+        {hourPickerOpen && (
+          <View className="bg-zinc-50 border border-zinc-200 rounded-2xl p-3 mb-4">
+            <Text className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider mb-2 ml-1">
+              Select Hour (1 - 12)
+            </Text>
+            <View className="flex-row flex-wrap gap-2">
+              {hoursList.map((h) => {
+                const isSelected = hour === h;
+                return (
+                  <Pressable
+                    key={h}
+                    onPress={() => {
+                      setHour(h);
+                      setHourPickerOpen(false);
+                      try { Haptics.selectionAsync(); } catch {}
+                    }}
+                    className={`w-[22%] py-2.5 rounded-xl items-center justify-center ${
+                      isSelected ? 'bg-indigo-600' : 'bg-white border border-zinc-200 active:bg-zinc-100'
+                    }`}
+                  >
+                    <Text className={`font-bold text-sm ${isSelected ? 'text-white' : 'text-zinc-800'}`}>
+                      {String(h).padStart(2, '0')}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
 
-        {/* Minute Selection Sheet */}
-        <AppSelectModal
-          visible={minuteModalVisible}
-          onClose={() => setMinuteModalVisible(false)}
-          title="Select Minute"
-          subtitle="Choose reminder minute"
-          selectedValue={minute}
-          searchable={true}
-          searchPlaceholder="Search minute (e.g. 15, 30)..."
-          options={minutesList.map((m) => ({
-            value: m,
-            label: `:${String(m).padStart(2, '0')} Minutes`,
-          }))}
-          onSelect={(m) => setMinute(m)}
-        />
+        {/* Inline Minute Grid Picker */}
+        {minutePickerOpen && (
+          <View className="bg-zinc-50 border border-zinc-200 rounded-2xl p-3 mb-4">
+            <Text className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider mb-2 ml-1">
+              Select Minute
+            </Text>
+            <View className="flex-row flex-wrap gap-2">
+              {commonMinutes.map((m) => {
+                const isSelected = minute === m;
+                return (
+                  <Pressable
+                    key={m}
+                    onPress={() => {
+                      setMinute(m);
+                      setMinutePickerOpen(false);
+                      try { Haptics.selectionAsync(); } catch {}
+                    }}
+                    className={`w-[22%] py-2.5 rounded-xl items-center justify-center ${
+                      isSelected ? 'bg-indigo-600' : 'bg-white border border-zinc-200 active:bg-zinc-100'
+                    }`}
+                  >
+                    <Text className={`font-bold text-sm ${isSelected ? 'text-white' : 'text-zinc-800'}`}>
+                      :{String(m).padStart(2, '0')}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
 
         {/* AM / PM Toggle */}
         <View className="mb-6">
@@ -169,8 +215,8 @@ export function TimePickerModal({ visible, onClose, selectedTime24, onSelectTime
             size="md"
             className="flex-1"
             onPress={() => {
-              setHourModalVisible(false);
-              setMinuteModalVisible(false);
+              setHourPickerOpen(false);
+              setMinutePickerOpen(false);
               onClose();
             }}
           >
