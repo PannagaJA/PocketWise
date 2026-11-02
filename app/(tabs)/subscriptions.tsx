@@ -253,14 +253,19 @@ export default function SubscriptionsScreen() {
         {/* Clean Magpie Subscriptions Summary Card */}
         <Card className="bg-white border border-zinc-100 p-5 mb-5 rounded-3xl shadow-xs">
           <View className="flex-row justify-between items-start mb-3">
-            <View>
+            <View className="flex-1 pr-2">
               <Text className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider mb-1">
                 Monthly Subscriptions
               </Text>
-              <Text className="text-[28px] font-extrabold text-zinc-950 tracking-tight">
-                {formatCurrency(totalMonthlySpend)}
-                <Text className="text-xs font-bold text-zinc-500"> /mo</Text>
-              </Text>
+              <View className="flex-row items-baseline flex-wrap">
+                <Text
+                  className="text-[26px] font-extrabold text-zinc-950 tracking-tight"
+                  style={{ lineHeight: 36 }}
+                >
+                  {formatCurrency(totalMonthlySpend)}
+                </Text>
+                <Text className="text-xs font-bold text-zinc-500 ml-1">/mo</Text>
+              </View>
             </View>
 
             <View className="bg-indigo-50 px-3 py-1.5 rounded-full border border-indigo-100/60">
