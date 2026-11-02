@@ -514,7 +514,10 @@ export default function SubscriptionsScreen() {
               <View className="flex-1">
                 <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Renewal Date</Text>
                 <Pressable
-                  onPress={() => setCalendarPickerVisible(true)}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setCalendarPickerVisible(!calendarPickerVisible);
+                  }}
                   className="flex-row items-center justify-between bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-3"
                 >
                   <View className="flex-row items-center gap-2 flex-1 pr-1">
@@ -553,6 +556,78 @@ export default function SubscriptionsScreen() {
                 </Pressable>
               </View>
             </View>
+
+            {/* Inline Calendar when toggled */}
+            {calendarPickerVisible && (
+              <View className="p-3 bg-zinc-50 border border-zinc-200 rounded-2xl mb-4">
+                {/* Calendar Header */}
+                <View className="flex-row justify-between items-center mb-3">
+                  <Pressable
+                    onPress={() => {
+                      if (calendarMonth === 0) {
+                        setCalendarMonth(11);
+                        setCalendarYear(calendarYear - 1);
+                      } else {
+                        setCalendarMonth(calendarMonth - 1);
+                      }
+                    }}
+                    className="p-1.5 rounded-full active:bg-zinc-200"
+                  >
+                    <ChevronLeft size={18} color="#09090B" />
+                  </Pressable>
+
+                  <Text className="text-sm font-extrabold text-zinc-900">
+                    {monthNames[calendarMonth]} {calendarYear}
+                  </Text>
+
+                  <Pressable
+                    onPress={() => {
+                      if (calendarMonth === 11) {
+                        setCalendarMonth(0);
+                        setCalendarYear(calendarYear + 1);
+                      } else {
+                        setCalendarMonth(calendarMonth + 1);
+                      }
+                    }}
+                    className="p-1.5 rounded-full active:bg-zinc-200"
+                  >
+                    <ChevronRight size={18} color="#09090B" />
+                  </Pressable>
+                </View>
+
+                {/* Days of Week Header */}
+                <View className="flex-row justify-between mb-1.5">
+                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                    <Text key={d} className="w-8 text-center text-[11px] font-bold text-zinc-400">{d}</Text>
+                  ))}
+                </View>
+
+                {/* Calendar Grid */}
+                <View className="flex-row flex-wrap">
+                  {Array.from({ length: firstDayOfMonth(calendarMonth, calendarYear) }).map((_, i) => (
+                    <View key={`empty-${i}`} className="w-[14.28%] h-8" />
+                  ))}
+
+                  {Array.from({ length: daysInMonth(calendarMonth, calendarYear) }).map((_, i) => {
+                    const day = i + 1;
+                    const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    const isSelected = nextBillingDate === dateStr;
+
+                    return (
+                      <Pressable
+                        key={day}
+                        onPress={() => handleSelectDay(day)}
+                        className={`w-[14.28%] h-8 items-center justify-center rounded-lg mb-1 ${
+                          isSelected ? 'bg-indigo-600' : 'active:bg-zinc-200'
+                        }`}
+                      >
+                        <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-zinc-900'}`}>{day}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
 
             {/* Cycle */}
             <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-6">
@@ -594,93 +669,6 @@ export default function SubscriptionsScreen() {
             </View>
           </View>
         )}
-      </AppBottomSheet>
-
-      {/* Calendar Picker Sub-Modal */}
-      <AppBottomSheet
-        visible={calendarPickerVisible}
-        onClose={() => setCalendarPickerVisible(false)}
-        title="Select Billing Date"
-        subtitle="Next renewal date"
-      >
-        <View className="p-5 w-full">
-          {/* Calendar Header */}
-          <View className="flex-row justify-between items-center mb-4">
-            <Pressable
-              onPress={() => {
-                if (calendarMonth === 0) {
-                  setCalendarMonth(11);
-                  setCalendarYear(calendarYear - 1);
-                } else {
-                  setCalendarMonth(calendarMonth - 1);
-                }
-              }}
-              className="p-2 rounded-full active:bg-zinc-100"
-            >
-              <ChevronLeft size={20} color="#09090B" />
-            </Pressable>
-
-            <Text className="text-base font-extrabold text-zinc-900">
-              {monthNames[calendarMonth]} {calendarYear}
-            </Text>
-
-            <Pressable
-              onPress={() => {
-                if (calendarMonth === 11) {
-                  setCalendarMonth(0);
-                  setCalendarYear(calendarYear + 1);
-                } else {
-                  setCalendarMonth(calendarMonth + 1);
-                }
-              }}
-              className="p-2 rounded-full active:bg-zinc-100"
-            >
-              <ChevronRight size={20} color="#09090B" />
-            </Pressable>
-          </View>
-
-          {/* Days of Week Header */}
-          <View className="flex-row justify-between mb-2">
-            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
-              <Text key={d} className="w-9 text-center text-xs font-bold text-zinc-400">{d}</Text>
-            ))}
-          </View>
-
-          {/* Calendar Grid */}
-          <View className="flex-row flex-wrap">
-            {/* Empty leading slots */}
-            {Array.from({ length: firstDayOfMonth(calendarMonth, calendarYear) }).map((_, i) => (
-              <View key={`empty-${i}`} className="w-[14.28%] h-9" />
-            ))}
-
-            {/* Day numbers */}
-            {Array.from({ length: daysInMonth(calendarMonth, calendarYear) }).map((_, i) => {
-              const day = i + 1;
-              const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-              const isSelected = nextBillingDate === dateStr;
-
-              return (
-                <Pressable
-                  key={day}
-                  onPress={() => handleSelectDay(day)}
-                  className={`w-[14.28%] h-9 items-center justify-center rounded-xl mb-1 ${
-                    isSelected ? 'bg-indigo-600' : 'active:bg-zinc-100'
-                  }`}
-                >
-                  <Text className={`text-sm font-bold ${isSelected ? 'text-white' : 'text-zinc-900'}`}>{day}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          {/* Close / Cancel Button */}
-          <Pressable
-            onPress={() => setCalendarPickerVisible(false)}
-            className="mt-4 bg-white border border-zinc-200/90 py-3 rounded-2xl items-center active:bg-zinc-50 shadow-xs"
-          >
-            <Text className="text-zinc-700 font-bold text-xs">Cancel</Text>
-          </Pressable>
-        </View>
       </AppBottomSheet>
 
       {/* Time Picker Modal */}
