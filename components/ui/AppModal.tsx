@@ -39,12 +39,14 @@ export const AppModal: React.FC<AppModalProps> = ({
   statusBarTranslucent = true,
 }) => {
   const insets = useSafeAreaInsets();
-  const { height: screenHeight, width: screenWidth } = useWindowDimensions();
+  const screenDimensions = Dimensions.get('screen');
+  const stableScreenHeight = screenDimensions.height || 800;
+  const { width: screenWidth } = useWindowDimensions();
   const handleClose = onClose || onRequestClose;
   const [rendered, setRendered] = useState(visible);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(screenHeight)).current;
+  const slideAnim = useRef(new Animated.Value(stableScreenHeight)).current;
   const scaleAnim = useRef(new Animated.Value(0.92)).current;
   const keyboardOffsetAnim = useRef(new Animated.Value(0)).current;
   const isDismissingRef = useRef(false);
@@ -57,7 +59,7 @@ export const AppModal: React.FC<AppModalProps> = ({
   const handleCloseRef = useRef(handleClose);
   handleCloseRef.current = handleClose;
 
-  // Persist animated combinations: base slide - keyboard offset
+  // Persist animated combinations: base slide - keyboard offset (slides up smoothly above keyboard on both iOS & Android)
   const combinedSheetTranslateY = useRef(
     Animated.subtract(slideAnim, keyboardOffsetAnim)
   ).current;
@@ -69,7 +71,7 @@ export const AppModal: React.FC<AppModalProps> = ({
       try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
       Animated.parallel([
         Animated.timing(slideAnim, {
-          toValue: screenHeight,
+          toValue: stableScreenHeight,
           duration: 180,
           useNativeDriver: useDriver,
         }),
@@ -113,7 +115,7 @@ export const AppModal: React.FC<AppModalProps> = ({
       onPanResponderMove: (_evt, gestureState) => {
         if (gestureState.dy > 0) {
           slideAnim.setValue(gestureState.dy);
-          fadeAnim.setValue(Math.max(0.1, 1 - gestureState.dy / (screenHeight * 0.55)));
+          fadeAnim.setValue(Math.max(0.1, 1 - gestureState.dy / (stableScreenHeight * 0.55)));
         } else {
           slideAnim.setValue(gestureState.dy * 0.12);
         }
@@ -135,7 +137,7 @@ export const AppModal: React.FC<AppModalProps> = ({
     }
   }, [rendered]);
 
-  // Smoothly slide the modal up on native UI thread when mobile keyboard appears
+  // Smoothly slide the modal up when mobile keyboard appears (iOS & Android)
   useEffect(() => {
     const handleKeyboardShow = (e: any) => {
       const height = e?.endCoordinates?.height || 0;
@@ -153,21 +155,20 @@ export const AppModal: React.FC<AppModalProps> = ({
       setKeyboardHeight(0);
       Animated.timing(keyboardOffsetAnim, {
         toValue: 0,
-        duration: Platform.OS === 'ios' ? (e?.duration || 200) : 180,
+        duration: Platform.OS === 'ios' ? (e?.duration || 200) : 150,
         useNativeDriver: useDriver,
       }).start();
     };
 
-    const willShowSub = Keyboard.addListener('keyboardWillShow', handleKeyboardShow);
-    const didShowSub = Keyboard.addListener('keyboardDidShow', handleKeyboardShow);
-    const willHideSub = Keyboard.addListener('keyboardWillHide', handleKeyboardHide);
-    const didHideSub = Keyboard.addListener('keyboardDidHide', handleKeyboardHide);
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, handleKeyboardShow);
+    const hideSub = Keyboard.addListener(hideEvent, handleKeyboardHide);
 
     return () => {
-      willShowSub.remove();
-      didShowSub.remove();
-      willHideSub.remove();
-      didHideSub.remove();
+      showSub.remove();
+      hideSub.remove();
     };
   }, [useDriver]);
 
@@ -175,9 +176,10 @@ export const AppModal: React.FC<AppModalProps> = ({
     if (visible) {
       isDismissingRef.current = false;
       setRendered(true);
+      setKeyboardHeight(0);
       keyboardOffsetAnim.setValue(0);
       if (animationType === 'slide') {
-        slideAnim.setValue(screenHeight);
+        slideAnim.setValue(stableScreenHeight);
         fadeAnim.setValue(0);
         Animated.parallel([
           Animated.timing(fadeAnim, {
@@ -233,7 +235,7 @@ export const AppModal: React.FC<AppModalProps> = ({
             useNativeDriver: useDriver,
           }),
           Animated.timing(slideAnim, {
-            toValue: screenHeight,
+            toValue: stableScreenHeight,
             duration: 180,
             useNativeDriver: useDriver,
           }),
@@ -262,7 +264,7 @@ export const AppModal: React.FC<AppModalProps> = ({
         isDismissingRef.current = false;
       }
     }
-  }, [visible, screenHeight]);
+  }, [visible]);
 
   // Handle Android hardware back button
   useEffect(() => {
@@ -292,29 +294,16 @@ export const AppModal: React.FC<AppModalProps> = ({
     ? insets.bottom
     : (Platform.OS === 'ios' ? 34 : 24);
 
-  // Maximum allowed bottom-sheet height when keyboard is closed
-  // Capped at 90% of screen to guarantee top backdrop visibility and proper sheet proportions
-  const maxSheetHeightNormal = Math.min(screenHeight * 0.90, 760);
-
-  // When keyboard is open: maximum allowed bottom-sheet height to prevent header cutoff
-  // Leaves safe margin below status bar/notch, capped at maxSheetHeightNormal and available space
-  const availableSpaceAboveKeyboard = Math.max(0, screenHeight - keyboardHeight - topInset - 16);
-  const minSheetHeight = 220;
-  const sheetHeightWithMin = availableSpaceAboveKeyboard >= minSheetHeight
-    ? Math.max(minSheetHeight, availableSpaceAboveKeyboard)
-    : availableSpaceAboveKeyboard;
-  const maxSheetHeightWithKeyboard = Math.min(maxSheetHeightNormal, sheetHeightWithMin);
-  const currentMaxSheetHeight = keyboardHeight > 0 ? maxSheetHeightWithKeyboard : maxSheetHeightNormal;
+  // Stable maximum allowed bottom-sheet height to ensure modal proportion without sudden layout shrinkage
+  const maxSheetHeightNormal = Math.min(stableScreenHeight * 0.90, 760);
+  const currentMaxSheetHeight = keyboardHeight > 0
+    ? Math.max(240, stableScreenHeight - keyboardHeight - topInset - 16)
+    : maxSheetHeightNormal;
 
   // Maximum allowed dialog height for fade modals
-  const maxDialogNormal = Math.min(screenHeight * 0.82, 640);
-  const availableDialogSpace = Math.max(0, screenHeight - keyboardHeight - topInset - 24);
-  const minDialogHeight = 200;
-  const dialogHeightWithMin = availableDialogSpace >= minDialogHeight
-    ? Math.max(minDialogHeight, availableDialogSpace)
-    : availableDialogSpace;
+  const maxDialogNormal = Math.min(stableScreenHeight * 0.82, 640);
   const maxDialogHeight = keyboardHeight > 0
-    ? Math.min(maxDialogNormal, dialogHeightWithMin)
+    ? Math.max(200, stableScreenHeight - keyboardHeight - topInset - 32)
     : maxDialogNormal;
 
   return (
