@@ -283,6 +283,7 @@ export default function DashboardScreen() {
   const handleOpenEditAccount = (acc: Account, e?: any) => {
     e?.stopPropagation?.();
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    setBankSelectModalVisible(false);
     setEditingAccount(acc);
     setEditAccName(acc.name);
     setEditAccBalance((acc.balance / 100).toString());
@@ -921,7 +922,10 @@ export default function DashboardScreen() {
       {/* Edit / Adjust Account Modal */}
       <AppBottomSheet
         visible={!!editingAccount}
-        onClose={() => setEditingAccount(null)}
+        onClose={() => {
+          setEditingAccount(null);
+          setBankSelectModalVisible(true);
+        }}
         title="Edit Account"
         subtitle="Adjust balance or account name"
         scrollable={true}
