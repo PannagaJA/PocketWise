@@ -53,10 +53,7 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
       animationType="slide"
       dismissOnBackdrop={dismissOnBackdrop}
     >
-      <Pressable
-        style={styles.sheetContainer}
-        onPress={(e) => e.stopPropagation()}
-      >
+      <View style={styles.sheetContainer}>
         {/* Standardized Header */}
         {(!!title || !!headerRight) && (
           <View style={styles.headerRow}>
@@ -114,7 +111,7 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
             {footer}
           </View>
         )}
-      </Pressable>
+      </View>
     </AppModal>
   );
 };
