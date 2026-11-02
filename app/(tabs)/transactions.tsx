@@ -21,7 +21,8 @@ import { DatePickerButton } from '../../components/ui/DatePickerModal';
 import { TransactionDetailModal } from '../../components/TransactionDetailModal';
 import { SpendChartCard } from '../../components/NetBalanceChartCard';
 import { RecordRow } from '../../components/ui/RecordRow';
-import { Plus, ArrowUpRight, ArrowDownLeft, X, ArrowRightLeft, ChevronDown, Check, Wallet, BarChart2, Filter, Search, Calendar, SlidersHorizontal, Pencil, Trash2 } from 'lucide-react-native';
+import { AddCardModal } from '../../components/AddCardModal';
+import { Plus, ArrowUpRight, ArrowDownLeft, X, ArrowRightLeft, ChevronDown, Check, Wallet, BarChart2, Filter, Search, Calendar, SlidersHorizontal, Pencil, Trash2, CreditCard, ShieldCheck, Sparkles } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 export type DateFilterMode = 'all' | 'today' | 'this_month' | 'last_month' | 'custom_month' | 'custom_range';
@@ -89,10 +90,6 @@ export default function TransactionsScreen() {
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [selectedDestAccountId, setSelectedDestAccountId] = useState<string>('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
-
-  // Account creation state
-  const [accName, setAccName] = useState('');
-  const [accBalance, setAccBalance] = useState('');
 
   // Data Queries
   const { data: transactions = [], isLoading: loadingTx, refetch: refetchTx } = useQuery({
@@ -452,32 +449,6 @@ export default function TransactionsScreen() {
     },
     onError: (err: any) => {
       Alert.alert('Error', err.message || 'Failed to create transaction');
-    },
-  });
-
-  const createAccountMutation = useMutation({
-    mutationFn: async () => {
-      if (!accName.trim()) throw new Error('Account name is required');
-      const minorBalance = parseMoneyToMinor(accBalance);
-      return accountService.createAccount({
-        user_id: user!.id,
-        name: accName,
-        type: 'bank',
-        balance: minorBalance,
-        currency: 'INR',
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries();
-      try {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } catch {}
-      setAccModalVisible(false);
-      setAccName('');
-      setAccBalance('');
-    },
-    onError: (err: any) => {
-      Alert.alert('Error', err.message || 'Failed to create account');
     },
   });
 
@@ -955,61 +926,16 @@ export default function TransactionsScreen() {
         )}
       </AppBottomSheet>
 
-      {/* Account Creation Modal */}
-      <AppBottomSheet
+      {/* Account Creation Modal using unified AddCardModal */}
+      <AddCardModal
         visible={accModalVisible}
         onClose={() => setAccModalVisible(false)}
-        title="Create Account"
-        subtitle="Add a new account or wallet"
-        scrollable={true}
-        contentContainerStyle={{ paddingBottom: 24 }}
-      >
-        {createAccountMutation.isPending ? (
-          <View className="py-12">
-            <AppLoadingIndicator message="Creating account..." />
-          </View>
-        ) : (
-          <View>
-            <Input
-              label="Account Name"
-              placeholder="e.g. HDFC Savings, Cash Wallet"
-              value={accName}
-              onChangeText={setAccName}
-            />
-
-            <Input
-              label="Initial Balance (₹)"
-              placeholder="e.g. 10000.00"
-              keyboardType="numeric"
-              value={accBalance}
-              onChangeText={setAccBalance}
-            />
-
-            {/* Action Buttons */}
-            <View className="flex-row gap-3 mt-4">
-              <Button
-                variant="outline"
-                size="lg"
-                className="flex-1 rounded-2xl border-zinc-200/90"
-                onPress={() => setAccModalVisible(false)}
-              >
-                <Text className="text-zinc-700 font-bold text-sm">Cancel</Text>
-              </Button>
-
-              <Button
-                variant="purple"
-                size="lg"
-                className="flex-1 rounded-2xl shadow-xs"
-                loading={createAccountMutation.isPending}
-                disabled={createAccountMutation.isPending || !accName.trim()}
-                onPress={() => createAccountMutation.mutate()}
-              >
-                <Text className="text-white font-bold text-sm">Save Account</Text>
-              </Button>
-            </View>
-          </View>
-        )}
-      </AppBottomSheet>
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['accounts', user?.id] });
+          queryClient.invalidateQueries({ queryKey: ['transactions', user?.id] });
+          queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+        }}
+      />
 
       {/* Edit & Delete Transaction Modal */}
       <AppBottomSheet

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TextInputProps, StyleSheet } from 'react-native';
+import React, { useState, useRef, useImperativeHandle } from 'react';
+import { View, Text, TextInput, TextInputProps, StyleSheet, Pressable } from 'react-native';
 
 export interface InputProps extends TextInputProps {
   label?: string;
@@ -7,7 +7,7 @@ export interface InputProps extends TextInputProps {
   containerClassName?: string;
 }
 
-export const Input: React.FC<InputProps> = ({
+export const Input = React.forwardRef<TextInput, InputProps>(({
   label,
   error,
   containerClassName = '',
@@ -16,17 +16,26 @@ export const Input: React.FC<InputProps> = ({
   onBlur,
   style,
   ...props
-}) => {
+}, ref) => {
+  const localInputRef = useRef<TextInput>(null);
+  useImperativeHandle(ref, () => localInputRef.current as TextInput);
   const [isFocused, setIsFocused] = useState(false);
+
+  const focusInput = () => {
+    localInputRef.current?.focus();
+  };
 
   return (
     <View className={`w-full mb-3.5 ${containerClassName}`}>
       {!!label && (
-        <Text className="text-[13px] font-semibold text-zinc-700 mb-1.5 ml-0.5">
-          {label}
-        </Text>
+        <Pressable onPress={focusInput} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
+          <Text className="text-[13px] font-semibold text-zinc-700 mb-1.5 ml-0.5">
+            {label}
+          </Text>
+        </Pressable>
       )}
-      <View
+      <Pressable
+        onPress={focusInput}
         style={[
           styles.inputContainer,
           isFocused && styles.inputFocused,
@@ -34,7 +43,9 @@ export const Input: React.FC<InputProps> = ({
         ]}
       >
         <TextInput
+          ref={localInputRef}
           placeholderTextColor="#A1A1AA"
+          underlineColorAndroid="transparent"
           onFocus={(e) => {
             setIsFocused(true);
             onFocus?.(e);
@@ -46,13 +57,15 @@ export const Input: React.FC<InputProps> = ({
           style={[styles.input, style]}
           {...props}
         />
-      </View>
+      </Pressable>
       {!!error && (
         <Text className="text-xs text-rose-500 mt-1.5 ml-1 font-medium">{error}</Text>
       )}
     </View>
   );
-};
+});
+
+Input.displayName = 'Input';
 
 const styles = StyleSheet.create({
   inputContainer: {

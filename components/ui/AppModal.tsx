@@ -146,7 +146,7 @@ export const AppModal: React.FC<AppModalProps> = ({
 
       Animated.timing(keyboardOffsetAnim, {
         toValue: height,
-        duration: Platform.OS === 'ios' ? (e?.duration || 250) : 200,
+        duration: Platform.OS === 'ios' ? (e?.duration || 250) : 180,
         useNativeDriver: useDriver,
       }).start();
     };
@@ -314,7 +314,10 @@ export const AppModal: React.FC<AppModalProps> = ({
       statusBarTranslucent={statusBarTranslucent}
       onRequestClose={onModalRequestClose}
     >
-      <View style={[styles.modalRoot, { pointerEvents: 'box-none' as any }]}>
+      <View
+        pointerEvents="box-none"
+        style={[styles.modalRoot, { justifyContent: isSlide ? 'flex-end' : 'center' }]}
+      >
         {/* Full-screen Backdrop */}
         <Animated.View
           style={[
@@ -339,16 +342,17 @@ export const AppModal: React.FC<AppModalProps> = ({
         {/* Dynamic Container */}
         {isSlide ? (
           <View
-            style={[styles.container, styles.slideContainer, { pointerEvents: 'box-none' as any }]}
+            pointerEvents="box-none"
+            style={[styles.container, styles.slideContainer]}
           >
             <Animated.View
+              pointerEvents="auto"
               style={[
                 styles.sheet,
                 {
                   maxHeight: currentMaxSheetHeight,
                   transform: [{ translateY: combinedSheetTranslateY }],
                   paddingBottom: keyboardHeight > 0 ? 8 : bottomInset,
-                  pointerEvents: 'auto' as any,
                 },
               ]}
             >
@@ -363,23 +367,29 @@ export const AppModal: React.FC<AppModalProps> = ({
           </View>
         ) : (
           <KeyboardAvoidingView
+            pointerEvents="box-none"
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={[styles.container, styles.fadeContainer, { pointerEvents: 'box-none' as any }]}
+            style={[styles.container, styles.fadeContainer]}
           >
             <Animated.View
+              pointerEvents="auto"
               style={[
                 styles.dialog,
                 {
                   opacity: fadeAnim,
                   transform: [{ scale: scaleAnim }],
                   maxHeight: maxDialogHeight,
-                  pointerEvents: 'auto' as any,
                 },
               ]}
             >
               <ScrollView
-                style={{ flexGrow: 0, flexShrink: 1 }}
-                contentContainerStyle={{ flexGrow: 0 }}
+                style={{ flexGrow: 0, flexShrink: 1, width: '100%' }}
+                contentContainerStyle={{
+                  flexGrow: 0,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '100%',
+                }}
                 showsVerticalScrollIndicator={false}
                 bounces={false}
                 keyboardShouldPersistTaps="handled"
@@ -419,7 +429,7 @@ const styles = StyleSheet.create({
   fadeContainer: {
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     width: '100%',
     height: '100%',
   },
@@ -444,8 +454,10 @@ const styles = StyleSheet.create({
   },
   dialog: {
     width: '100%',
-    maxWidth: 400,
+    maxWidth: 380,
     alignSelf: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: 'transparent',
     overflow: 'visible',
   },

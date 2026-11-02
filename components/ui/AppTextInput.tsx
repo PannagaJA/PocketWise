@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useImperativeHandle } from 'react';
 import {
   View,
   Text,
   TextInput,
   TextInputProps,
   StyleSheet,
+  Pressable,
+  Platform,
 } from 'react-native';
 
 export interface AppTextInputProps extends Omit<TextInputProps, 'onChangeText'> {
@@ -19,7 +21,7 @@ export interface AppTextInputProps extends Omit<TextInputProps, 'onChangeText'> 
   containerStyle?: any;
 }
 
-export const AppTextInput: React.FC<AppTextInputProps> = ({
+export const AppTextInput = React.forwardRef<TextInput, AppTextInputProps>(({
   label,
   error,
   hint,
@@ -32,8 +34,14 @@ export const AppTextInput: React.FC<AppTextInputProps> = ({
   onFocus,
   onBlur,
   ...props
-}) => {
+}, ref) => {
+  const localInputRef = useRef<TextInput>(null);
+  useImperativeHandle(ref, () => localInputRef.current as TextInput);
   const [isFocused, setIsFocused] = useState(false);
+
+  const focusInput = () => {
+    localInputRef.current?.focus();
+  };
 
   const handleChangeText = (rawText: string) => {
     if (!onChangeText) return;
@@ -62,9 +70,14 @@ export const AppTextInput: React.FC<AppTextInputProps> = ({
 
   return (
     <View style={[styles.wrapper, containerStyle]}>
-      {!!label && <Text style={styles.label}>{label}</Text>}
+      {!!label && (
+        <Pressable onPress={focusInput} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
+          <Text style={styles.label}>{label}</Text>
+        </Pressable>
+      )}
 
-      <View
+      <Pressable
+        onPress={focusInput}
         style={[
           styles.inputContainer,
           isFocused && styles.inputFocused,
@@ -74,9 +87,11 @@ export const AppTextInput: React.FC<AppTextInputProps> = ({
         {!!leftIcon && <View style={styles.iconLeft}>{leftIcon}</View>}
 
         <TextInput
+          ref={localInputRef}
           value={value}
           onChangeText={handleChangeText}
           placeholderTextColor="#A1A1AA"
+          underlineColorAndroid="transparent"
           style={styles.input}
           onFocus={(e) => {
             setIsFocused(true);
@@ -90,7 +105,7 @@ export const AppTextInput: React.FC<AppTextInputProps> = ({
         />
 
         {!!rightIcon && <View style={styles.iconRight}>{rightIcon}</View>}
-      </View>
+      </Pressable>
 
       {!!error ? (
         <Text style={styles.errorText}>{error}</Text>
@@ -99,7 +114,9 @@ export const AppTextInput: React.FC<AppTextInputProps> = ({
       ) : null}
     </View>
   );
-};
+});
+
+AppTextInput.displayName = 'AppTextInput';
 
 const styles = StyleSheet.create({
   wrapper: {

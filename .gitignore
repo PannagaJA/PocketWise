@@ -44,6 +44,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+*.apk
 
 # IDE & OS files
 .vscode/
@@ -55,6 +56,7 @@ yarn-error.*
 .planning/
 .claude/
 .code-review-graph/
+.agents/
 AGENTS.md
 CLAUDE.md
 
