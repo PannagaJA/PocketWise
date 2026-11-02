@@ -503,7 +503,8 @@ export default function BillsScreen() {
               <Pressable
                 onPress={() => {
                   try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                  setCalendarModalVisible(true);
+                  Keyboard.dismiss();
+                  setCalendarModalVisible(!calendarModalVisible);
                 }}
                 className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
               >
@@ -511,9 +512,81 @@ export default function BillsScreen() {
                   <Calendar size={18} color="#6366F1" />
                   <Text className="text-sm font-medium text-zinc-900">{formatDate(dueDate)}</Text>
                 </View>
-                <Text className="text-xs font-bold text-indigo-600">Pick Date</Text>
+                <Text className="text-xs font-bold text-indigo-600">{calendarModalVisible ? 'Close' : 'Pick Date'}</Text>
               </Pressable>
             </View>
+
+            {/* Inline Calendar when toggled */}
+            {calendarModalVisible && (
+              <View className="p-3 bg-zinc-50 border border-zinc-200 rounded-2xl mb-4">
+                {/* Calendar Header */}
+                <View className="flex-row justify-between items-center mb-3">
+                  <Pressable
+                    onPress={() => {
+                      if (calendarMonth === 0) {
+                        setCalendarMonth(11);
+                        setCalendarYear(calendarYear - 1);
+                      } else {
+                        setCalendarMonth(calendarMonth - 1);
+                      }
+                    }}
+                    className="p-1.5 rounded-full active:bg-zinc-200"
+                  >
+                    <ChevronLeft size={18} color="#09090B" />
+                  </Pressable>
+
+                  <Text className="text-sm font-bold text-zinc-900">
+                    {monthNames[calendarMonth]} {calendarYear}
+                  </Text>
+
+                  <Pressable
+                    onPress={() => {
+                      if (calendarMonth === 11) {
+                        setCalendarMonth(0);
+                        setCalendarYear(calendarYear + 1);
+                      } else {
+                        setCalendarMonth(calendarMonth + 1);
+                      }
+                    }}
+                    className="p-1.5 rounded-full active:bg-zinc-200"
+                  >
+                    <ChevronRight size={18} color="#09090B" />
+                  </Pressable>
+                </View>
+
+                {/* Days of Week Header */}
+                <View className="flex-row justify-between mb-1.5">
+                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                    <Text key={d} className="w-8 text-center text-[11px] font-bold text-zinc-400">{d}</Text>
+                  ))}
+                </View>
+
+                {/* Calendar Grid */}
+                <View className="flex-row flex-wrap">
+                  {Array.from({ length: firstDayOfMonth(calendarMonth, calendarYear) }).map((_, i) => (
+                    <View key={`empty-${i}`} className="w-[14.28%] h-8" />
+                  ))}
+
+                  {Array.from({ length: daysInMonth(calendarMonth, calendarYear) }).map((_, i) => {
+                    const day = i + 1;
+                    const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    const isSelected = dueDate === dateStr;
+
+                    return (
+                      <Pressable
+                        key={day}
+                        onPress={() => handleSelectDay(day)}
+                        className={`w-[14.28%] h-8 items-center justify-center rounded-lg mb-1 ${
+                          isSelected ? 'bg-indigo-600' : 'active:bg-zinc-200'
+                        }`}
+                      >
+                        <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-zinc-900'}`}>{day}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
 
             {/* Reminder Time Selection */}
             <View className="mb-4">
@@ -557,92 +630,6 @@ export default function BillsScreen() {
             </View>
           </View>
         )}
-      </AppBottomSheet>
-
-      {/* Visual Interactive Calendar Modal */}
-      <AppBottomSheet
-        visible={calendarModalVisible}
-        onClose={() => setCalendarModalVisible(false)}
-        title="Select Due Date"
-        subtitle="Choose bill deadline"
-      >
-        <View className="p-5 w-full">
-          {/* Calendar Header */}
-          <View className="flex-row justify-between items-center mb-4">
-            <Pressable
-              onPress={() => {
-                if (calendarMonth === 0) {
-                  setCalendarMonth(11);
-                  setCalendarYear(calendarYear - 1);
-                } else {
-                  setCalendarMonth(calendarMonth - 1);
-                }
-              }}
-              className="p-2 rounded-full active:bg-zinc-100"
-            >
-              <ChevronLeft size={20} color="#09090B" />
-            </Pressable>
-
-            <Text className="text-base font-bold text-zinc-900">
-              {monthNames[calendarMonth]} {calendarYear}
-            </Text>
-
-            <Pressable
-              onPress={() => {
-                if (calendarMonth === 11) {
-                  setCalendarMonth(0);
-                  setCalendarYear(calendarYear + 1);
-                } else {
-                  setCalendarMonth(calendarMonth + 1);
-                }
-              }}
-              className="p-2 rounded-full active:bg-zinc-100"
-            >
-              <ChevronRight size={20} color="#09090B" />
-            </Pressable>
-          </View>
-
-          {/* Days of Week Header */}
-          <View className="flex-row justify-between mb-2">
-            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
-              <Text key={d} className="w-9 text-center text-xs font-bold text-zinc-400">{d}</Text>
-            ))}
-          </View>
-
-          {/* Calendar Grid */}
-          <View className="flex-row flex-wrap">
-            {Array.from({ length: firstDayOfMonth(calendarMonth, calendarYear) }).map((_, i) => (
-              <View key={`empty-${i}`} className="w-[14.28%] h-9" />
-            ))}
-
-            {Array.from({ length: daysInMonth(calendarMonth, calendarYear) }).map((_, i) => {
-              const day = i + 1;
-              const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-              const isSelected = dueDate === dateStr;
-
-              return (
-                <Pressable
-                  key={day}
-                  onPress={() => handleSelectDay(day)}
-                  className={`w-[14.28%] h-9 items-center justify-center rounded-xl mb-1 ${
-                    isSelected ? 'bg-indigo-600' : 'active:bg-zinc-100'
-                  }`}
-                >
-                  <Text className={`text-sm font-bold ${isSelected ? 'text-white' : 'text-zinc-900'}`}>{day}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-4 border-zinc-200"
-            onPress={() => setCalendarModalVisible(false)}
-          >
-            <Text className="text-zinc-700 font-semibold text-xs">Cancel</Text>
-          </Button>
-        </View>
       </AppBottomSheet>
 
       {/* Time Picker Modal */}
