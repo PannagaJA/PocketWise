@@ -247,7 +247,10 @@ export default function BillsScreen() {
               <Text className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
                 Total Unpaid Commitment
               </Text>
-              <Text className="text-[24px] font-extrabold text-zinc-950 tracking-tight mt-1">
+              <Text
+                className="text-[24px] font-extrabold text-zinc-950 tracking-tight mt-1"
+                style={{ lineHeight: 32 }}
+              >
                 {formatMoney(totalUnpaidMinor)}
               </Text>
             </View>
