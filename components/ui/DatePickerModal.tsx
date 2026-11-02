@@ -3,7 +3,6 @@ import { View, Text, Pressable, ScrollView } from 'react-native';
 import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Check, X } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { Button } from './Button';
-import { AppBottomSheet } from './AppBottomSheet';
 
 interface DatePickerModalProps {
   label: string;
@@ -13,7 +12,7 @@ interface DatePickerModalProps {
 }
 
 export function DatePickerButton({ label, value, onSelectDate, placeholder = 'Pick a date' }: DatePickerModalProps) {
-  const [modalVisible, setModalVisible] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const [showYearSelector, setShowYearSelector] = useState(false);
 
   // Parse YYYY-MM-DD or default to current date
@@ -65,14 +64,10 @@ export function DatePickerButton({ label, value, onSelectDate, placeholder = 'Pi
     const dd = String(day).padStart(2, '0');
     const selectedStr = `${viewYear}-${mm}-${dd}`;
     setTempSelectedDate(selectedStr);
-    try { Haptics.selectionAsync(); } catch {}
-  };
-
-  const handleConfirm = () => {
-    onSelectDate(tempSelectedDate);
-    try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
-    setModalVisible(false);
+    onSelectDate(selectedStr);
+    setIsOpen(false);
     setShowYearSelector(false);
+    try { Haptics.selectionAsync(); } catch {}
   };
 
   const monthLabel = new Date(viewYear, viewMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -90,9 +85,11 @@ export function DatePickerButton({ label, value, onSelectDate, placeholder = 'Pi
         onPress={() => {
           try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
           setShowYearSelector(false);
-          setModalVisible(true);
+          setIsOpen(!isOpen);
         }}
-        className="flex-row items-center justify-between bg-white border border-zinc-200 rounded-2xl px-4 py-3 shadow-xs active:bg-zinc-50"
+        className={`flex-row items-center justify-between bg-white border rounded-2xl px-4 py-3 shadow-xs active:bg-zinc-50 ${
+          isOpen ? 'border-indigo-600' : 'border-zinc-200'
+        }`}
       >
         <View className="flex-row items-center gap-2.5">
           <Calendar size={18} color={value ? '#6366F1' : '#71717A'} />
@@ -100,17 +97,16 @@ export function DatePickerButton({ label, value, onSelectDate, placeholder = 'Pi
             {formattedDisplay}
           </Text>
         </View>
-        <ChevronDown size={16} color="#71717A" />
+        <ChevronDown
+          size={16}
+          color={isOpen ? '#4F46E5' : '#71717A'}
+          style={isOpen ? { transform: [{ rotate: '180deg' }] } : undefined}
+        />
       </Pressable>
 
-      {/* Interactive Calendar Modal */}
-      <AppBottomSheet
-        visible={modalVisible}
-        onClose={() => { setModalVisible(false); setShowYearSelector(false); }}
-        title="Pick a Date"
-        subtitle="Select transaction date"
-      >
-        <View style={{ width: '100%' }}>
+      {/* Inline Interactive Calendar */}
+      {isOpen && (
+        <View className="mt-2 bg-white border border-zinc-200 rounded-2xl p-3 shadow-sm">
           {/* Month & Year Navigation Header Button */}
           <View className="flex-row justify-between items-center bg-zinc-50 border border-zinc-200 rounded-2xl px-3 py-2 mb-4">
             <Pressable onPress={handlePrevMonth} className="p-1.5 rounded-xl bg-white active:bg-zinc-100 shadow-xs">
@@ -221,34 +217,23 @@ export function DatePickerButton({ label, value, onSelectDate, placeholder = 'Pi
             </>
           )}
 
-          {/* Actions */}
-          <View className="flex-row gap-3 pt-2 border-t border-zinc-100">
+          {/* Quick Clear Button */}
+          <View className="flex-row justify-end pt-2 border-t border-zinc-100">
             <Button
               variant="outline"
-              size="md"
-              className="flex-1"
+              size="sm"
+              className="px-4"
               onPress={() => {
-                setTempSelectedDate('');
                 onSelectDate('');
+                setIsOpen(false);
                 setShowYearSelector(false);
-                setModalVisible(false);
               }}
             >
-              <Text className="text-zinc-900 font-extrabold text-xs">Clear</Text>
-            </Button>
-
-            <Button
-              variant="primary"
-              size="md"
-              className="flex-1 bg-indigo-600 active:bg-indigo-700 flex-row items-center justify-center gap-1.5"
-              onPress={handleConfirm}
-            >
-              <Check size={16} color="#FFFFFF" />
-              <Text className="text-white font-bold text-xs">Select Date</Text>
+              <Text className="text-zinc-700 font-bold text-xs">Clear Date</Text>
             </Button>
           </View>
         </View>
-      </AppBottomSheet>
+      )}
     </View>
   );
 }
