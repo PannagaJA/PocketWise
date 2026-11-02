@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Platform, NativeModules } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as Sharing from 'expo-sharing';
@@ -16,6 +16,7 @@ export interface AppReleaseInfo {
   htmlUrl: string;
 }
 
+const PocketWiseSmsModule = NativeModules?.PocketWiseSmsModule;
 const GITHUB_REPO = 'PannagaJA/PocketWise';
 const LAST_CHECK_KEY = 'pocketwise_last_update_check_ts';
 const CHECK_COOLDOWN_MS = 1000 * 60 * 60 * 4; // 4 hours auto-check cooldown
@@ -42,11 +43,37 @@ export function compareSemver(v1: string, v2: string): number {
 }
 
 export class AppUpdateService {
+  private cachedVersion: string | null = null;
+
   /**
-   * Get the currently installed app version
+   * Get the installed app version asynchronously from native Android PackageManager or expoConfig
+   */
+  async getInstalledVersion(): Promise<string> {
+    if (this.cachedVersion) return this.cachedVersion;
+
+    if (Platform.OS === 'android' && PocketWiseSmsModule?.getAppVersion) {
+      try {
+        const info = await PocketWiseSmsModule.getAppVersion();
+        if (info?.versionName) {
+          this.cachedVersion = info.versionName;
+          return info.versionName;
+        }
+      } catch (err) {
+        console.warn('[AppUpdateService] Failed to read native package version:', err);
+      }
+    }
+
+    const version = Constants.expoConfig?.version || '1.0.1';
+    this.cachedVersion = version;
+    return version;
+  }
+
+  /**
+   * Synchronous getter for current app version
    */
   getCurrentVersion(): string {
-    return Constants.expoConfig?.version || '1.0.0';
+    const expoVersion = Constants?.expoConfig?.version || (Constants as any)?.default?.expoConfig?.version;
+    return this.cachedVersion || expoVersion || '1.0.1';
   }
 
   /**
@@ -88,7 +115,7 @@ export class AppUpdateService {
       const data = await response.json();
       const rawTag: string = data.tag_name || data.name || '';
       const remoteVersion = rawTag.replace(/^v/, '').trim();
-      const currentVersion = this.getCurrentVersion();
+      const currentVersion = await this.getInstalledVersion();
 
       if (!remoteVersion) return null;
 
@@ -171,14 +198,31 @@ export class AppUpdateService {
       throw new Error('In-app APK installation is only supported on Android.');
     }
 
+    // Check if unknown app installation permission is granted on Android 8.0+
+    if (PocketWiseSmsModule?.canInstallUnknownApps) {
+      try {
+        const canInstall = await PocketWiseSmsModule.canInstallUnknownApps();
+        if (!canInstall) {
+          if (PocketWiseSmsModule?.openInstallPermissionSettings) {
+            await PocketWiseSmsModule.openInstallPermissionSettings();
+          }
+          throw new Error('Please toggle "Allow from this source" in Android settings, then tap Install Now again.');
+        }
+      } catch (permErr: any) {
+        if (permErr?.message?.includes('Allow from this source')) {
+          throw permErr;
+        }
+      }
+    }
+
     try {
       // Convert file:// URI to content:// URI via FileProvider
       const contentUri = await FileSystem.getContentUriAsync(fileUri);
 
-      // Launch Android system Package Installer
+      // Launch Android system Package Installer with FLAG_GRANT_READ_URI_PERMISSION (1) | FLAG_ACTIVITY_NEW_TASK (268435456)
       await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
         data: contentUri,
-        flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+        flags: 268435457, // 1 | 268435456
         type: 'application/vnd.android.package-archive',
       });
     } catch (primaryErr) {

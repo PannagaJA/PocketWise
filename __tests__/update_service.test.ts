@@ -1,5 +1,12 @@
 jest.mock('react-native', () => ({
   Platform: { OS: 'android' },
+  NativeModules: {
+    PocketWiseSmsModule: {
+      getAppVersion: jest.fn().mockResolvedValue({ versionName: '1.0.0', versionCode: 1 }),
+      canInstallUnknownApps: jest.fn().mockResolvedValue(true),
+      openInstallPermissionSettings: jest.fn().mockResolvedValue(true),
+    },
+  },
 }));
 
 jest.mock('expo-intent-launcher', () => ({
