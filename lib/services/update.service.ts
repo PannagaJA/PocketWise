@@ -46,26 +46,50 @@ export class AppUpdateService {
   private cachedVersion: string | null = null;
 
   /**
-   * Get the installed app version asynchronously from native Android PackageManager or expoConfig
+   * Get the installed app version.
+   * Priority:
+   * 1. Recorded GitHub version tag from the most recent installed update (if >= native version)
+   * 2. Native Android PackageManager packageInfo.versionName
+   * 3. expoConfig / fallback
    */
   async getInstalledVersion(): Promise<string> {
-    if (this.cachedVersion) return this.cachedVersion;
+    let installedGhVersion: string | null = null;
+    try {
+      installedGhVersion = await AsyncStorage.getItem('pocketwise_installed_github_version');
+    } catch {}
 
+    let nativeVersion: string | null = null;
     if (Platform.OS === 'android' && PocketWiseSmsModule?.getAppVersion) {
       try {
         const info = await PocketWiseSmsModule.getAppVersion();
         if (info?.versionName) {
-          this.cachedVersion = info.versionName;
-          return info.versionName;
+          nativeVersion = info.versionName;
         }
       } catch (err) {
         console.warn('[AppUpdateService] Failed to read native package version:', err);
       }
     }
 
-    const version = Constants.expoConfig?.version || '1.0.1';
-    this.cachedVersion = version;
-    return version;
+    const expoVersion = Constants?.expoConfig?.version || (Constants as any)?.default?.expoConfig?.version;
+    const baseVersion = nativeVersion || expoVersion || '1.0.2';
+
+    if (installedGhVersion && compareSemver(installedGhVersion, baseVersion) >= 0) {
+      this.cachedVersion = installedGhVersion;
+      return installedGhVersion;
+    }
+
+    this.cachedVersion = baseVersion;
+    return baseVersion;
+  }
+
+  /**
+   * Record the installed GitHub version tag so the app identifies with the GitHub release version
+   */
+  async recordInstalledGithubVersion(version: string): Promise<void> {
+    try {
+      await AsyncStorage.setItem('pocketwise_installed_github_version', version);
+      this.cachedVersion = version;
+    } catch {}
   }
 
   /**
@@ -73,7 +97,7 @@ export class AppUpdateService {
    */
   getCurrentVersion(): string {
     const expoVersion = Constants?.expoConfig?.version || (Constants as any)?.default?.expoConfig?.version;
-    return this.cachedVersion || expoVersion || '1.0.1';
+    return this.cachedVersion || expoVersion || '1.0.2';
   }
 
   /**

@@ -137,6 +137,9 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
         progress: 1,
       });
 
+      // Record the target GitHub version so the app takes its version directly from the GitHub release tag
+      await updateService.recordInstalledGithubVersion(updateInfo.version);
+
       // Automatically launch the installer once downloaded
       await updateService.installApk(localPath);
     } catch (err: any) {
@@ -151,11 +154,14 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
   },
 
   installDownloadedApk: async () => {
-    const { downloadedFilePath } = get();
+    const { downloadedFilePath, updateInfo } = get();
     if (!downloadedFilePath) return;
 
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      if (updateInfo?.version) {
+        await updateService.recordInstalledGithubVersion(updateInfo.version);
+      }
       await updateService.installApk(downloadedFilePath);
     } catch (err: any) {
       set({
