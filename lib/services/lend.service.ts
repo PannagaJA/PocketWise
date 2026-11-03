@@ -277,6 +277,83 @@ export const lendService = {
   },
 
   /**
+   * Record a payment (full, half, or custom amount) against a lend record.
+   * If amountReceivedMinor >= record.amountMinor, marks as fully collected.
+   * If amountReceivedMinor < record.amountMinor, updates remaining amountMinor and appends payment note.
+   */
+  async recordPayment(
+    id: string,
+    amountReceivedMinor: number,
+    userId?: string
+  ): Promise<{ status: LendStatus; remainingMinor: number }> {
+    const records = await loadLocal();
+    const localRecord = records.find((r) => r.id === id);
+    let currentRecord: LendRecord | undefined = localRecord;
+
+    if (userId) {
+      try {
+        const { data } = await supabase
+          .from('lends')
+          .select()
+          .eq('id', id)
+          .single();
+        if (data) {
+          currentRecord = mapFromSupabase(data);
+        }
+      } catch (err) {
+        console.warn('[LendService] Supabase fetch error, fallback to local:', err);
+      }
+    }
+
+    if (!currentRecord) {
+      throw new Error('Lend record not found.');
+    }
+
+    if (amountReceivedMinor >= currentRecord.amountMinor) {
+      await this.markCollected(id, userId);
+      return { status: 'collected', remainingMinor: 0 };
+    }
+
+    const now = new Date().toISOString();
+    const remainingMinor = Math.max(0, currentRecord.amountMinor - amountReceivedMinor);
+    const formattedReceived = `₹${(amountReceivedMinor / 100).toLocaleString('en-IN')}`;
+    const formattedRemaining = `₹${(remainingMinor / 100).toLocaleString('en-IN')}`;
+    const dateStr = new Date().toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+    });
+    const paymentNote = `Received ${formattedReceived} on ${dateStr} (Remaining: ${formattedRemaining})`;
+    const updatedNotes = currentRecord.notes
+      ? `${currentRecord.notes} • ${paymentNote}`
+      : paymentNote;
+
+    if (userId) {
+      const { error } = await supabase
+        .from('lends')
+        .update({
+          amount_minor: remainingMinor,
+          notes: updatedNotes,
+          updated_at: now,
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+    }
+
+    const idx = records.findIndex((r) => r.id === id);
+    if (idx !== -1) {
+      records[idx] = {
+        ...records[idx],
+        amountMinor: remainingMinor,
+        notes: updatedNotes,
+      };
+      await saveLocal(records);
+    }
+
+    return { status: currentRecord.status, remainingMinor };
+  },
+
+  /**
    * Delete a lend record.
    */
   async deleteLend(id: string, userId?: string): Promise<void> {

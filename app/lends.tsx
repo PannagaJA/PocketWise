@@ -90,6 +90,42 @@ const DATE_PRESETS = [
   { label: '3 months', days: 90 },
 ];
 
+function parseRecordNotes(
+  rawNotes?: string,
+  phoneNumber?: string
+): { userNotes: string; paymentLogs: string[] } {
+  if (!rawNotes) return { userNotes: '', paymentLogs: [] };
+
+  const parts = rawNotes
+    .split(/(?:•|\n)+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const cleanPhone = (phoneNumber || '').replace(/\D/g, '');
+  const paymentLogs: string[] = [];
+  const otherNotes: string[] = [];
+
+  for (const part of parts) {
+    if (part.toLowerCase().startsWith('phone:')) {
+      const extractedDigits = part.replace(/\D/g, '');
+      if (cleanPhone && (extractedDigits.includes(cleanPhone) || cleanPhone.includes(extractedDigits))) {
+        continue;
+      }
+    }
+
+    if (part.toLowerCase().startsWith('received ')) {
+      paymentLogs.push(part);
+    } else {
+      otherNotes.push(part);
+    }
+  }
+
+  return {
+    userNotes: otherNotes.join(' • '),
+    paymentLogs,
+  };
+}
+
 export default function LendsScreen() {
   const { user } = useAuth();
   const router = useRouter();
@@ -128,6 +164,8 @@ export default function LendsScreen() {
   const [smsTemplate, setSmsTemplate] = useState<'friendly' | 'due' | 'overdue'>('friendly');
   const [sendingSms, setSendingSms] = useState(false);
   const [recordToCollect, setRecordToCollect] = useState<LendRecord | null>(null);
+  const [repayAmount, setRepayAmount] = useState('');
+  const [collectOption, setCollectOption] = useState<'full' | 'half' | 'custom'>('full');
   const [recordToDelete, setRecordToDelete] = useState<LendRecord | null>(null);
 
   // TanStack Query for reactive data loading
@@ -391,21 +429,35 @@ export default function LendsScreen() {
     setShowEditAmount(true);
   };
 
-  const markCollectedMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return lendService.markCollected(id, user?.id);
+  const collectPaymentMutation = useMutation({
+    mutationFn: async () => {
+      if (!recordToCollect) return;
+      const amountMinor = parseMoneyToMinor(repayAmount);
+      if (amountMinor <= 0) {
+        throw new Error('Please enter a valid amount greater than ₹0.');
+      }
+      return lendService.recordPayment(recordToCollect.id, amountMinor, user?.id);
     },
-    onSuccess: (_, id) => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['lends'] });
+      const targetId = recordToCollect?.id;
       setRecordToCollect(null);
-      if (smsTarget?.id === id) {
+      if (smsTarget?.id === targetId) {
         setShowSmsModal(false);
         setSmsTarget(null);
       }
       try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+      if (result?.status === 'collected') {
+        Alert.alert('Lend Settled', 'This lend has been marked as fully collected.');
+      } else if (result) {
+        Alert.alert(
+          'Payment Recorded',
+          `Collected ${formatMoney(parseMoneyToMinor(repayAmount))}. Remaining balance: ${formatMoney(result.remainingMinor)}.`
+        );
+      }
     },
-    onError: () => {
-      Alert.alert('Error', 'Could not update record.');
+    onError: (err: any) => {
+      Alert.alert('Error', err.message || 'Could not record collection.');
     },
   });
 
@@ -441,6 +493,33 @@ export default function LendsScreen() {
   const confirmMarkCollected = (record: LendRecord) => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     setRecordToCollect(record);
+    setCollectOption('full');
+    setRepayAmount((record.amountMinor / 100).toString());
+  };
+
+  const handleSelectCollectOption = (option: 'full' | 'half' | 'custom') => {
+    if (!recordToCollect) return;
+    setCollectOption(option);
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    if (option === 'full') {
+      setRepayAmount((recordToCollect.amountMinor / 100).toString());
+    } else if (option === 'half') {
+      const halfRupees = Math.round(recordToCollect.amountMinor / 200);
+      setRepayAmount(halfRupees.toString());
+    }
+  };
+
+  const handleCustomRepayAmountChange = (text: string) => {
+    setRepayAmount(text);
+    if (!recordToCollect) return;
+    const parsed = parseMoneyToMinor(text);
+    if (parsed === recordToCollect.amountMinor) {
+      setCollectOption('full');
+    } else if (parsed === Math.round(recordToCollect.amountMinor / 2)) {
+      setCollectOption('half');
+    } else {
+      setCollectOption('custom');
+    }
   };
 
   const confirmDelete = (record: LendRecord) => {
@@ -603,9 +682,10 @@ export default function LendsScreen() {
               const isOverdue = record.status === 'overdue';
               const isCollected = record.status === 'collected';
               const dayBadge = getDaysLabel(record.dueDate, record.status);
+              const { userNotes, paymentLogs } = parseRecordNotes(record.notes, record.phoneNumber);
 
               return (
-                <Card key={record.id} className="mb-3 p-4.5 bg-white border border-zinc-100 rounded-3xl shadow-xs">
+                <Card key={record.id} className="mb-3.5 p-4 bg-white border border-zinc-100 rounded-3xl shadow-xs">
                   {/* Top Row: Person & Amount */}
                   <View className="flex-row justify-between items-center mb-2">
                     <View className="flex-row items-center flex-1 pr-2">
@@ -692,71 +772,98 @@ export default function LendsScreen() {
                   <View className="flex-row items-center justify-between pt-2 pb-1 border-t border-zinc-100">
                     <View className="flex-row items-center gap-1.5">
                       <Calendar size={13} color="#71717A" />
-                      <Text className="text-xs text-zinc-500">
+                      <Text className="text-xs font-semibold text-zinc-600">
                         {isCollected
                           ? `Collected ${record.collectedAt ? formatDate(record.collectedAt.substring(0, 10)) : ''}`
                           : `Due ${formatDate(record.dueDate)}`}
                       </Text>
                     </View>
-                    {record.notes ? (
-                      <View className="flex-row items-center gap-1 flex-1 justify-end ml-3">
-                        <FileText size={12} color="#71717A" />
-                        <Text className="text-xs text-zinc-500" numberOfLines={1}>
-                          {record.notes}
-                        </Text>
+                    {isOverdue && !isCollected ? (
+                      <View className="bg-rose-50 border border-rose-100 px-2 py-0.5 rounded-full">
+                        <Text className="text-[10px] font-bold text-rose-600">{dayBadge.text}</Text>
                       </View>
                     ) : null}
                   </View>
 
+                  {/* Payment Activity / Repayment Logs - Full Details */}
+                  {paymentLogs.length > 0 && (
+                    <View className="mt-2 bg-emerald-50/70 border border-emerald-100 rounded-2xl p-2.5">
+                      <View className="flex-row items-center gap-1.5 mb-1">
+                        <HandCoins size={13} color="#059669" />
+                        <Text className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">
+                          Payment Activity ({paymentLogs.length})
+                        </Text>
+                      </View>
+                      {paymentLogs.map((log, idx) => (
+                        <View key={idx} className="flex-row items-start gap-1.5 mt-0.5">
+                          <Text className="text-emerald-600 text-xs font-bold leading-tight">•</Text>
+                          <Text className="text-xs font-semibold text-emerald-950 flex-1 leading-snug">
+                            {log}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* User Notes - Full Details */}
+                  {userNotes ? (
+                    <View className="mt-2 flex-row items-start gap-1.5 bg-zinc-50 border border-zinc-100 rounded-xl px-2.5 py-2">
+                      <FileText size={12} color="#71717A" style={{ marginTop: 2 }} />
+                      <Text className="text-xs text-zinc-600 flex-1 leading-relaxed">
+                        {userNotes}
+                      </Text>
+                    </View>
+                  ) : null}
+
                   {/* Actions */}
                   {!isCollected ? (
-                    <View className="flex-row gap-1.5 mt-3 pt-2.5 border-t border-zinc-100">
+                    <View className="flex-row gap-2 mt-3 pt-2.5 border-t border-zinc-100 items-center">
                       <Button
                         variant="outline"
                         size="sm"
-                        className="flex-1 border-emerald-300 bg-emerald-50/40 px-2"
+                        className="flex-1 border-emerald-300 bg-emerald-50/60 px-3 py-2"
                         onPress={() => confirmMarkCollected(record)}
                       >
-                        <CheckCircle2 size={13} color="#10B981" />
-                        <Text className="text-emerald-700 font-bold text-xs ml-1">Collected</Text>
+                        <CheckCircle2 size={14} color="#059669" />
+                        <Text className="text-emerald-800 font-bold text-xs ml-1.5">Collected</Text>
                       </Button>
 
                       <Button
                         variant="outline"
                         size="sm"
-                        className="border-indigo-300 bg-indigo-50/50 px-2.5"
+                        className="flex-1 border-indigo-200 bg-indigo-50/50 px-3 py-2"
                         onPress={() => openSmsModal(record)}
                       >
-                        <MessageSquare size={12} color="#6366F1" />
-                        <Text className="text-indigo-700 font-bold text-xs ml-1">SMS</Text>
+                        <MessageSquare size={13} color="#4F46E5" />
+                        <Text className="text-indigo-800 font-bold text-xs ml-1.5">SMS</Text>
                       </Button>
 
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="border-indigo-200 bg-indigo-50/40 px-2"
-                        onPress={() => openEditAmount(record)}
-                      >
-                        <Pencil size={12} color="#6366F1" />
-                        <Text className="text-indigo-700 font-bold text-xs ml-1">Amount</Text>
-                      </Button>
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="border-indigo-200 bg-indigo-50/40 px-2"
+                      <TouchableOpacity
+                        activeOpacity={0.7}
                         onPress={() => openReschedule(record)}
+                        className="p-2.5 rounded-xl border border-zinc-200 bg-zinc-50 items-center justify-center active:bg-zinc-100"
+                        accessibilityLabel="Change Due Date"
                       >
-                        <RefreshCw size={12} color="#6366F1" />
-                        <Text className="text-indigo-700 font-bold text-xs ml-1">Due</Text>
-                      </Button>
+                        <Calendar size={14} color="#4B5563" />
+                      </TouchableOpacity>
 
-                      <Pressable
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        onPress={() => openEditAmount(record)}
+                        className="p-2.5 rounded-xl border border-zinc-200 bg-zinc-50 items-center justify-center active:bg-zinc-100"
+                        accessibilityLabel="Edit Amount"
+                      >
+                        <Pencil size={14} color="#4B5563" />
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        activeOpacity={0.7}
                         onPress={() => confirmDelete(record)}
-                        className="p-2.5 rounded-xl border border-rose-200 bg-rose-50/40 items-center justify-center active:bg-rose-100"
+                        className="p-2.5 rounded-xl border border-rose-200 bg-rose-50/50 items-center justify-center active:bg-rose-100"
+                        accessibilityLabel="Delete Lend"
                       >
                         <Trash2 size={14} color="#EF4444" />
-                      </Pressable>
+                      </TouchableOpacity>
                     </View>
                   ) : (
                     <View className="flex-row justify-end mt-2 pt-2 border-t border-zinc-100">
@@ -1317,20 +1424,245 @@ export default function LendsScreen() {
         </View>
       </AppBottomSheet>
 
-      {/* ── Mark Collected Dialog ── */}
-      <AppDialog
+      {/* ── Collect Payment Bottom Sheet (Full, Half, or Custom) ── */}
+      <AppBottomSheet
         visible={!!recordToCollect}
         onClose={() => setRecordToCollect(null)}
-        title="Mark as Collected?"
-        description={`Confirm you have received ${recordToCollect ? formatMoney(recordToCollect.amountMinor) : 'funds'} from ${recordToCollect?.personName}.`}
-        confirmLabel="Mark Collected ✓"
-        isLoading={markCollectedMutation.isPending}
-        onConfirm={() => {
-          if (recordToCollect) {
-            markCollectedMutation.mutate(recordToCollect.id);
-          }
-        }}
-      />
+        title="Collect Payment"
+        subtitle={recordToCollect ? `Record payment from ${recordToCollect.personName}` : 'Mark lend as collected'}
+        scrollable={true}
+        contentContainerStyle={{ paddingBottom: 24 }}
+      >
+        {collectPaymentMutation.isPending ? (
+          <View className="py-12">
+            <AppLoadingIndicator message="Recording collection..." />
+          </View>
+        ) : recordToCollect ? (
+          <View>
+            {/* Person & Outstanding Summary */}
+            <View className="bg-zinc-50 border border-zinc-200 rounded-2xl p-3.5 mb-4 flex-row items-center justify-between">
+              <View className="flex-1 mr-2">
+                <Text className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Debtor</Text>
+                <Text className="text-sm font-bold text-zinc-900 mt-0.5">{recordToCollect.personName}</Text>
+                {(() => {
+                  const { userNotes: collectUserNotes, paymentLogs: collectPaymentLogs } = parseRecordNotes(
+                    recordToCollect.notes,
+                    recordToCollect.phoneNumber
+                  );
+                  return (
+                    <View className="mt-1">
+                      {collectPaymentLogs.length > 0 && (
+                        <Text className="text-[11px] font-semibold text-emerald-700">
+                          {collectPaymentLogs[collectPaymentLogs.length - 1]}
+                        </Text>
+                      )}
+                      {collectUserNotes ? (
+                        <Text className="text-[11px] text-zinc-500 mt-0.5">
+                          {collectUserNotes}
+                        </Text>
+                      ) : null}
+                    </View>
+                  );
+                })()}
+              </View>
+              <View className="items-end">
+                <Text className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Total Outstanding</Text>
+                <Text className="text-base font-black text-indigo-600 mt-0.5">
+                  {formatMoney(recordToCollect.amountMinor)}
+                </Text>
+              </View>
+            </View>
+
+            {/* Payment Preset Selection Tabs */}
+            <Text className="text-xs font-bold text-zinc-700 mb-2">Payment Option</Text>
+            <View className="flex-row gap-2 mb-3">
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => handleSelectCollectOption('full')}
+                className={`flex-1 py-2.5 px-2 rounded-xl border items-center justify-center ${
+                  collectOption === 'full'
+                    ? 'bg-emerald-50 border-emerald-400 shadow-xs'
+                    : 'bg-white border-zinc-200'
+                }`}
+              >
+                <Text
+                  className={`text-xs font-bold ${
+                    collectOption === 'full' ? 'text-emerald-700' : 'text-zinc-600'
+                  }`}
+                >
+                  Full Payment
+                </Text>
+                <Text
+                  className={`text-[11px] font-extrabold mt-0.5 ${
+                    collectOption === 'full' ? 'text-emerald-600' : 'text-zinc-400'
+                  }`}
+                >
+                  {formatMoney(recordToCollect.amountMinor)}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => handleSelectCollectOption('half')}
+                className={`flex-1 py-2.5 px-2 rounded-xl border items-center justify-center ${
+                  collectOption === 'half'
+                    ? 'bg-indigo-50 border-indigo-400 shadow-xs'
+                    : 'bg-white border-zinc-200'
+                }`}
+              >
+                <Text
+                  className={`text-xs font-bold ${
+                    collectOption === 'half' ? 'text-indigo-700' : 'text-zinc-600'
+                  }`}
+                >
+                  Half (50%)
+                </Text>
+                <Text
+                  className={`text-[11px] font-extrabold mt-0.5 ${
+                    collectOption === 'half' ? 'text-indigo-600' : 'text-zinc-400'
+                  }`}
+                >
+                  {formatMoney(Math.round(recordToCollect.amountMinor / 2))}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => handleSelectCollectOption('custom')}
+                className={`flex-1 py-2.5 px-2 rounded-xl border items-center justify-center ${
+                  collectOption === 'custom'
+                    ? 'bg-violet-50 border-violet-400 shadow-xs'
+                    : 'bg-white border-zinc-200'
+                }`}
+              >
+                <Text
+                  className={`text-xs font-bold ${
+                    collectOption === 'custom' ? 'text-violet-700' : 'text-zinc-600'
+                  }`}
+                >
+                  Custom
+                </Text>
+                <Text
+                  className={`text-[11px] font-medium mt-0.5 ${
+                    collectOption === 'custom' ? 'text-violet-600' : 'text-zinc-400'
+                  }`}
+                >
+                  Any amount
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Editable Input for Amount Received */}
+            <View className="mb-2">
+              <Input
+                label="Amount Being Collected (₹)"
+                placeholder="e.g. 500"
+                keyboardType="numeric"
+                value={repayAmount}
+                onChangeText={handleCustomRepayAmountChange}
+              />
+            </View>
+
+            {/* Quick Helper Chips */}
+            <View className="flex-row items-center gap-1.5 mb-4">
+              <Text className="text-[11px] font-medium text-zinc-400 mr-1">Quick:</Text>
+              <TouchableOpacity
+                onPress={() => handleSelectCollectOption('half')}
+                className="bg-zinc-100 active:bg-zinc-200 px-2.5 py-1 rounded-lg"
+              >
+                <Text className="text-[11px] font-semibold text-zinc-700">
+                  Half ({formatMoney(Math.round(recordToCollect.amountMinor / 2))})
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleSelectCollectOption('full')}
+                className="bg-zinc-100 active:bg-zinc-200 px-2.5 py-1 rounded-lg"
+              >
+                <Text className="text-[11px] font-semibold text-zinc-700">
+                  Full ({formatMoney(recordToCollect.amountMinor)})
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Live Breakdown / Settlement Preview Card */}
+            {(() => {
+              const enteredMinor = parseMoneyToMinor(repayAmount);
+              const remainingMinor = Math.max(0, recordToCollect.amountMinor - enteredMinor);
+              const isFull = enteredMinor >= recordToCollect.amountMinor;
+
+              if (enteredMinor <= 0) return null;
+
+              return isFull ? (
+                <View className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-3.5 mb-5">
+                  <View className="flex-row items-center justify-between mb-1.5">
+                    <View className="flex-row items-center gap-1.5">
+                      <CheckCircle2 size={16} color="#059669" />
+                      <Text className="text-xs font-bold text-emerald-800">Full Payment Settlement</Text>
+                    </View>
+                    <Badge variant="income" label="Settled ✓" />
+                  </View>
+                  <View className="flex-row justify-between items-center pt-1 border-t border-emerald-100/60 mt-1">
+                    <Text className="text-xs text-emerald-700">Remaining Balance:</Text>
+                    <Text className="text-xs font-extrabold text-emerald-700">₹0.00 (Fully Settled)</Text>
+                  </View>
+                  <Text className="text-[11px] text-emerald-600 mt-1.5">
+                    This lend will be marked as collected and moved to the Collected tab.
+                  </Text>
+                </View>
+              ) : (
+                <View className="bg-indigo-50/80 border border-indigo-200 rounded-2xl p-3.5 mb-5">
+                  <View className="flex-row items-center justify-between mb-1.5">
+                    <View className="flex-row items-center gap-1.5">
+                      <HandCoins size={16} color="#4F46E5" />
+                      <Text className="text-xs font-bold text-indigo-900">Partial Payment</Text>
+                    </View>
+                    <Badge variant="neutral" label="Partial" />
+                  </View>
+                  <View className="flex-row justify-between items-center pt-1 border-t border-indigo-100/60 mt-1">
+                    <Text className="text-xs text-indigo-700">Remaining Balance:</Text>
+                    <Text className="text-xs font-extrabold text-indigo-950">
+                      {formatMoney(remainingMinor)}
+                    </Text>
+                  </View>
+                  <Text className="text-[11px] text-indigo-600 mt-1.5">
+                    Remaining {formatMoney(remainingMinor)} will stay active in Money Lends with a collection note.
+                  </Text>
+                </View>
+              );
+            })()}
+
+            {/* Bottom Buttons */}
+            <View className="flex-row gap-3">
+              <Button
+                variant="outline"
+                size="md"
+                className="flex-1 border-zinc-200"
+                onPress={() => setRecordToCollect(null)}
+              >
+                <Text className="text-zinc-700 font-semibold text-xs">Cancel</Text>
+              </Button>
+
+              <Button
+                variant="primary"
+                size="md"
+                disabled={parseMoneyToMinor(repayAmount) <= 0 || collectPaymentMutation.isPending}
+                className={`flex-1 ${
+                  parseMoneyToMinor(repayAmount) >= recordToCollect.amountMinor
+                    ? 'bg-emerald-600 active:bg-emerald-700'
+                    : 'bg-indigo-600 active:bg-indigo-700'
+                }`}
+                onPress={() => collectPaymentMutation.mutate()}
+              >
+                <Text className="text-white font-bold text-xs">
+                  {parseMoneyToMinor(repayAmount) >= recordToCollect.amountMinor
+                    ? `Collect Full (${formatMoney(recordToCollect.amountMinor)}) ✓`
+                    : `Collect ${formatMoney(parseMoneyToMinor(repayAmount))} ✓`}
+                </Text>
+              </Button>
+            </View>
+          </View>
+        ) : null}
+      </AppBottomSheet>
 
       {/* ── Delete Lend Dialog ── */}
       <AppDialog

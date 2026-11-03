@@ -184,5 +184,47 @@ describe('Stage 1 Database Integrity & Atomic Balances', () => {
       expect(target?.status).toBe('collected');
       expect(target?.collectedAt).toBeDefined();
     });
+
+    test('Record partial payment (half/custom) on lend', async () => {
+      const lend = await lendService.createLend({
+        personName: 'Rahul Verma',
+        amountMinor: 100000, // ₹1,000
+        type: 'lend',
+        lentDate: '2026-10-01',
+        dueDate: '2026-12-01',
+        notes: 'Festival loan',
+      });
+
+      // 1. Half payment: ₹500 (50000 minor)
+      const halfResult = await lendService.recordPayment(lend.id, 50000);
+      expect(halfResult.status).toBe('active');
+      expect(halfResult.remainingMinor).toBe(50000);
+
+      let all = await lendService.getAll();
+      let target = all.find((r) => r.id === lend.id);
+      expect(target?.amountMinor).toBe(50000);
+      expect(target?.notes).toContain('Received ₹500');
+      expect(target?.notes).toContain('Remaining: ₹500');
+      expect(target?.status).toBe('active');
+
+      // 2. Custom partial payment: ₹200 (20000 minor)
+      const customResult = await lendService.recordPayment(lend.id, 20000);
+      expect(customResult.status).toBe('active');
+      expect(customResult.remainingMinor).toBe(30000);
+
+      all = await lendService.getAll();
+      target = all.find((r) => r.id === lend.id);
+      expect(target?.amountMinor).toBe(30000);
+
+      // 3. Full remaining payment: ₹300 (30000 minor)
+      const fullResult = await lendService.recordPayment(lend.id, 30000);
+      expect(fullResult.status).toBe('collected');
+      expect(fullResult.remainingMinor).toBe(0);
+
+      all = await lendService.getAll();
+      target = all.find((r) => r.id === lend.id);
+      expect(target?.status).toBe('collected');
+      expect(target?.collectedAt).toBeDefined();
+    });
   });
 });
