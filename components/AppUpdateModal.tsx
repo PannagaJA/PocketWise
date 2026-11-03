@@ -59,7 +59,6 @@ export const AppUpdateModal: React.FC = () => {
 
             <View style={styles.latestBadge}>
               <View style={styles.sparkleWrap}>
-                <Sparkles size={11} color="#4338CA" style={{ marginRight: 3 }} />
                 <Text style={styles.badgeLabelActive}>LATEST</Text>
               </View>
               <Text style={styles.latestVersionText}>v{updateInfo.version}</Text>
