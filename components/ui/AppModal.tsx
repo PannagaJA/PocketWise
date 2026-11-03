@@ -17,6 +17,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useModalStore } from '../../lib/stores/modalStore';
+import { useAppLock } from '../AppLockGate';
 
 export interface AppModalProps {
   visible: boolean;
@@ -38,6 +39,7 @@ export const AppModal: React.FC<AppModalProps> = ({
   dismissOnBackdrop = true,
   statusBarTranslucent = true,
 }) => {
+  const { isLocked } = useAppLock();
   const insets = useSafeAreaInsets();
   const screenDimensions = Dimensions.get('screen');
   const stableScreenHeight = screenDimensions.height || 800;
@@ -268,7 +270,7 @@ export const AppModal: React.FC<AppModalProps> = ({
 
   // Handle Android hardware back button
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || isLocked) return;
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
       if (handleClose) {
         Keyboard.dismiss();
@@ -278,9 +280,18 @@ export const AppModal: React.FC<AppModalProps> = ({
       return false;
     });
     return () => backHandler.remove();
-  }, [visible, handleClose]);
+  }, [visible, isLocked, handleClose]);
 
-  if (!rendered) return null;
+  // Immediately dismiss modal if the app transitions to locked state
+  useEffect(() => {
+    if (isLocked && rendered) {
+      if (handleClose) {
+        handleClose();
+      }
+    }
+  }, [isLocked, rendered, handleClose]);
+
+  if (!rendered || isLocked) return null;
 
   const onModalRequestClose = () => {
     Keyboard.dismiss();

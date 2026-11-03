@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { updateService, AppReleaseInfo } from '../services/update.service';
+import { notificationService } from '../notifications/notification.service';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 
 export type DownloadStatus = 'idle' | 'checking' | 'downloading' | 'downloaded' | 'error';
@@ -57,6 +59,29 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
         try {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } catch {}
+
+        // Send a system push notification so the user sees it in their notification tray
+        try {
+          const NOTIFIED_KEY = 'pocketwise_last_notified_update_version';
+          const lastNotified = await AsyncStorage.getItem(NOTIFIED_KEY);
+          if (lastNotified !== release.version) {
+            await notificationService.sendSystemAlert({
+              id: `app_update_${release.version}`,
+              category: 'system',
+              title: 'PocketWise Update Available 🚀',
+              body: `PocketWise v${release.version} is ready. Tap to download and install.`,
+              priority: 'high',
+              data: {
+                type: 'app_update',
+                version: release.version,
+              },
+            });
+            await AsyncStorage.setItem(NOTIFIED_KEY, release.version);
+          }
+        } catch (notifErr) {
+          console.warn('[UpdateStore] Could not post update system notification:', notifErr);
+        }
+
         set({
           updateInfo: release,
           status: 'idle',

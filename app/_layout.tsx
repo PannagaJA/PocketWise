@@ -67,9 +67,84 @@ function GlobalRealtimeSync() {
       useUpdateStore.getState().checkForUpdates(false).catch(() => {});
     }, 4000);
 
+    // Setup FCM Push Notification Listeners for live & background updates
+    let unsubscribeFcm: (() => void) | undefined;
+    let unsubscribeFcmOpen: (() => void) | undefined;
+
+    try {
+      const messaging = require('@react-native-firebase/messaging').default;
+
+      // 1. Foreground FCM message listener
+      unsubscribeFcm = messaging().onMessage(async (remoteMessage: any) => {
+        const data = remoteMessage?.data || {};
+        const notification = remoteMessage?.notification;
+
+        const isUpdate =
+          data.type === 'app_update' ||
+          data.update === 'true' ||
+          notification?.title?.toLowerCase().includes('update') ||
+          notification?.body?.toLowerCase().includes('update');
+
+        if (isUpdate) {
+          const version = data.version || data.tag_name || '';
+          // Trigger the update store to fetch and prompt modal
+          useUpdateStore.getState().checkForUpdates(true).catch(() => {});
+
+          // Display a high priority system alert in Android notification tray
+          await notificationService.sendSystemAlert({
+            id: `fcm_update_${Date.now()}`,
+            category: 'system',
+            title: notification?.title || 'PocketWise Update Available 🚀',
+            body: notification?.body || (version ? `PocketWise v${version} is ready. Tap to install.` : 'A new update is available. Tap to install.'),
+            priority: 'high',
+            data: { type: 'app_update', version },
+          }).catch(() => {});
+        }
+      });
+
+      // 2. Notification opened app from background (user tapped FCM tray notification)
+      unsubscribeFcmOpen = messaging().onNotificationOpenedApp((remoteMessage: any) => {
+        const data = remoteMessage?.data || {};
+        const notification = remoteMessage?.notification;
+        const isUpdate =
+          data.type === 'app_update' ||
+          data.update === 'true' ||
+          notification?.title?.toLowerCase().includes('update');
+
+        if (isUpdate) {
+          useUpdateStore.getState().checkForUpdates(true).catch(() => {});
+        }
+      });
+
+      // 3. Initial notification (app opened from killed state by tapping FCM notification)
+      messaging()
+        .getInitialNotification()
+        .then((remoteMessage: any) => {
+          if (remoteMessage) {
+            const data = remoteMessage?.data || {};
+            const notification = remoteMessage?.notification;
+            const isUpdate =
+              data.type === 'app_update' ||
+              data.update === 'true' ||
+              notification?.title?.toLowerCase().includes('update');
+
+            if (isUpdate) {
+              setTimeout(() => {
+                useUpdateStore.getState().checkForUpdates(true).catch(() => {});
+              }, 1200);
+            }
+          }
+        })
+        .catch(() => {});
+    } catch {
+      // Firebase messaging unavailable on web/mock
+    }
+
     if (!user?.id) return () => {
       clearTimeout(updateTimer);
       if (cleanupListener) cleanupListener();
+      if (unsubscribeFcm) unsubscribeFcm();
+      if (unsubscribeFcmOpen) unsubscribeFcmOpen();
     };
 
     // Listen to real-time postgres changes across all financial tables for the user
@@ -85,8 +160,11 @@ function GlobalRealtimeSync() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      clearTimeout(updateTimer);
       if (cleanupListener) cleanupListener();
+      if (unsubscribeFcm) unsubscribeFcm();
+      if (unsubscribeFcmOpen) unsubscribeFcmOpen();
+      supabase.removeChannel(channel);
     };
   }, [user?.id]);
 

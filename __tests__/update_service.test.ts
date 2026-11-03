@@ -40,6 +40,28 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   setItem: jest.fn().mockResolvedValue(null),
 }));
 
+jest.mock('expo-haptics', () => ({
+  notificationAsync: jest.fn(),
+  impactAsync: jest.fn(),
+  NotificationFeedbackType: { Success: 'success', Error: 'error' },
+  ImpactFeedbackStyle: { Medium: 'medium', Heavy: 'heavy' },
+}));
+
+jest.mock('../lib/supabase', () => ({
+  supabase: {
+    from: jest.fn(() => ({
+      upsert: jest.fn().mockResolvedValue({ error: null }),
+      update: jest.fn().mockResolvedValue({ error: null }),
+    })),
+  },
+}));
+
+jest.mock('expo-router', () => ({
+  router: {
+    push: jest.fn(),
+  },
+}));
+
 import { compareSemver, updateService } from '../lib/services/update.service';
 
 describe('AppUpdateService - In-App APK Updater', () => {
@@ -78,6 +100,28 @@ describe('AppUpdateService - In-App APK Updater', () => {
           type: 'application/vnd.android.package-archive',
         })
       );
+    });
+
+    it('deepLinkService routes type app_update to update store', () => {
+      const { deepLinkService } = require('../lib/notifications/deep-link.service');
+      const { useUpdateStore } = require('../lib/stores/updateStore');
+      const checkSpy = jest.spyOn(useUpdateStore.getState(), 'checkForUpdates').mockImplementation(async () => true);
+
+      deepLinkService.handleNotificationResponse({
+        notification: {
+          request: {
+            content: {
+              data: {
+                type: 'app_update',
+                version: '1.0.2',
+              },
+            },
+          },
+        },
+      });
+
+      expect(checkSpy).toHaveBeenCalledWith(true);
+      checkSpy.mockRestore();
     });
   });
 });

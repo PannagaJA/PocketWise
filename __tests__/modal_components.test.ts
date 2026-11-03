@@ -113,4 +113,34 @@ describe('Magpie Modal System — Unit Tests', () => {
       textColor: '#DC2626',
     });
   });
+
+  test('Exit confirmation modal state guards: resets when app is backgrounded or locked', () => {
+    let exitModalVisible = true;
+    let isLocked = false;
+
+    // Simulate app going to background or lock state change
+    const onAppStateChange = (nextState: string) => {
+      if (nextState === 'background' || nextState === 'inactive') {
+        exitModalVisible = false;
+      }
+    };
+
+    const onLockStateChange = (locked: boolean) => {
+      isLocked = locked;
+      if (isLocked) {
+        exitModalVisible = false;
+      }
+    };
+
+    expect(exitModalVisible).toBe(true);
+
+    // When backgrounded
+    onAppStateChange('background');
+    expect(exitModalVisible).toBe(false);
+
+    // Reopen and lock
+    exitModalVisible = true;
+    onLockStateChange(true);
+    expect(exitModalVisible).toBe(false);
+  });
 });

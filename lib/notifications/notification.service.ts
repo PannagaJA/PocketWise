@@ -83,6 +83,15 @@ export const notificationService = {
           vibrationPattern: [0, 150],
           lightColor: '#10B981',
         });
+
+        // App Updates Channel (MAX priority, banner + sound for immediate visibility)
+        await Notifications.setNotificationChannelAsync('pocketwise-updates', {
+          name: 'App Updates',
+          description: 'Notifications when a new version of PocketWise is ready to download and install.',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#6366F1',
+        });
       }
 
       await this.requestPermissions();
@@ -314,7 +323,11 @@ export const notificationService = {
     if (!Notifications) return null;
     try {
       await this.init();
-      const channel = params.priority === 'low' ? 'pocketwise-insights' : 'pocketwise-reminders';
+      const channel = params.data?.type === 'app_update'
+        ? 'pocketwise-updates'
+        : params.priority === 'low'
+        ? 'pocketwise-insights'
+        : 'pocketwise-reminders';
 
       const notifId = await Notifications.scheduleNotificationAsync({
         identifier: params.id,
@@ -325,7 +338,7 @@ export const notificationService = {
           channelId: channel,
           data: {
             ...params.data,
-            type: params.category,
+            type: params.data?.type || params.category,
             reference_id: params.id,
           },
         },

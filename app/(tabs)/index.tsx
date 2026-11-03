@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Pressable, TouchableOpacity, BackHandler, Alert, Dimensions, useWindowDimensions, NativeSyntheticEvent, NativeScrollEvent, GestureResponderEvent } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, Pressable, TouchableOpacity, BackHandler, Alert, Dimensions, useWindowDimensions, NativeSyntheticEvent, NativeScrollEvent, GestureResponderEvent, AppState } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useFocusEffect } from 'expo-router';
@@ -164,6 +164,10 @@ export default function DashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
+        if (isLocked) {
+          // Handled by AppLockGate modal or OS when locked
+          return false;
+        }
         try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
         setExitModalVisible(true);
         return true; // Handled exit dialog
@@ -171,8 +175,30 @@ export default function DashboardScreen() {
 
       const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
       return () => subscription.remove();
-    }, [])
+    }, [isLocked])
   );
+
+  // Auto-dismiss exit modal and overlay dialogs whenever the app locks or moves to background
+  useEffect(() => {
+    if (isLocked) {
+      setExitModalVisible(false);
+      setAddCardModalVisible(false);
+      setBankSelectModalVisible(false);
+      setNotifModalVisible(false);
+      setRecordTxModalVisible(false);
+      setDetailModalVisible(false);
+      setSelectedReviewTx(null);
+    }
+  }, [isLocked]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'background' || nextState === 'inactive') {
+        setExitModalVisible(false);
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   const checkSmsOnboarding = async () => {
     if (!user?.id || isLocked) return;

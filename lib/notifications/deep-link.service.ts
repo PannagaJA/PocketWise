@@ -18,6 +18,7 @@ try {
 const isExpoGo = Constants?.executionEnvironment === (ExecutionEnvironment?.StoreClient || 'storeClient');
 
 let pendingRoute: string | null = null;
+let pendingAction: (() => void) | null = null;
 let isAppLockedState = false;
 
 function getNotificationsModule() {
@@ -32,10 +33,17 @@ function getNotificationsModule() {
 export const deepLinkService = {
   setLockedState(isLocked: boolean) {
     isAppLockedState = isLocked;
-    if (!isLocked && pendingRoute) {
-      const routeToDispatch = pendingRoute;
-      pendingRoute = null;
-      this.dispatchRoute(routeToDispatch);
+    if (!isLocked) {
+      if (pendingAction) {
+        const action = pendingAction;
+        pendingAction = null;
+        setTimeout(action, 600);
+      }
+      if (pendingRoute) {
+        const routeToDispatch = pendingRoute;
+        pendingRoute = null;
+        this.dispatchRoute(routeToDispatch);
+      }
     }
   },
 
@@ -45,6 +53,7 @@ export const deepLinkService = {
 
   clearPendingRoute() {
     pendingRoute = null;
+    pendingAction = null;
   },
 
   getRouteFromPayload(type?: string, referenceId?: string): string {
@@ -67,6 +76,25 @@ export const deepLinkService = {
   handleNotificationResponse(response: any) {
     const data = response?.notification?.request?.content?.data || {};
     const type = typeof data.type === 'string' ? data.type : typeof data.route === 'string' ? data.route : undefined;
+
+    if (type === 'app_update') {
+      const openUpdateAction = () => {
+        try {
+          const { useUpdateStore } = require('../stores/updateStore');
+          useUpdateStore.getState().checkForUpdates(true).catch(() => {});
+        } catch (err) {
+          console.warn('[DeepLinkService] Error triggering update modal:', err);
+        }
+      };
+
+      if (isAppLockedState) {
+        pendingAction = openUpdateAction;
+      } else {
+        openUpdateAction();
+      }
+      return;
+    }
+
     const referenceId = typeof data.reference_id === 'string' ? data.reference_id : typeof data.referenceId === 'string' ? data.referenceId : undefined;
     const targetRoute = this.getRouteFromPayload(type, referenceId);
 
