@@ -37,8 +37,12 @@ export function classifyTransaction(body: string): ClassificationResult {
   const refundKeywords = ['refund', 'refunded', 'cashback credited', 'cashback received', 'reversal', 'reversed'];
   const isRefund = refundKeywords.some((kw) => normBody.includes(kw));
 
-  // 3. Own Account Transfer Detection
-  const transferKeywords = ['transferred from', 'transferred to', 'self transfer', 'own account', 'transfer to a/c'];
+  // 3. Own Account & General Transfer Detection
+  const transferKeywords = [
+    'transferred from', 'transferred to', 'transfer to', 'transfer from',
+    'self transfer', 'own account', 'transfer to a/c', 'fund transfer',
+    'neft transfer', 'imps transfer', 'rtgs transfer', 'trf to', 'transfer of'
+  ];
   const isTransfer = transferKeywords.some((kw) => normBody.includes(kw));
 
   // 4. Debit vs Credit Keywords & Shorthand Patterns (e.g., "Rs.1.00 Dr. from A/C")
