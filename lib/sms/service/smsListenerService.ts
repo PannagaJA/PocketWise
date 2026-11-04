@@ -8,6 +8,7 @@ import { supabase } from '../../supabase';
 import { queryClient } from '../../queryClient';
 import { transactionService } from '../../services/transaction.service';
 import { accountService } from '../../services/account.service';
+import { categoryService, matchCategoryToUserCategories } from '../../services/category.service';
 import { notificationEngine } from '../../notifications/notification.engine';
 import { financialAnalyticsEngine } from '../../finance/analyticsEngine';
 
@@ -247,6 +248,7 @@ class SmsListenerService {
 
       const accountMappings = await smsStorage.getAccountMappings();
       const learnedCategories = await smsStorage.getLearnedCategories();
+      const userCategories = await categoryService.getCategories(activeUserId);
 
       let upgradedCount = 0;
 
@@ -267,18 +269,36 @@ class SmsListenerService {
               t.type === (parsed.type === 'income' ? 'income' : 'expense'))
         );
 
-        if (match && match.description !== cleanPayee) {
-          console.log(`[Retroactive Upgrade] Upgraded transaction ${match.id} from "${match.description}" to "${cleanPayee}"`);
-          await transactionService.updateTransaction(match.id, {
-            description: cleanPayee,
-          });
-          upgradedCount++;
+        if (match) {
+          const matchedCat = matchCategoryToUserCategories(
+            parsed.category,
+            userCategories,
+            parsed.type === 'income' ? 'income' : 'expense'
+          );
+
+          const updates: any = {};
+          if (match.description !== cleanPayee) {
+            updates.description = cleanPayee;
+          }
+          if (!match.category_id && matchedCat?.id) {
+            updates.category_id = matchedCat.id;
+          }
+
+          if (Object.keys(updates).length > 0) {
+            console.log(`[Retroactive Upgrade] Upgraded transaction ${match.id}:`, updates);
+            await transactionService.updateTransaction(match.id, updates);
+            upgradedCount++;
+          }
         }
       }
+
+      // Also run keyword/learned auto-categorization for any remaining uncategorized transactions
+      await transactionService.autoCategorizeUncategorizedTransactions(activeUserId).catch(() => {});
 
       if (upgradedCount > 0) {
         queryClient.invalidateQueries({ queryKey: ['transactions'] });
         queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+        queryClient.invalidateQueries({ queryKey: ['budgets'] });
       }
 
       return upgradedCount;
@@ -535,9 +555,31 @@ class SmsListenerService {
           return;
         }
 
+        // Resolve target Category ID from user categories for accurate monthly budget tracking
+        let targetCategoryId: string | undefined = undefined;
+        try {
+          const userCategories = await categoryService.getCategories(userId);
+          const matchedCategory = matchCategoryToUserCategories(
+            parsedTx.category,
+            userCategories,
+            parsedTx.type === 'income' ? 'income' : 'expense'
+          );
+          if (matchedCategory) {
+            targetCategoryId = matchedCategory.id;
+          } else if (parsedTx.type !== 'income') {
+            const personalCat = userCategories.find(
+              (c) => c.name.toLowerCase() === 'personal' && c.type === 'expense'
+            );
+            targetCategoryId = personalCat?.id;
+          }
+        } catch (catErr) {
+          console.warn('[SMS Listener] Category resolution failed:', catErr);
+        }
+
         await transactionService.createTransaction({
           user_id: userId,
           account_id: targetAccount.id,
+          category_id: targetCategoryId,
           type: parsedTx.type === 'income' ? 'income' : 'expense',
           amount_minor: parsedTx.amountMinor,
           currency: parsedTx.currency,
@@ -546,10 +588,11 @@ class SmsListenerService {
           notes: parsedTx.referenceNumber ? `Ref: ${parsedTx.referenceNumber}` : (parsedTx.upiReference ? `UPI Ref: ${parsedTx.upiReference}` : undefined),
         });
 
-        // Instantly invalidate TanStack Query caches so dashboard & transactions update immediately
+        // Instantly invalidate TanStack Query caches so dashboard, transactions & budgets update immediately
         queryClient.invalidateQueries({ queryKey: ['transactions'] });
         queryClient.invalidateQueries({ queryKey: ['accounts'] });
         queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+        queryClient.invalidateQueries({ queryKey: ['budgets'] });
       }
     } catch (err) {
       console.warn('[SMS Listener] Error persisting to Supabase:', err);
