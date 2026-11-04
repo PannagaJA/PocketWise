@@ -573,6 +573,32 @@ describe('Android Bank SMS Transaction Auto-Detection Parser Pipeline', () => {
     expect(matchCategoryToUserCategories('Subscriptions', mockCategories)?.id).toBe('cat_subs');
     expect(matchCategoryToUserCategories('Salary', mockCategories, 'income')?.id).toBe('cat_salary');
   });
+
+  // Test 29: Investment and Transfer categories matching and detection
+  test('29. Recognizes and resolves Investment and Transfer category tags', () => {
+    const { extractMerchantAndCategory } = require('../lib/sms/parser/merchantParser');
+    const { matchCategoryToUserCategories } = require('../lib/services/category.service');
+
+    const zerodhaResult = extractMerchantAndCategory('Paid Rs.5000 to ZERODHA BROKING LTD via UPI');
+    expect(zerodhaResult.category).toBe('Investment');
+
+    const growwResult = extractMerchantAndCategory('Debited Rs.2500 for GROWW SIP MUTUAL FUND');
+    expect(growwResult.category).toBe('Investment');
+
+    const transferResult = extractMerchantAndCategory('NEFT transfer to John Doe Rs.10000 successful');
+    expect(transferResult.category).toBe('Transfer');
+
+    const mockCategoriesWithTags = [
+      { id: 'cat_inv_exp', name: 'Investment', type: 'expense' },
+      { id: 'cat_trf_exp', name: 'Transfer', type: 'expense' },
+      { id: 'cat_inv_inc', name: 'Investment', type: 'income' },
+    ];
+
+    expect(matchCategoryToUserCategories('Investment', mockCategoriesWithTags, 'expense')?.id).toBe('cat_inv_exp');
+    expect(matchCategoryToUserCategories('Mutual Fund', mockCategoriesWithTags, 'expense')?.id).toBe('cat_inv_exp');
+    expect(matchCategoryToUserCategories('Transfer', mockCategoriesWithTags, 'expense')?.id).toBe('cat_trf_exp');
+    expect(matchCategoryToUserCategories('NEFT', mockCategoriesWithTags, 'expense')?.id).toBe('cat_trf_exp');
+  });
 });
 
 
