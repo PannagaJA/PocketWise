@@ -1,5 +1,5 @@
 import React, { useState, useMemo, memo, useCallback, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, Alert, ActivityIndicator, Pressable, RefreshControl, TextInput, KeyboardAvoidingView, Platform, Keyboard, FlatList, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, Alert, ActivityIndicator, Pressable, RefreshControl, TextInput, KeyboardAvoidingView, Platform, Keyboard, FlatList, TouchableOpacity, NativeSyntheticEvent, NativeScrollEvent, LayoutAnimation, UIManager } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -16,14 +16,19 @@ import { transactionService, cleanTransactionDescription } from '../../lib/servi
 import { supabase } from '../../lib/supabase';
 import { accountService } from '../../lib/services/account.service';
 import { categoryService } from '../../lib/services/category.service';
+import { smsStorage } from '../../lib/sms/storage/smsStore';
 import { formatMoney, formatDate, parseMoneyToMinor } from '../../lib/finance/core';
 import { DatePickerButton } from '../../components/ui/DatePickerModal';
 import { TransactionDetailModal } from '../../components/TransactionDetailModal';
 import { SpendChartCard } from '../../components/NetBalanceChartCard';
 import { RecordRow } from '../../components/ui/RecordRow';
 import { AddCardModal } from '../../components/AddCardModal';
-import { Plus, ArrowUpRight, ArrowDownLeft, X, ArrowRightLeft, ChevronDown, Check, Wallet, BarChart2, Filter, Search, Calendar, SlidersHorizontal, Pencil, Trash2, CreditCard, ShieldCheck, Sparkles } from 'lucide-react-native';
+import { Plus, ArrowUpRight, ArrowDownLeft, X, ArrowRightLeft, ChevronDown, ChevronUp, Check, Wallet, BarChart2, Filter, Search, Calendar, SlidersHorizontal, Pencil, Trash2, CreditCard, ShieldCheck, Sparkles } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 export type DateFilterMode = 'all' | 'today' | 'this_month' | 'last_month' | 'custom_month' | 'custom_range';
 
@@ -264,7 +269,7 @@ export default function TransactionsScreen() {
       const categoryName =
         tx.category?.name ||
         (Array.isArray(tx.category) && (tx.category as any)[0]?.name) ||
-        'General';
+        'Personal';
       return (
         <TransactionItem
           tx={tx}
@@ -317,16 +322,35 @@ export default function TransactionsScreen() {
         });
       }
 
-      return transactionService.updateTransaction(editingTx.id, {
+      const res = await transactionService.updateTransaction(editingTx.id, {
         description: editDescription.trim(),
         amount_minor: minorAmount,
         category_id: editCategoryId || undefined,
         account_id: editAccountId || editingTx.account_id,
         date: editDate,
       });
+
+      // Smart Learning: Save rule so upcoming transactions to this payee automatically inherit this category
+      if (editCategoryId && user?.id) {
+        const selectedCat = categories.find((c) => c.id === editCategoryId);
+        if (selectedCat) {
+          const payeeKey = editDescription.trim();
+          await smsStorage.saveLearnedCategory(payeeKey, selectedCat.name);
+
+          // Batch Update: Automatically apply this category to any other past transactions for this exact payee
+          await transactionService.batchUpdateCategoryForPayee(
+            user.id,
+            payeeKey,
+            editCategoryId
+          ).catch((e) => console.warn('[Batch Category Update] Failed:', e));
+        }
+      }
+
+      return res;
     },
     onSuccess: () => {
       queryClient.invalidateQueries();
+      queryClient.invalidateQueries({ queryKey: ['budgets'] });
       try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
       setEditModalVisible(false);
       setEditingTx(null);
@@ -462,19 +486,34 @@ export default function TransactionsScreen() {
 
   return (
     <SafeAreaView className="flex-1" style={{ backgroundColor: '#F8F9FE' }} edges={['top']}>
-      <View className="px-4 pt-2 flex-1">
-        {/* Header */}
-        <View className="mb-3">
-          <Text className="text-[22px] font-extrabold text-zinc-950 tracking-tight">Transactions</Text>
-          <Text className="text-xs font-medium text-zinc-500 mt-0.5 mb-3">Real-time financial activity</Text>
+      {/* Persistent Header: Always visible at the top */}
+      <View style={{ backgroundColor: '#F8F9FE' }} className="px-4 pt-2 pb-1">
+        <Text className="text-[22px] font-extrabold text-zinc-950 tracking-tight">Transactions</Text>
+        <Text className="text-xs font-medium text-zinc-500 mt-0.5">Real-time financial activity</Text>
+      </View>
 
+      <ScrollView
+        className="flex-1"
+        style={{ backgroundColor: '#F8F9FE' }}
+        showsVerticalScrollIndicator={false}
+        stickyHeaderIndices={[1]}
+        contentContainerStyle={{ paddingBottom: 140 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#09090B']} />
+        }
+      >
+        {/* Child 0: Total Spend Chart Card (Cleanly scrolls away and disappears) */}
+        <View className="px-4 pt-2 mb-2">
           {/* Spend Graph based on Spend with Dashboard Balance */}
           <SpendChartCard
             accounts={accounts}
             transactions={transactions}
             selectedAccountId={selectedAccountFilterId}
           />
+        </View>
 
+        {/* Child 1: Controls Section (STICKY right below the header!) */}
+        <View style={{ backgroundColor: '#F8F9FE', zIndex: 10 }} className="px-4 pt-2 pb-3">
           {/* Search Bar Input & Custom Date/Month Filter Button on the Same Line */}
           <View className="flex-row items-center gap-2 mb-3">
             {/* Search Bar */}
@@ -602,57 +641,63 @@ export default function TransactionsScreen() {
           </View>
         </View>
 
-        {/* Transactions Virtualized List */}
-        {loadingTx ? (
-          <View className="py-8">
-            <ActivityIndicator size="small" color="#09090B" />
-          </View>
-        ) : (
-          <FlatList
-            data={displayedTransactions}
-            keyExtractor={keyExtractor}
-            renderItem={renderItem}
-            showsVerticalScrollIndicator={false}
-            className="flex-1"
-            contentContainerStyle={{ paddingBottom: 140 }}
-            initialNumToRender={12}
-            maxToRenderPerBatch={12}
-            windowSize={5}
-            removeClippedSubviews={Platform.OS === 'android'}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#09090B']} />
-            }
-            ListEmptyComponent={
-              <Card className="p-6 bg-white border border-zinc-200 items-center mt-2 rounded-2xl">
-                <View className="w-12 h-12 rounded-full bg-zinc-100 items-center justify-center mb-2">
-                  <Filter size={20} color="#71717A" />
-                </View>
-                <Text className="text-sm font-bold text-zinc-800">
-                  {searchQuery || isFilterActive ? 'No matching transactions' : `No ${activeFilter === 'all' ? '' : activeFilter} transactions found`}
-                </Text>
-                <Text className="text-xs text-zinc-400 mt-0.5 mb-4 text-center">
-                  {searchQuery
-                    ? `No transactions matched "${searchQuery}".`
-                    : isFilterActive
-                    ? `No transactions match the selected filter criteria.`
-                    : activeFilter === 'all'
-                    ? 'Record your first transaction to get started!'
-                    : `No transactions matched the "${activeFilter}" filter.`}
-                </Text>
-                {searchQuery || activeFilter !== 'all' || isFilterActive ? (
-                  <Button size="sm" variant="outline" onPress={() => { setSearchQuery(''); setActiveFilter('all'); setDateFilterMode('all'); setSelectedAccountFilterId('all'); }}>
-                    <Text className="text-zinc-900 font-semibold text-xs">Clear Search & Filters</Text>
-                  </Button>
-                ) : (
-                  <Button size="sm" variant="primary" onPress={() => setModalVisible(true)}>
-                    <Text className="text-white font-semibold text-xs">Record Transaction</Text>
-                  </Button>
-                )}
-              </Card>
-            }
-          />
-        )}
-      </View>
+        {/* Child 2: Transactions Virtualized / Rendered List */}
+        <View className="px-4">
+          {loadingTx ? (
+            <View className="py-8">
+              <ActivityIndicator size="small" color="#09090B" />
+            </View>
+          ) : displayedTransactions.length === 0 ? (
+            <Card className="p-6 bg-white border border-zinc-200 items-center mt-2 rounded-2xl">
+              <View className="w-12 h-12 rounded-full bg-zinc-100 items-center justify-center mb-2">
+                <Filter size={20} color="#71717A" />
+              </View>
+              <Text className="text-sm font-bold text-zinc-800">
+                {searchQuery || isFilterActive ? 'No matching transactions' : `No ${activeFilter === 'all' ? '' : activeFilter} transactions found`}
+              </Text>
+              <Text className="text-xs text-zinc-400 mt-0.5 mb-4 text-center">
+                {searchQuery
+                  ? `No transactions matched "${searchQuery}".`
+                  : isFilterActive
+                  ? `No transactions match the selected filter criteria.`
+                  : activeFilter === 'all'
+                  ? 'Record your first transaction to get started!'
+                  : `No transactions matched the "${activeFilter}" filter.`}
+              </Text>
+              {searchQuery || activeFilter !== 'all' || isFilterActive ? (
+                <Button size="sm" variant="outline" onPress={() => { setSearchQuery(''); setActiveFilter('all'); setDateFilterMode('all'); setSelectedAccountFilterId('all'); }}>
+                  <Text className="text-zinc-900 font-semibold text-xs">Clear Search & Filters</Text>
+                </Button>
+              ) : (
+                <Button size="sm" variant="primary" onPress={() => setModalVisible(true)}>
+                  <Text className="text-white font-semibold text-xs">Record Transaction</Text>
+                </Button>
+              )}
+            </Card>
+          ) : (
+            displayedTransactions.map((tx) => {
+              const accountName =
+                tx.account?.name ||
+                (Array.isArray(tx.account) && (tx.account as any)[0]?.name) ||
+                accounts.find((a) => a.id === tx.account_id)?.name ||
+                'Account';
+              const categoryName =
+                tx.category?.name ||
+                (Array.isArray(tx.category) && (tx.category as any)[0]?.name) ||
+                'Personal';
+              return (
+                <TransactionItem
+                  key={tx.id}
+                  tx={tx}
+                  accountName={accountName}
+                  categoryName={categoryName}
+                  onPress={() => handleOpenDetailTx(tx)}
+                />
+              );
+            })
+          )}
+        </View>
+      </ScrollView>
 
       {/* Custom Date / Month / Bank Filter Modal */}
       <AppBottomSheet
@@ -1001,9 +1046,9 @@ export default function TransactionsScreen() {
               title="Select Category"
               subtitle="Choose category for this transaction"
               value={editCategoryId}
-              placeholder="General / Uncategorized"
+              placeholder="Personal"
               allowClear={true}
-              clearLabel="None (Uncategorized)"
+              clearLabel="None (Personal)"
               options={categories
                 .filter((cat) => !editingTx?.type || editingTx.type === 'transfer' || cat.type === editingTx.type)
                 .map((cat) => ({
