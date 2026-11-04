@@ -21,6 +21,11 @@ const GITHUB_REPO = 'PannagaJA/PocketWise';
 const LAST_CHECK_KEY = 'pocketwise_last_update_check_ts';
 const CHECK_COOLDOWN_MS = 1000 * 60 * 60 * 4; // 4 hours auto-check cooldown
 
+// Immediately purge any stale simulated version tag on module load
+if (typeof AsyncStorage?.removeItem === 'function') {
+  AsyncStorage.removeItem('pocketwise_installed_github_version').catch(() => {});
+}
+
 /**
  * Compare two semver strings: e.g. "1.0.1" vs "1.0.0"
  * Returns 1 if v1 > v2, -1 if v1 < v2, 0 if equal.
@@ -46,16 +51,14 @@ export class AppUpdateService {
   private cachedVersion: string | null = null;
 
   /**
-   * Get the installed app version.
-   * Priority:
-   * 1. Recorded GitHub version tag from the most recent installed update (if >= native version)
-   * 2. Native Android PackageManager packageInfo.versionName
-   * 3. expoConfig / fallback
+   * Determine the currently installed app version.
+   * Ground truth is always the native Android package manager (versionName),
+   * falling back to expoConfig. Legacy simulated version tags in AsyncStorage are purged.
    */
   async getInstalledVersion(): Promise<string> {
-    let installedGhVersion: string | null = null;
+    // Purge any legacy simulated version tag that may have been saved before actual install
     try {
-      installedGhVersion = await AsyncStorage.getItem('pocketwise_installed_github_version');
+      await AsyncStorage.removeItem('pocketwise_installed_github_version');
     } catch {}
 
     let nativeVersion: string | null = null;
@@ -71,24 +74,19 @@ export class AppUpdateService {
     }
 
     const expoVersion = Constants?.expoConfig?.version || (Constants as any)?.default?.expoConfig?.version;
-    const baseVersion = nativeVersion || expoVersion || '1.0.2';
-
-    if (installedGhVersion && compareSemver(installedGhVersion, baseVersion) >= 0) {
-      this.cachedVersion = installedGhVersion;
-      return installedGhVersion;
-    }
+    const baseVersion = nativeVersion || expoVersion || '1.0.11';
 
     this.cachedVersion = baseVersion;
     return baseVersion;
   }
 
   /**
-   * Record the installed GitHub version tag so the app identifies with the GitHub release version
+   * Deprecated: Cleans up any recorded version in storage.
+   * Version must always come from the actual package manager.
    */
-  async recordInstalledGithubVersion(version: string): Promise<void> {
+  async recordInstalledGithubVersion(_version?: string): Promise<void> {
     try {
-      await AsyncStorage.setItem('pocketwise_installed_github_version', version);
-      this.cachedVersion = version;
+      await AsyncStorage.removeItem('pocketwise_installed_github_version');
     } catch {}
   }
 
@@ -97,7 +95,34 @@ export class AppUpdateService {
    */
   getCurrentVersion(): string {
     const expoVersion = Constants?.expoConfig?.version || (Constants as any)?.default?.expoConfig?.version;
-    return this.cachedVersion || expoVersion || '1.0.2';
+    return this.cachedVersion || expoVersion || '1.0.11';
+  }
+
+  /**
+   * Get expected cached APK URI on local filesystem
+   */
+  getDownloadedApkUri(version: string): string {
+    const filename = `PocketWise-v${version}.apk`;
+    return `${FileSystem.cacheDirectory}${filename}`;
+  }
+
+  /**
+   * Verify if APK file for the given version is already downloaded and complete
+   */
+  async isApkDownloaded(version: string, expectedSize?: number): Promise<boolean> {
+    try {
+      const uri = this.getDownloadedApkUri(version);
+      const info = await FileSystem.getInfoAsync(uri);
+      if (!info.exists || !info.size || info.size < 10000000) {
+        return false;
+      }
+      if (expectedSize && Math.abs(info.size - expectedSize) > 1024 * 1024) {
+        return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**

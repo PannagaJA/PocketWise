@@ -12,7 +12,7 @@ import { useAuth } from '../../context/AuthContext';
 import { appLockService } from '../../lib/security/app-lock.service';
 import { useUpdateStore } from '../../lib/stores/updateStore';
 import { updateService } from '../../lib/services/update.service';
-import { Fingerprint, Bell, Database, LogOut, ChevronRight, Calendar, Target, Lock, PieChart, X, Smartphone, Zap, HandCoins, Clock, CloudDownload, Sparkles } from 'lucide-react-native';
+import { Fingerprint, Bell, Database, LogOut, ChevronRight, Calendar, Target, Lock, PieChart, X, Smartphone, Zap, HandCoins, Clock, CloudDownload, Sparkles, CheckCircle2 } from 'lucide-react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as Haptics from 'expo-haptics';
 
@@ -31,19 +31,30 @@ export default function MoreScreen() {
   const [confirmPinInput, setConfirmPinInput] = useState('');
 
   // Live App Update state
-  const { updateInfo, checkForUpdates } = useUpdateStore();
+  const { updateInfo, status, progress, openModal, checkForUpdates } = useUpdateStore();
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
-  const currentAppVersion = updateService.getCurrentVersion();
+  const [appVersion, setAppVersion] = useState(updateService.getCurrentVersion());
+
+  useEffect(() => {
+    updateService.getInstalledVersion().then((v) => setAppVersion(v)).catch(() => {});
+  }, []);
 
   const handleCheckUpdateManual = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    // If update info exists or download is active/ready, immediately open modal without resetting state
+    if (updateInfo || status === 'downloading' || status === 'downloaded') {
+      openModal();
+      return;
+    }
+
     setIsCheckingUpdate(true);
     try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       const found = await checkForUpdates(true);
       if (!found) {
         Alert.alert(
           "You're Up to Date! 🎉",
-          `PocketWise v${currentAppVersion} is currently the latest version. No new updates are available.`,
+          `PocketWise v${appVersion} is currently the latest version. No new updates are available.`,
           [{ text: 'OK' }]
         );
       }
@@ -351,19 +362,35 @@ export default function MoreScreen() {
               <View className="flex-1">
                 <View className="flex-row items-center gap-2">
                   <Text className="text-[15px] font-bold text-zinc-950">App Updates</Text>
-                  {updateInfo && (
+                  {status === 'downloading' ? (
+                    <View className="bg-amber-100 px-2 py-0.5 rounded-full flex-row items-center">
+                      <ActivityIndicator size="small" color="#D97706" style={{ transform: [{ scale: 0.6 }], marginRight: 2 }} />
+                      <Text className="text-[10px] font-extrabold text-amber-800">
+                        DOWNLOADING {Math.round(progress * 100)}%
+                      </Text>
+                    </View>
+                  ) : status === 'downloaded' ? (
+                    <View className="bg-emerald-100 px-2 py-0.5 rounded-full flex-row items-center">
+                      <CheckCircle2 size={10} color="#059669" style={{ marginRight: 2 }} />
+                      <Text className="text-[10px] font-extrabold text-emerald-800">READY TO INSTALL</Text>
+                    </View>
+                  ) : updateInfo ? (
                     <View className="bg-indigo-100 px-2 py-0.5 rounded-full flex-row items-center">
                       <Sparkles size={10} color="#4338CA" style={{ marginRight: 2 }} />
                       <Text className="text-[10px] font-extrabold text-indigo-700">UPDATE READY</Text>
                     </View>
-                  )}
+                  ) : null}
                 </View>
                 <Text className="text-xs font-medium text-zinc-500 mt-0.5">
                   {isCheckingUpdate
                     ? 'Checking for latest release...'
+                    : status === 'downloading'
+                    ? `Downloading v${updateInfo?.version || ''} (${Math.round(progress * 100)}%) • Tap to view`
+                    : status === 'downloaded'
+                    ? `v${updateInfo?.version || ''} downloaded • Tap to install now`
                     : updateInfo
-                    ? `v${updateInfo.version} available (Current: v${currentAppVersion})`
-                    : `Version ${currentAppVersion} • Tap to check for updates`}
+                    ? `v${updateInfo.version} available (Current: v${appVersion})`
+                    : `Version ${appVersion} • Tap to check for updates`}
                 </Text>
               </View>
             </View>

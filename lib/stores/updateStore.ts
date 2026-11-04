@@ -35,11 +35,7 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
   modalVisible: false,
 
   openModal: () => set({ modalVisible: true }),
-  closeModal: () => {
-    // Only close if not actively downloading
-    if (get().status === 'downloading') return;
-    set({ modalVisible: false });
-  },
+  closeModal: () => set({ modalVisible: false }),
 
   reset: () =>
     set({
@@ -52,6 +48,12 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
     }),
 
   checkForUpdates: async (manual = false) => {
+    // If currently downloading, don't interrupt active download; just show modal
+    if (get().status === 'downloading') {
+      set({ modalVisible: true });
+      return true;
+    }
+
     set({ status: 'checking', errorMessage: null });
     try {
       const release = await updateService.checkForUpdate(manual);
@@ -59,6 +61,10 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
         try {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } catch {}
+
+        // Check if this release APK is already downloaded in local cache
+        const alreadyDownloaded = await updateService.isApkDownloaded(release.version, release.apkSize);
+        const localPath = updateService.getDownloadedApkUri(release.version);
 
         // Send a system push notification so the user sees it in their notification tray
         try {
@@ -84,7 +90,9 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
 
         set({
           updateInfo: release,
-          status: 'idle',
+          status: alreadyDownloaded ? 'downloaded' : 'idle',
+          downloadedFilePath: alreadyDownloaded ? localPath : null,
+          progress: alreadyDownloaded ? 1 : 0,
           modalVisible: true,
         });
         return true;
@@ -137,8 +145,22 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
         progress: 1,
       });
 
-      // Record the target GitHub version so the app takes its version directly from the GitHub release tag
-      await updateService.recordInstalledGithubVersion(updateInfo.version);
+      // Notify the user in the system tray if the modal was closed while downloading
+      if (!get().modalVisible) {
+        try {
+          await notificationService.sendSystemAlert({
+            id: `app_update_ready_${updateInfo.version}`,
+            category: 'system',
+            title: 'PocketWise Update Ready 🎉',
+            body: `PocketWise v${updateInfo.version} download completed. Tap to install.`,
+            priority: 'high',
+            data: {
+              type: 'app_update',
+              version: updateInfo.version,
+            },
+          });
+        } catch {}
+      }
 
       // Automatically launch the installer once downloaded
       await updateService.installApk(localPath);
@@ -154,14 +176,11 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
   },
 
   installDownloadedApk: async () => {
-    const { downloadedFilePath, updateInfo } = get();
+    const { downloadedFilePath } = get();
     if (!downloadedFilePath) return;
 
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-      if (updateInfo?.version) {
-        await updateService.recordInstalledGithubVersion(updateInfo.version);
-      }
       await updateService.installApk(downloadedFilePath);
     } catch (err: any) {
       set({

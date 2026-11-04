@@ -38,6 +38,7 @@ jest.mock('expo-constants', () => ({
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn().mockResolvedValue(null),
   setItem: jest.fn().mockResolvedValue(null),
+  removeItem: jest.fn().mockResolvedValue(null),
 }));
 
 jest.mock('expo-haptics', () => ({

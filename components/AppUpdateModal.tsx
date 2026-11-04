@@ -79,7 +79,7 @@ export const AppUpdateModal: React.FC = () => {
       title="App Update Available"
       subtitle="A newer version of PocketWise is ready"
       scrollable={true}
-      dismissOnBackdrop={!isDownloading}
+      dismissOnBackdrop={true}
       contentContainerStyle={styles.container}
     >
       <View style={styles.content}>
@@ -160,11 +160,11 @@ export const AppUpdateModal: React.FC = () => {
 
         {/* Action Buttons */}
         <View style={styles.actionRow}>
-          {!isDownloading && (
-            <Pressable onPress={closeModal} style={styles.laterButton}>
-              <Text style={styles.laterButtonText}>Later</Text>
-            </Pressable>
-          )}
+          <Pressable onPress={closeModal} style={styles.laterButton}>
+            <Text style={styles.laterButtonText}>
+              {isDownloading ? 'Minimize' : 'Later'}
+            </Text>
+          </Pressable>
 
           {isDownloading ? (
             <View style={[styles.actionButton, styles.downloadingButton]}>
