@@ -23,7 +23,7 @@ import { TransactionDetailModal } from '../../components/TransactionDetailModal'
 import { SpendChartCard } from '../../components/NetBalanceChartCard';
 import { RecordRow } from '../../components/ui/RecordRow';
 import { AddCardModal } from '../../components/AddCardModal';
-import { Plus, ArrowUpRight, ArrowDownLeft, X, ArrowRightLeft, ChevronDown, ChevronUp, Check, Wallet, BarChart2, Filter, Search, Calendar, SlidersHorizontal, Pencil, Trash2, CreditCard, ShieldCheck, Sparkles } from 'lucide-react-native';
+import { Plus, ArrowUpRight, ArrowDownLeft, X, ArrowRightLeft, ChevronDown, ChevronUp, Check, Wallet, BarChart2, Filter, Search, Calendar, SlidersHorizontal, Pencil, Trash2, CreditCard, ShieldCheck } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
