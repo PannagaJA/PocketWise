@@ -23,7 +23,6 @@ import {
   ShieldCheck,
   Mail,
   KeyRound,
-  Sparkles,
 } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
 import { Button } from '../../components/ui/Button';
