@@ -43,6 +43,12 @@ const TransactionItem = memo(function TransactionItem({
   categoryName: string;
   onPress?: () => void;
 }) {
+  const isTransfer =
+    tx.type === 'transfer' ||
+    categoryName.toLowerCase() === 'transfer' ||
+    tx.description?.toLowerCase().includes('transfer') ||
+    /\btrf\b/i.test(tx.description || '');
+
   const formattedAmount = `${tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}${formatMoney(tx.amount_minor)}`;
   return (
     <View className="mb-2.5 bg-white rounded-2xl px-4 py-0.5 border border-zinc-100 shadow-xs">
@@ -51,6 +57,13 @@ const TransactionItem = memo(function TransactionItem({
         subtitle={`${categoryName} • ${accountName}`}
         amount={formattedAmount}
         isCredit={tx.type === 'income'}
+        icon={
+          isTransfer ? (
+            <ArrowRightLeft size={18} color="#4F46E5" strokeWidth={2.5} />
+          ) : undefined
+        }
+        iconBgColor={isTransfer ? '#EEF2FF' : undefined}
+        iconColor={isTransfer ? '#4F46E5' : undefined}
         date={formatDate(tx.date)}
         onPress={onPress}
         showDivider={false}
@@ -127,7 +140,30 @@ export default function TransactionsScreen() {
   // Apply search query, type filter, bank filter, and custom date/month filter (Memoized for high performance)
   const displayedTransactions = useMemo(() => {
     return transactions.filter((t) => {
-      const matchesFilter = activeFilter === 'all' || t.type === activeFilter;
+      const categoryName =
+        t.category?.name ||
+        (Array.isArray(t.category) && (t.category as any)[0]?.name) ||
+        categories.find((c) => c.id === t.category_id)?.name ||
+        '';
+
+      const isTransfer =
+        t.type === 'transfer' ||
+        categoryName.toLowerCase() === 'transfer' ||
+        t.description.toLowerCase().includes('transfer') ||
+        /\btrf\b/i.test(t.description);
+
+      let matchesFilter = false;
+      if (activeFilter === 'all') {
+        matchesFilter = true;
+      } else if (activeFilter === 'transfer') {
+        // Any transaction marked as transfer type, categorized as Transfer, or named transfer
+        matchesFilter = isTransfer;
+      } else if (activeFilter === 'expense') {
+        matchesFilter = t.type === 'expense' && !isTransfer;
+      } else if (activeFilter === 'income') {
+        matchesFilter = t.type === 'income' && !isTransfer;
+      }
+
       const matchesAccountFilter = selectedAccountFilterId === 'all' || t.account_id === selectedAccountFilterId;
 
       // Date/Month Filtering
@@ -158,7 +194,6 @@ export default function TransactionsScreen() {
       if (!q) return matchesFilter && matchesDate && matchesAccountFilter;
 
       const matchesDesc = t.description.toLowerCase().includes(q);
-      const categoryName = t.category?.name || (Array.isArray(t.category) && (t.category as any)[0]?.name) || '';
       const matchesCat = categoryName.toLowerCase().includes(q);
       const accountName =
         t.account?.name ||
@@ -173,10 +208,15 @@ export default function TransactionsScreen() {
 
       return matchesFilter && matchesDate && matchesAccountFilter && (matchesDesc || matchesCat || matchesAcc || matchesAmount);
     });
-  }, [transactions, activeFilter, selectedAccountFilterId, dateFilterMode, selectedCustomMonth, customStartDate, customEndDate, searchQuery, accounts]);
+  }, [transactions, activeFilter, selectedAccountFilterId, dateFilterMode, selectedCustomMonth, customStartDate, customEndDate, searchQuery, accounts, categories]);
 
   const filteredCategories = useMemo(
-    () => categories.filter((c) => c.type === (type === 'transfer' ? 'expense' : type)),
+    () =>
+      categories.filter((c) =>
+        type === 'transfer'
+          ? c.name === 'Transfer' || c.name === 'Investment' || c.type === 'expense'
+          : c.type === type
+      ),
     [categories, type]
   );
   const selectedCatObj = categories.find((c) => c.id === selectedCategoryId);
@@ -231,6 +271,7 @@ export default function TransactionsScreen() {
   const [editDate, setEditDate] = useState('');
   const [editAccountId, setEditAccountId] = useState('');
   const [editCategoryId, setEditCategoryId] = useState('');
+  const [categoryScope, setCategoryScope] = useState<'single' | 'all'>('single');
 
   const handleOpenDetailTx = useCallback((tx: any) => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
@@ -246,6 +287,7 @@ export default function TransactionsScreen() {
     setEditDate(tx.date || new Date().toISOString().substring(0, 10));
     setEditAccountId(tx.account_id || '');
     setEditCategoryId(tx.category_id || '');
+    setCategoryScope('single');
     setEditModalVisible(true);
   }, []);
 
@@ -269,6 +311,7 @@ export default function TransactionsScreen() {
       const categoryName =
         tx.category?.name ||
         (Array.isArray(tx.category) && (tx.category as any)[0]?.name) ||
+        categories.find((c) => c.id === tx.category_id)?.name ||
         'Personal';
       return (
         <TransactionItem
@@ -279,7 +322,7 @@ export default function TransactionsScreen() {
         />
       );
     },
-    [accounts, handleOpenDetailTx]
+    [accounts, categories, handleOpenDetailTx]
   );
 
   const keyExtractor = useCallback((item: any) => item.id, []);
@@ -330,8 +373,8 @@ export default function TransactionsScreen() {
         date: editDate,
       });
 
-      // Smart Learning: Save rule so upcoming transactions to this payee automatically inherit this category
-      if (editCategoryId && user?.id) {
+      // Smart Learning & Batch Update: only if user explicitly selects 'all' for this payee
+      if (editCategoryId && user?.id && categoryScope === 'all') {
         const selectedCat = categories.find((c) => c.id === editCategoryId);
         if (selectedCat) {
           const payeeKey = editDescription.trim();
@@ -684,6 +727,7 @@ export default function TransactionsScreen() {
               const categoryName =
                 tx.category?.name ||
                 (Array.isArray(tx.category) && (tx.category as any)[0]?.name) ||
+                categories.find((c) => c.id === tx.category_id)?.name ||
                 'Personal';
               return (
                 <TransactionItem
@@ -869,7 +913,13 @@ export default function TransactionsScreen() {
                 <Text className={`font-semibold text-xs ${type === 'income' ? 'text-emerald-600' : 'text-zinc-500'}`}>Income</Text>
               </Pressable>
               <Pressable
-                onPress={() => setType('transfer')}
+                onPress={() => {
+                  setType('transfer');
+                  const transferCat = categories.find((c) => c.name.toLowerCase() === 'transfer');
+                  if (transferCat && !selectedCategoryId) {
+                    setSelectedCategoryId(transferCat.id);
+                  }
+                }}
                 className={`flex-1 py-2 rounded-xl items-center ${type === 'transfer' ? 'bg-white' : ''}`}
               >
                 <Text className={`font-semibold text-xs ${type === 'transfer' ? 'text-indigo-600' : 'text-zinc-500'}`}>Transfer</Text>
@@ -891,23 +941,21 @@ export default function TransactionsScreen() {
               onChangeText={setAmount}
             />
 
-            {type !== 'transfer' && (
-              <AppSelectField
-                label="Category"
-                title="Select Category"
-                subtitle="Choose a category for this transaction"
-                value={selectedCategoryId}
-                placeholder="Select a Category"
-                allowClear={true}
-                clearLabel="None (Uncategorized)"
-                options={filteredCategories.map((cat) => ({
-                  value: cat.id,
-                  label: cat.name,
-                  color: cat.color,
-                }))}
-                onSelect={(id) => setSelectedCategoryId(id)}
-              />
-            )}
+            <AppSelectField
+              label="Category"
+              title="Select Category"
+              subtitle="Choose a category for this transaction"
+              value={selectedCategoryId}
+              placeholder={type === 'transfer' ? 'Transfer' : 'Select a Category'}
+              allowClear={true}
+              clearLabel={type === 'transfer' ? 'None (Transfer)' : 'None (Uncategorized)'}
+              options={filteredCategories.map((cat) => ({
+                value: cat.id,
+                label: cat.name,
+                color: cat.color,
+              }))}
+              onSelect={(id) => setSelectedCategoryId(id)}
+            />
 
             <AppSelectField
               label={type === 'transfer' ? 'From Account' : 'Account'}
@@ -1058,6 +1106,59 @@ export default function TransactionsScreen() {
                 }))}
               onSelect={(id) => setEditCategoryId(id)}
             />
+
+            {/* Scope Suggestion: Apply to this transaction only vs all for this payee */}
+            {Boolean(editCategoryId && editingTx && editDescription.trim()) && (
+              <View className="mt-1 mb-2 bg-zinc-50 border border-zinc-200/80 rounded-2xl p-3.5">
+                <Text className="text-xs font-bold text-zinc-800 mb-2">
+                  Apply category tag to:
+                </Text>
+                <View className="flex-row gap-2">
+                  <Pressable
+                    onPress={() => {
+                      try { Haptics.selectionAsync(); } catch {}
+                      setCategoryScope('single');
+                    }}
+                    className={`flex-1 py-2 px-2.5 rounded-xl border items-center justify-center ${
+                      categoryScope === 'single'
+                        ? 'bg-zinc-950 border-zinc-950'
+                        : 'bg-white border-zinc-200'
+                    }`}
+                  >
+                    <Text
+                      numberOfLines={1}
+                      className={`text-xs font-bold ${categoryScope === 'single' ? 'text-white' : 'text-zinc-700'}`}
+                    >
+                      Only this one
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => {
+                      try { Haptics.selectionAsync(); } catch {}
+                      setCategoryScope('all');
+                    }}
+                    className={`flex-1 py-2 px-2.5 rounded-xl border items-center justify-center ${
+                      categoryScope === 'all'
+                        ? 'bg-zinc-950 border-zinc-950'
+                        : 'bg-white border-zinc-200'
+                    }`}
+                  >
+                    <Text
+                      numberOfLines={1}
+                      className={`text-xs font-bold ${categoryScope === 'all' ? 'text-white' : 'text-zinc-700'}`}
+                    >
+                      All "{editDescription.trim()}"
+                    </Text>
+                  </Pressable>
+                </View>
+                <Text className="text-[11px] text-zinc-500 mt-2">
+                  {categoryScope === 'single'
+                    ? 'Only this single transaction will keep this category tag.'
+                    : `Updates all past & upcoming transactions for "${editDescription.trim()}".`}
+                </Text>
+              </View>
+            )}
 
             {/* Action Buttons */}
             <View className="flex-row gap-3 mt-4">
