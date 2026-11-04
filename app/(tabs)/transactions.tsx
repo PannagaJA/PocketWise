@@ -17,6 +17,7 @@ import { supabase } from '../../lib/supabase';
 import { accountService } from '../../lib/services/account.service';
 import { categoryService } from '../../lib/services/category.service';
 import { smsStorage } from '../../lib/sms/storage/smsStore';
+import { useTabStore } from '../../lib/stores/tabStore';
 import { formatMoney, formatDate, parseMoneyToMinor } from '../../lib/finance/core';
 import { DatePickerButton } from '../../components/ui/DatePickerModal';
 import { TransactionDetailModal } from '../../components/TransactionDetailModal';
@@ -76,7 +77,7 @@ const TransactionItem = memo(function TransactionItem({
 export default function TransactionsScreen() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const params = useLocalSearchParams<{ add?: string; editId?: string }>();
+  const params = useLocalSearchParams<{ add?: string; editId?: string; category?: string }>();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [accModalVisible, setAccModalVisible] = useState(false);
@@ -94,6 +95,10 @@ export default function TransactionsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'all' | 'income' | 'expense' | 'transfer'>('all');
   const [selectedAccountFilterId, setSelectedAccountFilterId] = useState<string>('all');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
+
+  const pendingCategoryFilter = useTabStore((s) => s.pendingCategoryFilter);
+  const setPendingCategoryFilter = useTabStore((s) => s.setPendingCategoryFilter);
 
   // Custom Date / Month Filter State
   const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>('all');
@@ -164,6 +169,19 @@ export default function TransactionsScreen() {
         matchesFilter = t.type === 'income' && !isTransfer;
       }
 
+      // Explicit Category Filtering (e.g. from Financial Analytics Spendings)
+      if (selectedCategoryFilter !== 'all') {
+        const target = selectedCategoryFilter.toLowerCase().trim();
+        if (target === 'transfer') {
+          if (!isTransfer) return false;
+        } else {
+          const isThisCat =
+            categoryName.toLowerCase() === target ||
+            (target === 'personal' && (!t.category_id || !categoryName));
+          if (!isThisCat) return false;
+        }
+      }
+
       const matchesAccountFilter = selectedAccountFilterId === 'all' || t.account_id === selectedAccountFilterId;
 
       // Date/Month Filtering
@@ -208,7 +226,7 @@ export default function TransactionsScreen() {
 
       return matchesFilter && matchesDate && matchesAccountFilter && (matchesDesc || matchesCat || matchesAcc || matchesAmount);
     });
-  }, [transactions, activeFilter, selectedAccountFilterId, dateFilterMode, selectedCustomMonth, customStartDate, customEndDate, searchQuery, accounts, categories]);
+  }, [transactions, activeFilter, selectedAccountFilterId, selectedCategoryFilter, dateFilterMode, selectedCustomMonth, customStartDate, customEndDate, searchQuery, accounts, categories]);
 
   const filteredCategories = useMemo(
     () =>
@@ -300,6 +318,24 @@ export default function TransactionsScreen() {
       }
     }
   }, [params?.editId, transactions, handleOpenEditTx]);
+
+  useEffect(() => {
+    const targetCat = pendingCategoryFilter || params?.category;
+    if (targetCat) {
+      const cat = targetCat.trim();
+      setSelectedAccountFilterId('all');
+      setDateFilterMode('all');
+      setSelectedCategoryFilter(cat);
+      if (cat.toLowerCase() === 'transfer') {
+        setActiveFilter('transfer');
+      } else {
+        setActiveFilter('all');
+      }
+      setSearchQuery('');
+      if (pendingCategoryFilter) setPendingCategoryFilter(null);
+      if (params?.category) router.setParams({ category: undefined });
+    }
+  }, [pendingCategoryFilter, params?.category]);
 
   const renderItem = useCallback(
     ({ item: tx }: { item: any }) => {
@@ -448,7 +484,7 @@ export default function TransactionsScreen() {
   const currentPlaceholders = getPlaceholders();
 
   // Label Helper for Filter Button
-  const isFilterActive = dateFilterMode !== 'all' || selectedAccountFilterId !== 'all';
+  const isFilterActive = dateFilterMode !== 'all' || selectedAccountFilterId !== 'all' || selectedCategoryFilter !== 'all';
 
   const getDateFilterLabel = () => {
     switch (dateFilterMode) {
@@ -466,6 +502,9 @@ export default function TransactionsScreen() {
   };
 
   const getFilterButtonLabel = () => {
+    if (selectedCategoryFilter !== 'all') {
+      return selectedCategoryFilter;
+    }
     const selectedAcc = accounts.find((a) => a.id === selectedAccountFilterId);
     const dateLabel = dateFilterMode !== 'all' ? getDateFilterLabel() : null;
     const accLabel = selectedAccountFilterId !== 'all' ? (selectedAcc ? selectedAcc.name : 'Bank') : null;
@@ -539,21 +578,23 @@ export default function TransactionsScreen() {
         className="flex-1"
         style={{ backgroundColor: '#F8F9FE' }}
         showsVerticalScrollIndicator={false}
-        stickyHeaderIndices={[1]}
+        stickyHeaderIndices={selectedCategoryFilter !== 'all' ? [0] : [1]}
         contentContainerStyle={{ paddingBottom: 140 }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#09090B']} />
         }
       >
-        {/* Child 0: Total Spend Chart Card (Cleanly scrolls away and disappears) */}
-        <View className="px-4 pt-2 mb-2">
-          {/* Spend Graph based on Spend with Dashboard Balance */}
-          <SpendChartCard
-            accounts={accounts}
-            transactions={transactions}
-            selectedAccountId={selectedAccountFilterId}
-          />
-        </View>
+        {/* Child 0: Total Spend Chart Card (Hidden while category filtering from financial analytics) */}
+        {selectedCategoryFilter === 'all' && (
+          <View className="px-4 pt-2 mb-2">
+            {/* Spend Graph based on Spend with Dashboard Balance */}
+            <SpendChartCard
+              accounts={accounts}
+              transactions={transactions}
+              selectedAccountId={selectedAccountFilterId}
+            />
+          </View>
+        )}
 
         {/* Child 1: Controls Section (STICKY right below the header!) */}
         <View style={{ backgroundColor: '#F8F9FE', zIndex: 10 }} className="px-4 pt-2 pb-3">
@@ -603,6 +644,7 @@ export default function TransactionsScreen() {
                     e.stopPropagation();
                     setDateFilterMode('all');
                     setSelectedAccountFilterId('all');
+                    setSelectedCategoryFilter('all');
                   }}
                   className="ml-0.5"
                 >
@@ -708,7 +750,7 @@ export default function TransactionsScreen() {
                   : `No transactions matched the "${activeFilter}" filter.`}
               </Text>
               {searchQuery || activeFilter !== 'all' || isFilterActive ? (
-                <Button size="sm" variant="outline" onPress={() => { setSearchQuery(''); setActiveFilter('all'); setDateFilterMode('all'); setSelectedAccountFilterId('all'); }}>
+                <Button size="sm" variant="outline" onPress={() => { setSearchQuery(''); setActiveFilter('all'); setDateFilterMode('all'); setSelectedAccountFilterId('all'); setSelectedCategoryFilter('all'); }}>
                   <Text className="text-zinc-900 font-semibold text-xs">Clear Search & Filters</Text>
                 </Button>
               ) : (
