@@ -8,7 +8,9 @@ INSERT INTO public.categories (name, type, is_default, icon, color) VALUES
   ('Rent & Housing', 'expense', true, 'home', '#8B5CF6'),
   ('Health & Fitness', 'expense', true, 'heart', '#10B981'),
   ('Entertainment', 'expense', true, 'tv', '#6366F1'),
-  ('Personal', 'expense', true, 'user', '#6B7280')
+  ('Personal', 'expense', true, 'user', '#6B7280'),
+  ('Investment', 'expense', true, 'trending-up', '#8B5CF6'),
+  ('Transfer', 'expense', true, 'arrow-right-left', '#3B82F6')
 ON CONFLICT DO NOTHING;
 
 -- Seed default global income categories
@@ -16,6 +18,7 @@ INSERT INTO public.categories (name, type, is_default, icon, color) VALUES
   ('Salary', 'income', true, 'briefcase', '#10B981'),
   ('Freelance', 'income', true, 'laptop', '#3B82F6'),
   ('Investment', 'income', true, 'trending-up', '#8B5CF6'),
+  ('Transfer', 'income', true, 'arrow-right-left', '#3B82F6'),
   ('Business', 'income', true, 'building', '#F59E0B'),
   ('Gift & Bonus', 'income', true, 'gift', '#EC4899')
 ON CONFLICT DO NOTHING;
