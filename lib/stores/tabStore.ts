@@ -6,6 +6,8 @@ interface TabStore {
   tabScrollRequested: number | null;
   requestScrollToTab: (index: number) => void;
   clearScrollRequest: () => void;
+  pendingCategoryFilter: string | null;
+  setPendingCategoryFilter: (category: string | null) => void;
 }
 
 export const useTabStore = create<TabStore>((set) => ({
@@ -14,4 +16,6 @@ export const useTabStore = create<TabStore>((set) => ({
   tabScrollRequested: null,
   requestScrollToTab: (index: number) => set({ tabScrollRequested: index, activeTabIndex: index }),
   clearScrollRequest: () => set({ tabScrollRequested: null }),
+  pendingCategoryFilter: null,
+  setPendingCategoryFilter: (category: string | null) => set({ pendingCategoryFilter: category }),
 }));
