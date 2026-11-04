@@ -2,6 +2,10 @@ import { supabase } from '../supabase';
 import { accountService } from './account.service';
 import { outboxService } from './outbox.service';
 import { generateUUID } from '../finance/core';
+import { categoryService, matchCategoryToUserCategories } from './category.service';
+import { smsStorage } from '../sms/storage/smsStore';
+import { CATEGORY_MAP } from '../sms/parser/merchantParser';
+import { queryClient } from '../queryClient';
 
 export interface Transaction {
   id: string;
@@ -360,6 +364,109 @@ export const transactionService = {
         return;
       }
       throw networkOrDbError;
+    }
+  },
+
+  /**
+   * Batch update category for all existing transactions matching a payee/description.
+   */
+  async batchUpdateCategoryForPayee(
+    userId: string,
+    payeeDescription: string,
+    newCategoryId: string
+  ): Promise<number> {
+    if (!userId || !payeeDescription || !newCategoryId) return 0;
+    try {
+      const cleanPayee = payeeDescription.trim();
+      const { data, error } = await supabase
+        .from('transactions')
+        .update({
+          category_id: newCategoryId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', userId)
+        .eq('description', cleanPayee)
+        .select('id');
+
+      if (error) throw error;
+      return data?.length || 0;
+    } catch (err) {
+      console.warn('[TransactionService] batchUpdateCategoryForPayee error:', err);
+      return 0;
+    }
+  },
+
+  /**
+   * Retroactively scans uncategorized transactions (where category_id is null)
+   * and links them to the correct budget category using learned mappings and keyword matching.
+   */
+  async autoCategorizeUncategorizedTransactions(userId: string): Promise<number> {
+    if (!userId) return 0;
+    try {
+      const userCategories = await categoryService.getCategories(userId);
+      const learnedCategories = await smsStorage.getLearnedCategories();
+      const recentTxs = await this.getTransactions(userId, 100);
+      const uncategorized = recentTxs.filter((t) => !t.category_id);
+      if (uncategorized.length === 0) return 0;
+
+      let categorizedCount = 0;
+      for (const tx of uncategorized) {
+        const descUpper = (tx.description || '').toUpperCase();
+
+        // 1. Check user learned mappings (e.g. user previously taught 8050027432 -> Food & Dining)
+        let targetCategoryName: string | undefined = undefined;
+        const learned = learnedCategories.find((lc) => {
+          const mk = (lc.merchantKey || '').trim().toUpperCase();
+          return mk && (descUpper === mk || descUpper.includes(mk));
+        });
+        if (learned) {
+          targetCategoryName = learned.categoryName;
+        }
+
+        // 2. Check intelligent default CATEGORY_MAP keywords (e.g. SWIGGY, ZOMATO, UBER, BLINKIT)
+        if (!targetCategoryName) {
+          for (const [catName, keywords] of Object.entries(CATEGORY_MAP)) {
+            if (keywords.some((kw) => descUpper.includes(kw))) {
+              targetCategoryName = catName;
+              break;
+            }
+          }
+        }
+
+        let matchedCategoryId: string | undefined = undefined;
+        if (targetCategoryName) {
+          const matched = matchCategoryToUserCategories(
+            targetCategoryName,
+            userCategories,
+            tx.type === 'income' ? 'income' : 'expense'
+          );
+          matchedCategoryId = matched?.id;
+        }
+
+        // If still uncategorized and it is an expense, default to user's 'Personal' category
+        if (!matchedCategoryId && tx.type === 'expense') {
+          const personalCat = userCategories.find(
+            (c) => c.name.toLowerCase() === 'personal' && c.type === 'expense'
+          );
+          matchedCategoryId = personalCat?.id;
+        }
+
+        if (matchedCategoryId) {
+          await this.updateTransaction(tx.id, { category_id: matchedCategoryId });
+          categorizedCount++;
+        }
+      }
+
+      if (categorizedCount > 0) {
+        queryClient.invalidateQueries({ queryKey: ['transactions'] });
+        queryClient.invalidateQueries({ queryKey: ['budgets'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      }
+
+      return categorizedCount;
+    } catch (err) {
+      console.warn('[AutoCategorize] Failed to auto-categorize:', err);
+      return 0;
     }
   },
 };
