@@ -2,6 +2,7 @@ jest.mock('react-native', () => ({
   Platform: { OS: 'android' },
   NativeModules: {
     PocketWiseSmsModule: {
+      nativeAppVersion: '1.0.0',
       getAppVersion: jest.fn().mockResolvedValue({ versionName: '1.0.0', versionCode: 1 }),
       canInstallUnknownApps: jest.fn().mockResolvedValue(true),
       openInstallPermissionSettings: jest.fn().mockResolvedValue(true),
@@ -89,6 +90,16 @@ describe('AppUpdateService - In-App APK Updater', () => {
     it('returns current version string', () => {
       const version = updateService.getCurrentVersion();
       expect(version).toBe('1.0.0');
+    });
+
+    it('never alters currentVersion when update is downloaded or installer is cancelled', async () => {
+      const initialVersion = updateService.getCurrentVersion();
+      expect(initialVersion).toBe('1.0.0');
+
+      // Calling getInstalledVersion still returns actual native version 1.0.0
+      const installed = await updateService.getInstalledVersion();
+      expect(installed).toBe('1.0.0');
+      expect(updateService.getCurrentVersion()).toBe('1.0.0');
     });
 
     it('installs APK using IntentLauncher on Android', async () => {

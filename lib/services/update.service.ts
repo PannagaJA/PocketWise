@@ -52,7 +52,7 @@ export class AppUpdateService {
 
   /**
    * Determine the currently installed app version.
-   * Ground truth is always the native Android package manager (versionName),
+   * Ground truth is strictly the native Android package manager (versionName),
    * falling back to expoConfig. Legacy simulated version tags in AsyncStorage are purged.
    */
   async getInstalledVersion(): Promise<string> {
@@ -61,10 +61,12 @@ export class AppUpdateService {
       await AsyncStorage.removeItem('pocketwise_installed_github_version');
     } catch {}
 
-    let nativeVersion: string | null = null;
-    if (Platform.OS === 'android' && PocketWiseSmsModule?.getAppVersion) {
+    const smsModule = NativeModules?.PocketWiseSmsModule;
+    let nativeVersion: string | null = smsModule?.nativeAppVersion || null;
+
+    if (!nativeVersion && Platform.OS === 'android' && smsModule?.getAppVersion) {
       try {
-        const info = await PocketWiseSmsModule.getAppVersion();
+        const info = await smsModule.getAppVersion();
         if (info?.versionName) {
           nativeVersion = info.versionName;
         }
@@ -94,6 +96,10 @@ export class AppUpdateService {
    * Synchronous getter for current app version
    */
   getCurrentVersion(): string {
+    const smsModule = NativeModules?.PocketWiseSmsModule;
+    const nativeVersion = smsModule?.nativeAppVersion;
+    if (nativeVersion) return nativeVersion;
+
     const expoVersion = Constants?.expoConfig?.version || (Constants as any)?.default?.expoConfig?.version;
     return this.cachedVersion || expoVersion || '1.0.11';
   }
