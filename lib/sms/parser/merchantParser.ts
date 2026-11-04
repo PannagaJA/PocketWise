@@ -42,6 +42,13 @@ export const CATEGORY_MAP: Record<string, string[]> = {
   'Entertainment': [
     'BOOKMYSHOW', 'PVR', 'INOX', 'CINEMA', 'PLAYSTATION', 'STEAM', 'GAMING', 'THEATRE', 'SHOW'
   ],
+  'Investment': [
+    'GROWW', 'ZERODHA', 'UPSTOX', 'KITE', 'INDMONEY', 'COIN', 'MUTUAL FUND', 'SIP', 'NPS',
+    'PPF', 'SECURITIES', 'SHAREKHAN', 'ANGEL ONE', 'MOTILAL OSWAL', 'PAYTM MONEY', 'SMALLCASE', 'KUVERA', 'ETMONEY'
+  ],
+  'Transfer': [
+    'TRANSFER', 'TRANSFERRED', 'NEFT', 'IMPS', 'RTGS', 'SENT TO', 'SELF TRANSFER', 'FUND TRANSFER', 'TO A/C', 'TO ACCOUNT'
+  ],
 };
 
 /**
@@ -72,8 +79,8 @@ export function extractMerchantAndCategory(
       /(?:trf\s+to|transfer\s+to|transferred\s+to)\s+([A-Za-z0-9\s._&-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
       // "paid to <Name>" or "spent at <Name>" or "purchase at <Name>"
       /(?:paid\s+to|spent\s+at|spent\s+on|purchase\s+at|sent\s+to|\bat)\s+([A-Za-z0-9._-]+@[a-zA-Z0-9]+|[A-Za-z0-9\s._&-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
-      // "towards <Purpose/Name>" or "in favour of <Name>"
-      /(?:towards|in\s+favour\s+of|info:\s*|desc:\s*)\s+([A-Za-z0-9\s._&-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
+      // "towards <Purpose/Name>" or "for <Purpose/Name>" or "in favour of <Name>"
+      /(?:towards|for|in\s+favour\s+of|info:\s*|desc:\s*)\s+([A-Za-z0-9\s._&-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
       // "refund from <Name>" or "received from <Name>" or "credited by <Name>"
       /(?:refund\s+from|received\s+from|credited\s+by|credited\s+from|cr\.\s+to|cr\s+to)\s+([A-Za-z0-9._-]+@[a-zA-Z0-9]+|[A-Za-z0-9\s._&-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|to|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
       // Standalone VPA
@@ -168,10 +175,23 @@ export function extractMerchantAndCategory(
     };
   }
 
-  // 6. Match against Intelligent Default Categories
+  // 6. Match against Intelligent Default Categories (merchant key first, then SMS body context)
   for (const [categoryName, keywords] of Object.entries(CATEGORY_MAP)) {
     for (const kw of keywords) {
       if (upperKey.includes(kw)) {
+        return {
+          merchant: formattedMerchant,
+          originalMerchant: rawExtracted,
+          category: categoryName,
+        };
+      }
+    }
+  }
+
+  const upperBody = body.toUpperCase();
+  for (const [categoryName, keywords] of Object.entries(CATEGORY_MAP)) {
+    for (const kw of keywords) {
+      if (upperBody.includes(kw)) {
         return {
           merchant: formattedMerchant,
           originalMerchant: rawExtracted,
