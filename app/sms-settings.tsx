@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
-import { ChevronLeft, ShieldCheck, Smartphone, Building2, CheckCircle2, AlertTriangle, RefreshCw, Sparkles, Info } from 'lucide-react-native';
+import { ChevronLeft, ShieldCheck, Smartphone, Building2, CheckCircle2, AlertTriangle, RefreshCw, Info } from 'lucide-react-native';
 import { smsStorage } from '../lib/sms/storage/smsStore';
 import { smsListenerService } from '../lib/sms/service/smsListenerService';
 import { AccountMapping, SmsTrackingSettings, ParsedSmsTransaction } from '../lib/sms/types';
