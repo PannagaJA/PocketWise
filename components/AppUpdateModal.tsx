@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { AppBottomSheet } from './ui/AppBottomSheet';
 import { useUpdateStore } from '../lib/stores/updateStore';
-import { Sparkles, Download, ArrowRight, ShieldCheck, AlertCircle, RefreshCw, CheckCircle2 } from 'lucide-react-native';
+import { Download, ArrowRight, ShieldCheck, AlertCircle, RefreshCw, CheckCircle2 } from 'lucide-react-native';
 
 function formatBytes(bytes: number): string {
   if (bytes <= 0 || !bytes) return '104 MB';
@@ -96,7 +96,7 @@ export const AppUpdateModal: React.FC = () => {
             </View>
 
             <View style={styles.latestBadge}>
-              <View style={styles.sparkleWrap}>
+              <View style={styles.badgeWrap}>
                 <Text style={styles.badgeLabelActive}>LATEST</Text>
               </View>
               <Text style={styles.latestVersionText}>v{updateInfo.version}</Text>
@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     marginBottom: 2,
   },
-  sparkleWrap: {
+  badgeWrap: {
     flexDirection: 'row',
     alignItems: 'center',
   },
