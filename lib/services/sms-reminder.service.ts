@@ -16,6 +16,7 @@ import { requireOptionalNativeModule } from 'expo-modules-core';
  * This prevents crashes in Expo Go or builds where expo-contacts has not yet been compiled.
  */
 export function isContactsNativeModuleAvailable(): boolean {
+  if (Platform.OS === 'android') return true;
   try {
     const nextMod = requireOptionalNativeModule('ExpoContactsNext');
     if (nextMod) return true;
@@ -32,60 +33,139 @@ export function isContactsNativeModuleAvailable(): boolean {
  * Allows the user to choose a person from their phone contacts.
  */
 export async function pickContactFromDevice(): Promise<PickedContactResult> {
-  // Guard: if native binary doesn't have the module compiled, don't trigger the crash
-  if (!isContactsNativeModuleAvailable()) {
-    return {
-      success: false,
-      reason: 'unavailable',
-      error:
-        'Phone contacts picker requires a development build (npx expo run:android). You can type the customer name and mobile number manually below.',
-    };
+  // 1. Android Native Direct Picker (Fastest, cleanest & guaranteed to return name + phone)
+  if (Platform.OS === 'android') {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { NativeModules } = require('react-native');
+      const smsMod = NativeModules.PocketWiseSmsModule;
+      if (smsMod && typeof smsMod.pickContact === 'function') {
+        const nativeResult = await smsMod.pickContact();
+        if (!nativeResult) {
+          return { success: false, reason: 'cancelled' };
+        }
+        const name = (nativeResult.name || '').trim();
+        const rawPhone = (nativeResult.phone || '').trim();
+        const cleanPhone = rawPhone.replace(/[\s\-\(\)]/g, '').trim();
+
+        if (name || cleanPhone) {
+          return {
+            success: true,
+            name,
+            phone: cleanPhone,
+          };
+        }
+      }
+    } catch (e: any) {
+      console.warn('[ContactPicker] Native pickContact error, attempting expo-contacts fallback:', e);
+    }
   }
 
+  // 2. Fallback to expo-contacts (iOS and fallback)
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const Contacts = require('expo-contacts');
 
-    const perm = await Contacts.requestPermissionsAsync();
-    if (perm.status !== 'granted') {
-      return {
-        success: false,
-        reason: 'permission_denied',
-        error: 'Contacts permission was not granted. You can type the customer name and number manually.',
-      };
+    if (Contacts.requestPermissionsAsync) {
+      const perm = await Contacts.requestPermissionsAsync();
+      if (perm.status !== 'granted') {
+        return {
+          success: false,
+          reason: 'permission_denied',
+          error: 'Contacts permission was not granted. You can type the customer name and number manually.',
+        };
+      }
     }
 
-    if (!Contacts.Contact || typeof Contacts.Contact.presentPicker !== 'function') {
-      return {
-        success: false,
-        reason: 'unavailable',
-        error: 'Contact picker is not supported on this platform. Please enter details manually.',
-      };
+    let contact: any = null;
+
+    // Try modern Contact.presentPicker()
+    if (Contacts.Contact && typeof Contacts.Contact.presentPicker === 'function') {
+      try {
+        contact = await Contacts.Contact.presentPicker();
+      } catch (e) {
+        console.warn('[ContactPicker] Contact.presentPicker threw:', e);
+      }
     }
 
-    const contact = await Contacts.Contact.presentPicker();
+    // Try legacy presentContactPickerAsync if modern returned nothing
+    if (!contact) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const legacyContacts = require('expo-contacts/legacy');
+        if (typeof legacyContacts?.presentContactPickerAsync === 'function') {
+          contact = await legacyContacts.presentContactPickerAsync();
+        }
+      } catch (e) {
+        console.warn('[ContactPicker] legacy presentContactPickerAsync threw:', e);
+      }
+    }
+
     if (!contact) {
       return { success: false, reason: 'cancelled' };
     }
 
     let name = '';
-    try {
-      name = (await contact.getFullName()) || '';
-    } catch {
+    // Check direct name properties
+    if (typeof contact.name === 'string' && contact.name.trim()) {
+      name = contact.name.trim();
+    } else if (typeof contact.fullName === 'string' && contact.fullName.trim()) {
+      name = contact.fullName.trim();
+    } else if (typeof contact.displayName === 'string' && contact.displayName.trim()) {
+      name = contact.displayName.trim();
+    }
+
+    // Check async getter methods
+    if (!name && typeof contact.getFullName === 'function') {
+      try {
+        name = (await contact.getFullName()) || '';
+      } catch {}
+    }
+
+    if (!name && typeof contact.getGivenName === 'function') {
       try {
         const given = (await contact.getGivenName()) || '';
-        const family = (await contact.getFamilyName()) || '';
+        const family = typeof contact.getFamilyName === 'function' ? (await contact.getFamilyName()) || '' : '';
         name = `${given} ${family}`.trim();
       } catch {}
     }
 
+    if (!name && (contact.firstName || contact.givenName || contact.lastName || contact.familyName)) {
+      const first = contact.firstName || contact.givenName || '';
+      const last = contact.lastName || contact.familyName || '';
+      name = `${first} ${last}`.trim();
+    }
+
     let phone = '';
-    try {
-      const phones = await contact.getPhones();
-      if (phones && phones.length > 0) {
-        phone = phones[0].number || '';
-      }
-    } catch {}
+    // Check direct phone properties
+    if (Array.isArray(contact.phoneNumbers) && contact.phoneNumbers.length > 0) {
+      phone = contact.phoneNumbers[0]?.number || contact.phoneNumbers[0]?.digits || '';
+    } else if (Array.isArray(contact.phones) && contact.phones.length > 0) {
+      phone = contact.phones[0]?.number || (typeof contact.phones[0] === 'string' ? contact.phones[0] : '');
+    }
+
+    // Check async getter methods
+    if (!phone && typeof contact.getPhones === 'function') {
+      try {
+        const phones = await contact.getPhones();
+        if (Array.isArray(phones) && phones.length > 0) {
+          phone = phones[0]?.number || '';
+        }
+      } catch {}
+    }
+
+    // Check getDetails method if available
+    if ((!name || !phone) && typeof contact.getDetails === 'function') {
+      try {
+        const details = await contact.getDetails(['fullName', 'givenName', 'familyName', 'phones']);
+        if (!name && details) {
+          name = details.fullName || `${details.givenName || ''} ${details.familyName || ''}`.trim();
+        }
+        if (!phone && details?.phones && details.phones.length > 0) {
+          phone = details.phones[0]?.number || '';
+        }
+      } catch {}
+    }
 
     // Clean up phone number (retain digits and +)
     const cleanPhone = phone.replace(/[\s\-\(\)]/g, '').trim();
