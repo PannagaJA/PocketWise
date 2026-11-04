@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, ScrollView, Pressable, TouchableOpacity, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -7,16 +7,19 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { AppBottomSheet } from '../components/ui/AppBottomSheet';
 import { AppLoadingIndicator } from '../components/ui/AppLoadingIndicator';
+import { RecordRow } from '../components/ui/RecordRow';
+import { TransactionDetailModal } from '../components/TransactionDetailModal';
 import { useAuth } from '../context/AuthContext';
-import { reportService } from '../lib/services/report.service';
+import { reportService, CategorySpending } from '../lib/services/report.service';
 import { budgetService, Budget } from '../lib/services/budget.service';
 import { goalService, Goal } from '../lib/services/goal.service';
 import { transactionService } from '../lib/services/transaction.service';
 import { exportService } from '../lib/services/export.service';
-import { formatMoney } from '../lib/finance/core';
-import { ArrowLeft, TrendingUp, PieChart as PieIcon, CreditCard, Calendar, Target, Share2, FileSpreadsheet, FileText, X } from 'lucide-react-native';
+import { formatMoney, formatDate } from '../lib/finance/core';
+import { ArrowLeft, TrendingUp, PieChart as PieIcon, CreditCard, Calendar, Target, Share2, FileSpreadsheet, FileText, X, ChevronRight, ArrowRight, ArrowRightLeft } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useModuleBack } from '../lib/navigation/moduleBack';
+import { useTabStore } from '../lib/stores/tabStore';
 
 type PeriodOption = 'this_month' | '3_months' | '6_months' | 'this_year';
 
@@ -29,6 +32,12 @@ export default function ReportsScreen() {
   const [exportModalVisible, setExportModalVisible] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportingMessage, setExportingMessage] = useState('Preparing export statement...');
+
+  // Category transactions drilldown modal
+  const [selectedCategory, setSelectedCategory] = useState<CategorySpending | null>(null);
+  const [categoryModalVisible, setCategoryModalVisible] = useState(false);
+  const [detailTx, setDetailTx] = useState<any | null>(null);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
 
   const getDateRange = (selectedPeriod: PeriodOption) => {
     const now = new Date();
@@ -71,6 +80,53 @@ export default function ReportsScreen() {
     enabled: !!user?.id,
   });
 
+  const { data: periodTransactions = [], isLoading: loadingPeriodTxs, refetch: refetchPeriodTxs } = useQuery({
+    queryKey: ['reports', 'periodTransactions', user?.id, startDate, endDate],
+    queryFn: () => transactionService.getTransactionsByDateRange(user?.id || '', startDate, endDate),
+    enabled: !!user?.id,
+  });
+
+  // Filter transactions for the selected category modal
+  const categoryTransactions = useMemo(() => {
+    if (!selectedCategory) return [];
+    const targetCatId = selectedCategory.categoryId;
+    const targetCatName = (selectedCategory.categoryName || '').toLowerCase().trim();
+
+    return periodTransactions.filter((tx: any) => {
+      const txCatId = tx.category_id;
+      const txCatName = (
+        tx.category?.name ||
+        (Array.isArray(tx.category) && (tx.category as any)[0]?.name) ||
+        ''
+      ).toLowerCase().trim();
+
+      // Explicit category id match
+      if (targetCatId && targetCatId !== 'unassigned' && txCatId === targetCatId) return true;
+
+      // Explicit category name match
+      if (txCatName && txCatName === targetCatName) return true;
+
+      // Transfer handling
+      if (targetCatName === 'transfer') {
+        if (tx.type === 'transfer') return true;
+        if (tx.description?.toLowerCase().includes('transfer') || /\btrf\b/i.test(tx.description || '')) return true;
+      }
+
+      // Fallback Personal (uncategorized expenses)
+      if (targetCatName === 'personal' && (!txCatId || !txCatName) && tx.type === 'expense') {
+        return true;
+      }
+
+      return false;
+    });
+  }, [periodTransactions, selectedCategory]);
+
+  const handleOpenCategory = (cat: CategorySpending) => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    setSelectedCategory(cat);
+    setCategoryModalVisible(true);
+  };
+
   const { data: subsAnalytics, refetch: refetchSubs } = useQuery({
     queryKey: ['reports', 'subscriptions', user?.id],
     queryFn: () => reportService.getSubscriptionAnalytics(user?.id || ''),
@@ -100,6 +156,7 @@ export default function ReportsScreen() {
     await Promise.all([
       refetchSummary(),
       refetchCats(),
+      refetchPeriodTxs(),
       refetchSubs(),
       refetchCommitments(),
       refetchBudgets(),
@@ -350,7 +407,12 @@ export default function ReportsScreen() {
                   <Text className="text-xs text-zinc-400 text-center py-2">No category expenses recorded</Text>
                 ) : (
                   categories.slice(0, 5).map((cat, idx) => (
-                    <View key={cat.categoryId} className="mb-4 last:mb-0">
+                    <TouchableOpacity
+                      key={cat.categoryId}
+                      activeOpacity={0.7}
+                      onPress={() => handleOpenCategory(cat)}
+                      className="mb-4 last:mb-0 p-2.5 -mx-2.5 rounded-2xl active:bg-zinc-50"
+                    >
                       <View className="flex-row justify-between items-center mb-2">
                         <View className="flex-row items-center gap-2.5 flex-1 pr-2">
                           <View className="w-6 h-6 rounded-full bg-zinc-100 items-center justify-center">
@@ -361,13 +423,16 @@ export default function ReportsScreen() {
                             {cat.categoryName}
                           </Text>
                         </View>
-                        <View className="items-end">
-                          <Text className="text-sm font-black text-zinc-900">
-                            {formatMoney(cat.amountMinor)}
-                          </Text>
-                          <Text className="text-[10px] font-bold text-zinc-400">
-                            {cat.percentage}% of total
-                          </Text>
+                        <View className="flex-row items-center gap-2">
+                          <View className="items-end">
+                            <Text className="text-sm font-black text-zinc-900">
+                              {formatMoney(cat.amountMinor)}
+                            </Text>
+                            <Text className="text-[10px] font-bold text-zinc-400">
+                              {cat.percentage}% of total
+                            </Text>
+                          </View>
+                          <ChevronRight size={14} color="#A1A1AA" />
                         </View>
                       </View>
                       <View className="w-full h-2 bg-zinc-100 rounded-full overflow-hidden">
@@ -379,7 +444,7 @@ export default function ReportsScreen() {
                           }}
                         />
                       </View>
-                    </View>
+                    </TouchableOpacity>
                   ))
                 )}
               </Card>
@@ -599,6 +664,103 @@ export default function ReportsScreen() {
           </View>
         )}
       </AppBottomSheet>
+
+      {/* Category Breakdown Transactions Drilldown Modal */}
+      <AppBottomSheet
+        visible={categoryModalVisible}
+        onClose={() => setCategoryModalVisible(false)}
+        title={selectedCategory ? `${selectedCategory.categoryName} Expenses` : 'Category Expenses'}
+        subtitle={
+          selectedCategory
+            ? `${formatMoney(selectedCategory.amountMinor)} • ${selectedCategory.percentage}% of total expenses`
+            : undefined
+        }
+        scrollable={true}
+        contentContainerStyle={{ paddingBottom: 24 }}
+      >
+        <View>
+          {loadingPeriodTxs ? (
+            <View className="py-12 items-center justify-center">
+              <ActivityIndicator size="small" color="#09090B" />
+              <Text className="text-xs text-zinc-400 font-medium mt-2">Loading transactions...</Text>
+            </View>
+          ) : categoryTransactions.length === 0 ? (
+            <View className="py-8 items-center justify-center">
+              <Text className="text-sm font-bold text-zinc-800">No transactions found</Text>
+              <Text className="text-xs text-zinc-400 mt-1 text-center">
+                No matching transactions recorded for this period.
+              </Text>
+            </View>
+          ) : (
+            <View className="mb-4">
+              {categoryTransactions.map((tx: any) => {
+                const accountName =
+                  tx.account?.name ||
+                  (Array.isArray(tx.account) && (tx.account as any)[0]?.name) ||
+                  'Account';
+                const isTransfer =
+                  tx.type === 'transfer' ||
+                  selectedCategory?.categoryName?.toLowerCase() === 'transfer';
+
+                return (
+                  <View key={tx.id} className="mb-2.5 bg-white rounded-2xl px-3.5 py-0.5 border border-zinc-100 shadow-xs">
+                    <RecordRow
+                      title={tx.description || 'Transaction'}
+                      subtitle={`${formatDate(tx.date)} • ${accountName}`}
+                      amount={`-${formatMoney(tx.amount_minor)}`}
+                      isCredit={false}
+                      icon={
+                        isTransfer ? (
+                          <ArrowRightLeft size={16} color="#4F46E5" strokeWidth={2.5} />
+                        ) : undefined
+                      }
+                      iconBgColor={isTransfer ? '#EEF2FF' : selectedCategory?.categoryColor ? `${selectedCategory.categoryColor}15` : undefined}
+                      iconColor={isTransfer ? '#4F46E5' : selectedCategory?.categoryColor || '#EF4444'}
+                      onPress={() => {
+                        setDetailTx(tx);
+                        setDetailModalVisible(true);
+                      }}
+                      showDivider={false}
+                    />
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Action button to jump to Transactions screen */}
+          <Button
+            variant="outline"
+            size="md"
+            className="w-full rounded-2xl flex-row items-center justify-center border-zinc-200 mt-2"
+            onPress={() => {
+              const catName = selectedCategory?.categoryName;
+              setCategoryModalVisible(false);
+              if (catName) {
+                useTabStore.getState().setPendingCategoryFilter(catName);
+              }
+              useTabStore.getState().requestScrollToTab(1);
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/(tabs)');
+              }
+            }}
+          >
+            <Text className="text-zinc-900 font-bold text-xs mr-1.5">View in Transactions Tab</Text>
+            <ArrowRight size={14} color="#18181B" />
+          </Button>
+        </View>
+      </AppBottomSheet>
+
+      {/* Transaction Detail Modal */}
+      <TransactionDetailModal
+        visible={detailModalVisible}
+        transaction={detailTx}
+        account={detailTx?.account}
+        category={selectedCategory ? { name: selectedCategory.categoryName, color: selectedCategory.categoryColor } : detailTx?.category}
+        onClose={() => setDetailModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }
