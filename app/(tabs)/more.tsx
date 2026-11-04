@@ -12,7 +12,7 @@ import { useAuth } from '../../context/AuthContext';
 import { appLockService } from '../../lib/security/app-lock.service';
 import { useUpdateStore } from '../../lib/stores/updateStore';
 import { updateService } from '../../lib/services/update.service';
-import { Fingerprint, Bell, Database, LogOut, ChevronRight, Calendar, Target, Lock, PieChart, X, Smartphone, Zap, HandCoins, Clock, CloudDownload, Sparkles, CheckCircle2 } from 'lucide-react-native';
+import { Fingerprint, Bell, Database, LogOut, ChevronRight, Calendar, Target, Lock, PieChart, X, Smartphone, Zap, HandCoins, Clock, CloudDownload, CheckCircle2 } from 'lucide-react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as Haptics from 'expo-haptics';
 
@@ -376,7 +376,6 @@ export default function MoreScreen() {
                     </View>
                   ) : updateInfo ? (
                     <View className="bg-indigo-100 px-2 py-0.5 rounded-full flex-row items-center">
-                      <Sparkles size={10} color="#4338CA" style={{ marginRight: 2 }} />
                       <Text className="text-[10px] font-extrabold text-indigo-700">UPDATE READY</Text>
                     </View>
                   ) : null}
