@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   PanResponder,
+  AppState,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -222,6 +223,15 @@ export const AppModal: React.FC<AppModalProps> = ({
       if (isDismissingRef.current) {
         return;
       }
+      if (isLocked || AppState.currentState !== 'active') {
+        // App is locked or in background - immediately unmount without animation
+        setRendered(false);
+        isDismissingRef.current = false;
+        fadeAnim.setValue(0);
+        slideAnim.setValue(stableScreenHeight);
+        scaleAnim.setValue(0.92);
+        return;
+      }
       isDismissingRef.current = true;
       Keyboard.dismiss();
       Animated.timing(keyboardOffsetAnim, {
@@ -282,14 +292,36 @@ export const AppModal: React.FC<AppModalProps> = ({
     return () => backHandler.remove();
   }, [visible, isLocked, handleClose]);
 
-  // Immediately dismiss modal if the app transitions to locked state
+  // Immediately dismiss and unmount modal if the app transitions to locked state
   useEffect(() => {
-    if (isLocked && rendered) {
+    if (isLocked) {
+      setRendered(false);
+      isDismissingRef.current = false;
+      fadeAnim.setValue(0);
+      slideAnim.setValue(stableScreenHeight);
+      scaleAnim.setValue(0.92);
       if (handleClose) {
         handleClose();
       }
     }
-  }, [isLocked, rendered, handleClose]);
+  }, [isLocked, handleClose]);
+
+  // Immediately dismiss and unmount modal when the app moves to background or becomes inactive
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'background' || nextState === 'inactive') {
+        setRendered(false);
+        isDismissingRef.current = false;
+        fadeAnim.setValue(0);
+        slideAnim.setValue(stableScreenHeight);
+        scaleAnim.setValue(0.92);
+        if (handleClose) {
+          handleClose();
+        }
+      }
+    });
+    return () => sub.remove();
+  }, [handleClose]);
 
   if (!rendered || isLocked) return null;
 

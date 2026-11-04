@@ -165,8 +165,12 @@ export default function DashboardScreen() {
     useCallback(() => {
       const onBackPress = () => {
         if (isLocked) {
-          // Handled by AppLockGate modal or OS when locked
+          // Handled by AppLockGate when locked
           return false;
+        }
+        if (exitModalVisible) {
+          setExitModalVisible(false);
+          return true;
         }
         try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
         setExitModalVisible(true);
@@ -175,7 +179,7 @@ export default function DashboardScreen() {
 
       const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
       return () => subscription.remove();
-    }, [isLocked])
+    }, [isLocked, exitModalVisible])
   );
 
   // Auto-dismiss exit modal and overlay dialogs whenever the app locks or moves to background

@@ -20,6 +20,8 @@ export function AppLockGate({ children }: AppLockGateProps) {
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
   const backgroundTimestampRef = useRef<number | null>(null);
   const isAuthenticatingRef = useRef(false);
+  const lockEnabledRef = useRef(false);
+  const lockTimeoutRef = useRef(30);
 
   useEffect(() => {
     checkAppLockState();
@@ -49,8 +51,20 @@ export function AppLockGate({ children }: AppLockGateProps) {
       if (backgroundTimestampRef.current === null) {
         backgroundTimestampRef.current = Date.now();
       }
+      // If immediate lock is configured (timeout = 0), lock immediately upon leaving
+      if (lockEnabledRef.current && lockTimeoutRef.current === 0) {
+        setIsLocked(true);
+        deepLinkService.setLockedState(true);
+      }
     } else if (nextAppState === 'active') {
       if (backgroundTimestampRef.current !== null) {
+        const elapsed = (Date.now() - backgroundTimestampRef.current) / 1000;
+        // Fast-path synchronous lock check to prevent any flash of dashboard or dialogs
+        if (lockEnabledRef.current && (lockTimeoutRef.current === 0 || (lockTimeoutRef.current > 0 && elapsed >= lockTimeoutRef.current))) {
+          setIsLocked(true);
+          deepLinkService.setLockedState(true);
+        }
+
         const needsRelock = await appLockService.shouldRelock(backgroundTimestampRef.current);
         if (needsRelock) {
           setIsLocked(true);
@@ -70,6 +84,10 @@ export function AppLockGate({ children }: AppLockGateProps) {
 
   const checkAppLockState = async () => {
     const enabled = await appLockService.isAppLockEnabled();
+    const timeout = await appLockService.getLockTimeout();
+    lockEnabledRef.current = enabled;
+    lockTimeoutRef.current = timeout;
+
     if (enabled) {
       setIsLocked(true);
       deepLinkService.setLockedState(true);

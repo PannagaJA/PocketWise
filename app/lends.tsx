@@ -93,27 +93,36 @@ const DATE_PRESETS = [
 function parseRecordNotes(
   rawNotes?: string,
   phoneNumber?: string
-): { userNotes: string; paymentLogs: string[] } {
-  if (!rawNotes) return { userNotes: '', paymentLogs: [] };
+): { userNotes: string; paymentLogs: string[]; displayPhone?: string } {
+  if (!rawNotes) return { userNotes: '', paymentLogs: [], displayPhone: phoneNumber };
 
   const parts = rawNotes
     .split(/(?:•|\n)+/)
     .map((s) => s.trim())
     .filter(Boolean);
 
-  const cleanPhone = (phoneNumber || '').replace(/\D/g, '');
+  let cleanPhone = (phoneNumber || '').replace(/\D/g, '');
+  let displayPhone = phoneNumber;
   const paymentLogs: string[] = [];
   const otherNotes: string[] = [];
 
   for (const part of parts) {
     if (part.toLowerCase().startsWith('phone:')) {
-      const extractedDigits = part.replace(/\D/g, '');
-      if (cleanPhone && (extractedDigits.includes(cleanPhone) || cleanPhone.includes(extractedDigits))) {
-        continue;
+      const extractedNumber = part.replace(/^phone:\s*/i, '').trim();
+      const extractedDigits = extractedNumber.replace(/\D/g, '');
+      if (!displayPhone && extractedDigits.length >= 7) {
+        displayPhone = extractedNumber;
+        cleanPhone = extractedDigits;
       }
+      // Never display "Phone: ..." as a general user note
+      continue;
     }
 
-    if (part.toLowerCase().startsWith('received ')) {
+    if (
+      part.toLowerCase().startsWith('received ') ||
+      part.toLowerCase().startsWith('collected ') ||
+      part.toLowerCase().includes('partial payment')
+    ) {
       paymentLogs.push(part);
     } else {
       otherNotes.push(part);
@@ -123,6 +132,7 @@ function parseRecordNotes(
   return {
     userNotes: otherNotes.join(' • '),
     paymentLogs,
+    displayPhone,
   };
 }
 
@@ -682,7 +692,8 @@ export default function LendsScreen() {
               const isOverdue = record.status === 'overdue';
               const isCollected = record.status === 'collected';
               const dayBadge = getDaysLabel(record.dueDate, record.status);
-              const { userNotes, paymentLogs } = parseRecordNotes(record.notes, record.phoneNumber);
+              const { userNotes, paymentLogs, displayPhone } = parseRecordNotes(record.notes, record.phoneNumber);
+              const effectivePhone = record.phoneNumber || displayPhone;
 
               return (
                 <Card key={record.id} className="mb-3.5 p-4 bg-white border border-zinc-100 rounded-3xl shadow-xs">
@@ -710,20 +721,20 @@ export default function LendsScreen() {
                           <Text className="text-xs text-zinc-500">
                             Lent on {formatDate(record.lentDate)}
                           </Text>
-                          {record.phoneNumber ? (
+                          {effectivePhone ? (
                             !isCollected ? (
                               <TouchableOpacity
                                 activeOpacity={0.7}
-                                onPress={() => openSmsModal(record)}
+                                onPress={() => openSmsModal({ ...record, phoneNumber: effectivePhone })}
                                 className="flex-row items-center gap-1 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full"
                               >
                                 <Phone size={10} color="#6366F1" />
-                                <Text className="text-[10px] font-bold text-indigo-700">{record.phoneNumber}</Text>
+                                <Text className="text-[10px] font-bold text-indigo-700">{effectivePhone}</Text>
                               </TouchableOpacity>
                             ) : (
                               <View className="flex-row items-center gap-1 bg-zinc-100 border border-zinc-200 px-2 py-0.5 rounded-full">
                                 <Phone size={10} color="#71717A" />
-                                <Text className="text-[10px] font-medium text-zinc-500">{record.phoneNumber}</Text>
+                                <Text className="text-[10px] font-medium text-zinc-500">{effectivePhone}</Text>
                               </View>
                             )
                           ) : null}
