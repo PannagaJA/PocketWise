@@ -443,6 +443,14 @@ export const transactionService = {
           matchedCategoryId = matched?.id;
         }
 
+        // If still uncategorized and it is a transfer, default to 'Transfer' category
+        if (!matchedCategoryId && tx.type === 'transfer') {
+          const transferCat = userCategories.find(
+            (c) => c.name.toLowerCase() === 'transfer'
+          );
+          matchedCategoryId = transferCat?.id;
+        }
+
         // If still uncategorized and it is an expense, default to user's 'Personal' category
         if (!matchedCategoryId && tx.type === 'expense') {
           const personalCat = userCategories.find(
