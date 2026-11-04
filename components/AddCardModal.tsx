@@ -6,7 +6,7 @@ import {
   StyleSheet,
   TextInput,
 } from 'react-native';
-import { CreditCard, ShieldCheck, Sparkles, AlertCircle } from 'lucide-react-native';
+import { CreditCard, ShieldCheck, AlertCircle } from 'lucide-react-native';
 import { AppBottomSheet } from './ui/AppBottomSheet';
 import { AppTextInput } from './ui/AppTextInput';
 import { AppLoadingIndicator } from './ui/AppLoadingIndicator';
@@ -272,7 +272,6 @@ export const AddCardModal: React.FC<AddCardModalProps> = ({
                 <Text style={styles.autoCardTitle}>Card Credentials</Text>
               </View>
               <View style={styles.autoBadge}>
-                <Sparkles size={11} color="#4338CA" style={{ marginRight: 3 }} />
                 <Text style={styles.autoBadgeText}>AUTO-GENERATED</Text>
               </View>
             </View>
