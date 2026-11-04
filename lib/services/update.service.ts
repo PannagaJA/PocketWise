@@ -76,7 +76,7 @@ export class AppUpdateService {
     }
 
     const expoVersion = Constants?.expoConfig?.version || (Constants as any)?.default?.expoConfig?.version;
-    const baseVersion = nativeVersion || expoVersion || '1.0.11';
+    const baseVersion = nativeVersion || expoVersion || '1.0.12';
 
     this.cachedVersion = baseVersion;
     return baseVersion;
@@ -101,7 +101,7 @@ export class AppUpdateService {
     if (nativeVersion) return nativeVersion;
 
     const expoVersion = Constants?.expoConfig?.version || (Constants as any)?.default?.expoConfig?.version;
-    return this.cachedVersion || expoVersion || '1.0.11';
+    return this.cachedVersion || expoVersion || '1.0.12';
   }
 
   /**
