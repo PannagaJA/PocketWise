@@ -552,6 +552,27 @@ describe('Android Bank SMS Transaction Auto-Detection Parser Pipeline', () => {
     expect(isGenericDescription('8050027432')).toBe(false);
     expect(isGenericDescription('Electricity Bill')).toBe(false);
   });
+
+  // Test 28: matchCategoryToUserCategories accurately matches canonical names and synonyms
+  test('28. matchCategoryToUserCategories resolves exact and synonym categories for budgets', () => {
+    const { matchCategoryToUserCategories } = require('../lib/services/category.service');
+    const mockCategories = [
+      { id: 'cat_food', name: 'Food & Dining', type: 'expense' },
+      { id: 'cat_groceries', name: 'Groceries', type: 'expense' },
+      { id: 'cat_transport', name: 'Transport', type: 'expense' },
+      { id: 'cat_bills', name: 'Bills & Utilities', type: 'expense' },
+      { id: 'cat_subs', name: 'Subscriptions', type: 'expense' },
+      { id: 'cat_salary', name: 'Salary', type: 'income' },
+    ];
+
+    expect(matchCategoryToUserCategories('Food & Dining', mockCategories)?.id).toBe('cat_food');
+    expect(matchCategoryToUserCategories('Groceries', mockCategories)?.id).toBe('cat_groceries');
+    expect(matchCategoryToUserCategories('Transportation', mockCategories)?.id).toBe('cat_transport');
+    expect(matchCategoryToUserCategories('Fuel', mockCategories)?.id).toBe('cat_transport');
+    expect(matchCategoryToUserCategories('Bills & Utilities', mockCategories)?.id).toBe('cat_bills');
+    expect(matchCategoryToUserCategories('Subscriptions', mockCategories)?.id).toBe('cat_subs');
+    expect(matchCategoryToUserCategories('Salary', mockCategories, 'income')?.id).toBe('cat_salary');
+  });
 });
 
 
