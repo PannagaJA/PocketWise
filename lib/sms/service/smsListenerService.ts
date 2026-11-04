@@ -333,10 +333,20 @@ class SmsListenerService {
     // Clean merchant/payee formatting: Avoid 'Bank Transaction (Unknown)' label
     let merchantLabel = parsedTx.merchant && parsedTx.merchant !== 'Bank Transaction' ? parsedTx.merchant : '';
     if (!merchantLabel) {
-      merchantLabel = parsedTx.type === 'income' ? 'Received Payment' : 'Bank Payment';
+      if (parsedTx.originalMerchant && parsedTx.originalMerchant.includes('@')) {
+        merchantLabel = parsedTx.originalMerchant.split('@')[0].trim();
+      } else {
+        merchantLabel = parsedTx.type === 'income' ? 'Received Payment' : 'Bank Payment';
+      }
     }
 
-    const paymentTag = parsedTx.paymentMethod && parsedTx.paymentMethod !== 'Unknown' ? ` (${parsedTx.paymentMethod})` : '';
+    // Strip any lingering @upi / @vpa suffixes so payee stays completely clean without '@upi'
+    if (merchantLabel.includes('@')) {
+      merchantLabel = merchantLabel.split('@')[0].trim();
+    }
+
+    const isNumericOrVpa = /^\d+$/.test(merchantLabel) || (parsedTx.originalMerchant && parsedTx.originalMerchant.includes('@'));
+    const paymentTag = parsedTx.paymentMethod && parsedTx.paymentMethod !== 'Unknown' && !isNumericOrVpa ? ` (${parsedTx.paymentMethod})` : '';
     const cleanDescription = `${merchantLabel}${paymentTag}`;
     const txDateStr = parsedTx.transactionDate.split('T')[0];
 
@@ -466,7 +476,10 @@ class SmsListenerService {
       const isIncome = parsedTx.type === 'income';
       const formattedAmount = `₹${(parsedTx.amountMinor / 100).toLocaleString('en-IN')}`;
       const title = isIncome ? 'Money Received 💰' : 'Expense Recorded 💳';
-      const merchantPart = parsedTx.merchant && parsedTx.merchant !== 'Bank Transaction' ? ` at ${parsedTx.merchant}` : '';
+      const cleanMerchantName = (parsedTx.merchant || '').replace(/@.*$/, '').trim();
+      const merchantPart = cleanMerchantName && cleanMerchantName !== 'Bank Transaction'
+        ? ` to ${cleanMerchantName}`
+        : '';
       const body = isIncome
         ? `${formattedAmount} received into your ${parsedTx.bankName} account.`
         : `${formattedAmount} spent${merchantPart} (${parsedTx.bankName}).`;

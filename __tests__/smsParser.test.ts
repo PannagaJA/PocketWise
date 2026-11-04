@@ -521,6 +521,25 @@ describe('Android Bank SMS Transaction Auto-Detection Parser Pipeline', () => {
 
     expect(isDuplicateTransaction(newIncoming, existingTransactions)).toBe(true);
   });
+
+  // Test 26: Bank of Baroda UPI debit SMS with phone VPA preserves clean phone number/payee without '@upi'
+  test('26. Parses Bank of Baroda UPI debit SMS with phone VPA preserving clean number without @upi', () => {
+    const sms: RawSMS = {
+      sender: 'JK-BOBSMS-S',
+      body: 'Rs.2000.00 Dr. from A/C XXXXXX0572 and Cr. to 8050027432@upi. Ref:667477164396. AvlBal:Rs517.08(2026:11:04 12:45:00). Not you? Call 18005700/5000-BOB',
+      timestamp: Date.now(),
+    };
+
+    const parsed = parseBankSms(sms);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.amount).toBe(2000.00);
+    expect(parsed?.amountMinor).toBe(200000);
+    expect(parsed?.type).toBe('expense');
+    expect(parsed?.bankId).toBe('bob');
+    expect(parsed?.maskedAccount).toBe('XX0572');
+    expect(parsed?.merchant).toBe('8050027432');
+    expect(parsed?.referenceNumber).toBe('667477164396');
+  });
 });
 
 

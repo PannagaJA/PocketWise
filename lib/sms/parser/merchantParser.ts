@@ -103,6 +103,7 @@ export function extractMerchantAndCategory(
 
   // 3. Clean and normalize extracted merchant string
   let cleanMerchant = rawExtracted.trim();
+  const isVpa = rawExtracted.includes('@');
 
   // Strip UPI domain suffix (e.g. "swiggy@icici" -> "swiggy", "paytm-1234@paytm" -> "paytm")
   if (cleanMerchant.includes('@')) {
@@ -114,10 +115,29 @@ export function extractMerchantAndCategory(
   cleanMerchant = cleanMerchant.replace(/^(?:INF|UPI|PAYTM|BILLDESK|RAZORPAY|CCAVENUE|PAYU|POS)[\*\/_-]/i, '');
   // Strip corporate suffixes for clean human readability
   cleanMerchant = cleanMerchant.replace(/\s+(?:PVT\s+LTD|PRIVATE\s+LIMITED|LTD|LIMITED|INC|LLP|INDIA)\b/gi, '');
-  // Remove numeric transaction IDs/phone numbers attached to merchant name
+
+  // If the VPA handle is a phone number or numeric account ID (e.g. "8050027432@upi"), preserve clean handle without @upi
+  const isNumericHandle = /^\d+$/.test(cleanMerchant.trim());
+  if (isVpa && isNumericHandle) {
+    return {
+      merchant: cleanMerchant.trim(),
+      originalMerchant: rawExtracted.trim(),
+      category: 'General',
+    };
+  }
+
+  // Remove numeric transaction IDs attached to merchant name (e.g. "Swiggy 92837482" -> "Swiggy")
   cleanMerchant = cleanMerchant.replace(/\b\d{6,}\b/g, '').trim();
 
   if (!cleanMerchant || cleanMerchant.length < 2) {
+    if (isVpa) {
+      const strippedVpa = rawExtracted.split('@')[0].trim();
+      return {
+        merchant: strippedVpa || rawExtracted.trim(),
+        originalMerchant: rawExtracted.trim(),
+        category: 'General',
+      };
+    }
     return { merchant: '', originalMerchant: rawExtracted, category: 'Other' };
   }
 
