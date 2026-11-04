@@ -22,6 +22,20 @@ function runSmsProcessWithLock<T>(fn: () => Promise<T>): Promise<T> {
   return next;
 }
 
+export function isGenericDescription(desc?: string): boolean {
+  if (!desc) return true;
+  const d = desc.trim().toLowerCase();
+  return (
+    d === 'bank payment' ||
+    d === 'bank payment (upi)' ||
+    d === 'bank transaction' ||
+    d === 'bank transaction (unknown)' ||
+    d.startsWith('bank payment') ||
+    d.startsWith('bank transaction') ||
+    d.includes('@upi')
+  );
+}
+
 class SmsListenerService {
   private isListening = false;
   private callbacks: SmsListenerCallback[] = [];
@@ -191,16 +205,86 @@ class SmsListenerService {
         }
       }
 
-      if (detectedCount > 0) {
+      // Also run retroactive upgrade for any generic transactions ('Bank Payment (UPI)', etc.) in DB
+      const upgradedCount = await this.upgradeGenericTransactions();
+
+      if (detectedCount > 0 || upgradedCount > 0) {
         queryClient.invalidateQueries({ queryKey: ['transactions'] });
         queryClient.invalidateQueries({ queryKey: ['accounts'] });
         queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       }
 
-      return { total: messages.length, detected: detectedCount, saved: savedCount };
+      return { total: messages.length, detected: detectedCount + upgradedCount, saved: savedCount };
     } catch (err) {
       console.warn('[SMS Listener] Error syncing recent inbox SMS:', err);
       return { total: 0, detected: 0, saved: 0 };
+    }
+  }
+
+  /**
+   * Retroactively scan existing generic transactions ('Bank Payment', 'Bank Payment (UPI)', etc.)
+   * in Supabase and upgrade their payee description if a matching SMS is found in the inbox.
+   */
+  async upgradeGenericTransactions(userId?: string): Promise<number> {
+    if (Platform.OS !== 'android' || !PocketWiseSmsModule?.readRecentInboxSms) {
+      return 0;
+    }
+
+    try {
+      const activeUserId =
+        userId ||
+        (typeof supabase.auth?.getSession === 'function' ? (await supabase.auth.getSession()).data?.session?.user?.id : undefined) ||
+        (typeof supabase.auth?.getUser === 'function' ? (await supabase.auth.getUser()).data?.user?.id : undefined);
+
+      if (!activeUserId) return 0;
+
+      const recentTxs = await transactionService.getTransactions(activeUserId, 100);
+      const genericTxs = recentTxs.filter((t) => isGenericDescription(t.description));
+      if (genericTxs.length === 0) return 0;
+
+      const messages: RawSMS[] = await PocketWiseSmsModule.readRecentInboxSms();
+      if (!Array.isArray(messages) || messages.length === 0) return 0;
+
+      const accountMappings = await smsStorage.getAccountMappings();
+      const learnedCategories = await smsStorage.getLearnedCategories();
+
+      let upgradedCount = 0;
+
+      for (const msg of messages) {
+        if (!msg.body) continue;
+        const parsed = parseBankSms(msg, accountMappings, learnedCategories);
+        if (!parsed || !parsed.merchant) continue;
+
+        const cleanPayee = (parsed.merchant || '').replace(/@.*$/, '').trim();
+        if (!cleanPayee || cleanPayee === 'Bank Transaction' || cleanPayee === 'Bank Payment') continue;
+
+        const match = genericTxs.find(
+          (t) =>
+            (parsed.referenceNumber && t.notes?.includes(parsed.referenceNumber)) ||
+            (parsed.upiReference && t.notes?.includes(parsed.upiReference)) ||
+            (t.amount_minor === parsed.amountMinor &&
+              (t.date || '').substring(0, 10) === parsed.transactionDate.split('T')[0] &&
+              t.type === (parsed.type === 'income' ? 'income' : 'expense'))
+        );
+
+        if (match && match.description !== cleanPayee) {
+          console.log(`[Retroactive Upgrade] Upgraded transaction ${match.id} from "${match.description}" to "${cleanPayee}"`);
+          await transactionService.updateTransaction(match.id, {
+            description: cleanPayee,
+          });
+          upgradedCount++;
+        }
+      }
+
+      if (upgradedCount > 0) {
+        queryClient.invalidateQueries({ queryKey: ['transactions'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      }
+
+      return upgradedCount;
+    } catch (err) {
+      console.warn('[Retroactive Upgrade] Error upgrading generic transactions:', err);
+      return 0;
     }
   }
 

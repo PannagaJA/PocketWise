@@ -540,6 +540,18 @@ describe('Android Bank SMS Transaction Auto-Detection Parser Pipeline', () => {
     expect(parsed?.merchant).toBe('8050027432');
     expect(parsed?.referenceNumber).toBe('667477164396');
   });
+
+  // Test 27: isGenericDescription identifies generic transaction placeholders
+  test('27. Correctly identifies generic placeholders for retroactive payee upgrade', () => {
+    const { isGenericDescription } = require('../lib/sms/service/smsListenerService');
+    expect(isGenericDescription('Bank Payment')).toBe(true);
+    expect(isGenericDescription('Bank Payment (UPI)')).toBe(true);
+    expect(isGenericDescription('Bank Transaction')).toBe(true);
+    expect(isGenericDescription('8050027432@upi')).toBe(true);
+    expect(isGenericDescription('Swiggy')).toBe(false);
+    expect(isGenericDescription('8050027432')).toBe(false);
+    expect(isGenericDescription('Electricity Bill')).toBe(false);
+  });
 });
 
 

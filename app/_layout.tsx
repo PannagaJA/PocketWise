@@ -181,6 +181,9 @@ function GlobalRealtimeSync() {
     // Force revalidation of all queries whenever an authenticated user session mounts
     queryClient.invalidateQueries();
 
+    // Trigger inbox sync & retroactive upgrade for the authenticated user
+    smsListenerService.syncRecentInboxSms().catch(() => {});
+
     // Listen to real-time postgres changes across all financial tables for the user
     const channel = supabase
       .channel('realtime_financial_sync')
