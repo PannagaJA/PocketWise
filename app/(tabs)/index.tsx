@@ -638,7 +638,7 @@ export default function DashboardScreen() {
               const categoryName =
                 tx.category?.name ||
                 (Array.isArray(tx.category) && (tx.category as any)[0]?.name) ||
-                'General';
+                'Personal';
 
               const isLast = idx === filteredRecentTxs.length - 1;
               const formattedAmount = `${tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}${formatMoney(tx.amount_minor)}`;
