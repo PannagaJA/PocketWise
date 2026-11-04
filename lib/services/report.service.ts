@@ -86,7 +86,7 @@ export const reportService = {
 
     txs.forEach((tx) => {
       const catId = tx.category_id || 'unassigned';
-      const catName = (tx as any).categories?.name || 'General';
+      const catName = (tx as any).categories?.name || 'Personal';
       const catColor = (tx as any).categories?.color || '#6366F1';
       const amount = Number(tx.amount_minor);
 
