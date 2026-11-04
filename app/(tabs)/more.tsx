@@ -87,6 +87,8 @@ export default function MoreScreen() {
       }
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: 'Authenticate to enable Biometric Unlock',
+        cancelLabel: 'Cancel',
+        disableDeviceFallback: true,
       });
       if (result.success) {
         await appLockService.setBiometricsEnabled(true);

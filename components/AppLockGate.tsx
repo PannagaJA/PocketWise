@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Pressable, StyleSheet, AppState, AppStateStatus, Modal, BackHandler } from 'react-native';
+import { View, Text, Pressable, StyleSheet, AppState, AppStateStatus, BackHandler } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { appLockService } from '../lib/security/app-lock.service';
 import { deepLinkService } from '../lib/notifications/deep-link.service';
@@ -19,6 +19,7 @@ export function AppLockGate({ children }: AppLockGateProps) {
   const [errorMessage, setErrorMessage] = useState('');
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
   const backgroundTimestampRef = useRef<number | null>(null);
+  const isAuthenticatingRef = useRef(false);
 
   useEffect(() => {
     checkAppLockState();
@@ -29,8 +30,22 @@ export function AppLockGate({ children }: AppLockGateProps) {
     };
   }, []);
 
+  // Intercept Android hardware back button cleanly while app is locked
+  useEffect(() => {
+    if (!isLocked) return;
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      BackHandler.exitApp();
+      return true;
+    });
+    return () => {
+      backHandler.remove();
+    };
+  }, [isLocked]);
+
   const handleAppStateChange = async (nextAppState: AppStateStatus) => {
     if (nextAppState === 'background' || nextAppState === 'inactive') {
+      // Do not count biometric prompt system dialog appearance as app background
+      if (isAuthenticatingRef.current) return;
       if (backgroundTimestampRef.current === null) {
         backgroundTimestampRef.current = Date.now();
       }
@@ -43,7 +58,9 @@ export function AppLockGate({ children }: AppLockGateProps) {
           const bioEnabled = await appLockService.isBiometricsEnabled();
           if (bioEnabled) {
             setBiometricsAvailable(true);
-            triggerBiometricUnlock();
+            setTimeout(() => {
+              triggerBiometricUnlock();
+            }, 300);
           }
         }
         backgroundTimestampRef.current = null;
@@ -60,7 +77,9 @@ export function AppLockGate({ children }: AppLockGateProps) {
       const bioEnabled = await appLockService.isBiometricsEnabled();
       if (bioEnabled) {
         setBiometricsAvailable(true);
-        triggerBiometricUnlock();
+        setTimeout(() => {
+          triggerBiometricUnlock();
+        }, 300);
       }
     } else {
       setIsLocked(false);
@@ -69,9 +88,17 @@ export function AppLockGate({ children }: AppLockGateProps) {
   };
 
   const triggerBiometricUnlock = async () => {
-    const success = await appLockService.authenticateBiometrics();
-    if (success) {
-      handleUnlockSuccess();
+    if (isAuthenticatingRef.current) return;
+    isAuthenticatingRef.current = true;
+    try {
+      const success = await appLockService.authenticateBiometrics();
+      if (success) {
+        handleUnlockSuccess();
+      }
+    } finally {
+      setTimeout(() => {
+        isAuthenticatingRef.current = false;
+      }, 500);
     }
   };
 
@@ -130,17 +157,8 @@ export function AppLockGate({ children }: AppLockGateProps) {
     <AppLockContext.Provider value={{ isLocked }}>
       {children}
       {isLocked && (
-        <Modal
-          visible={isLocked}
-          animationType="none"
-          transparent={false}
-          statusBarTranslucent={true}
-          onRequestClose={() => {
-            BackHandler.exitApp();
-          }}
-        >
-          <View style={StyleSheet.absoluteFill} className="flex-1 bg-white">
-            <SafeAreaView className="flex-1 bg-white justify-between px-6 py-8">
+        <View style={[StyleSheet.absoluteFill, { zIndex: 99999, elevation: 99999 }]} className="flex-1 bg-white">
+          <SafeAreaView className="flex-1 bg-white justify-between px-6 py-8">
               {/* Header */}
               <View className="items-center pt-6">
                 <View className="w-18 h-18 rounded-3xl bg-indigo-50 border border-indigo-100 items-center justify-center mb-5 p-4">
@@ -238,8 +256,7 @@ export function AppLockGate({ children }: AppLockGateProps) {
                 </View>
               </View>
             </SafeAreaView>
-          </View>
-        </Modal>
+        </View>
       )}
     </AppLockContext.Provider>
   );

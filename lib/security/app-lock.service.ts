@@ -113,11 +113,13 @@ export const appLockService = {
 
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: 'Unlock PocketWise',
-        fallbackLabel: 'Use PIN',
+        cancelLabel: 'Use PIN',
+        disableDeviceFallback: true,
       });
 
-      return result.success;
-    } catch {
+      return !!result.success;
+    } catch (err) {
+      console.warn('[AppLockService] Biometric authentication error:', err);
       return false;
     }
   },
