@@ -6,7 +6,7 @@ interface MerchantResult {
   category: string;
 }
 
-const CATEGORY_MAP: Record<string, string[]> = {
+export const CATEGORY_MAP: Record<string, string[]> = {
   'Food & Dining': [
     'SWIGGY', 'ZOMATO', 'DOMINOS', 'MCDONALDS', 'STARBUCKS', 'BURGER KING', 'DINE', 'RESTAURANT',
     'CAFE', 'BAKERY', 'FOOD', 'CHAAYOS', 'CHAI POINT', 'HALDIRAM', 'KFC', 'PIZZA HUT', 'SUBWAY',
@@ -52,7 +52,7 @@ export function extractMerchantAndCategory(
   learnedCategories: LearnedCategoryMapping[] = []
 ): MerchantResult {
   if (!body) {
-    return { merchant: 'Unknown Payee', originalMerchant: '', category: 'Other' };
+    return { merchant: 'Unknown Payee', originalMerchant: '', category: 'Personal' };
   }
 
   let rawExtracted = '';
@@ -122,7 +122,7 @@ export function extractMerchantAndCategory(
     return {
       merchant: cleanMerchant.trim(),
       originalMerchant: rawExtracted.trim(),
-      category: 'General',
+      category: 'Personal',
     };
   }
 
@@ -135,10 +135,10 @@ export function extractMerchantAndCategory(
       return {
         merchant: strippedVpa || rawExtracted.trim(),
         originalMerchant: rawExtracted.trim(),
-        category: 'General',
+        category: 'Personal',
       };
     }
-    return { merchant: '', originalMerchant: rawExtracted, category: 'Other' };
+    return { merchant: '', originalMerchant: rawExtracted, category: 'Personal' };
   }
 
   // 4. Format Title Case (e.g. "SWIGGY" -> "Swiggy", "RELIANCE RETAIL" -> "Reliance Retail")
@@ -184,6 +184,6 @@ export function extractMerchantAndCategory(
   return {
     merchant: formattedMerchant,
     originalMerchant: rawExtracted,
-    category: 'Other',
+    category: 'Personal',
   };
 }
