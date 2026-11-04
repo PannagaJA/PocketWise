@@ -178,6 +178,9 @@ function GlobalRealtimeSync() {
       linkingSub.remove();
     };
 
+    // Force revalidation of all queries whenever an authenticated user session mounts
+    queryClient.invalidateQueries();
+
     // Listen to real-time postgres changes across all financial tables for the user
     const channel = supabase
       .channel('realtime_financial_sync')

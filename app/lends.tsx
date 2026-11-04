@@ -3,6 +3,7 @@ import {
   View,
   Text,
   ScrollView,
+  RefreshControl,
   Modal,
   Alert,
   ActivityIndicator,
@@ -179,10 +180,15 @@ export default function LendsScreen() {
   const [recordToDelete, setRecordToDelete] = useState<LendRecord | null>(null);
 
   // TanStack Query for reactive data loading
-  const { data: lends = [], isLoading: loadingLends } = useQuery({
+  const {
+    data: lends = [],
+    isLoading: loadingLends,
+    isRefetching,
+    refetch: refetchLends,
+  } = useQuery({
     queryKey: ['lends', user?.id],
     queryFn: () => lendService.getAll(user?.id),
-    enabled: !!user?.id || true,
+    enabled: !!user?.id,
   });
 
   const activeRecords = lends
@@ -647,6 +653,14 @@ export default function LendsScreen() {
           showsVerticalScrollIndicator={false}
           className="flex-1"
           contentContainerStyle={{ paddingBottom: 110 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefetching}
+              onRefresh={() => refetchLends()}
+              colors={['#6366F1']}
+              tintColor="#6366F1"
+            />
+          }
         >
           {loadingLends ? (
             <View className="py-8">

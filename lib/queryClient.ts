@@ -3,11 +3,11 @@ import { QueryClient, QueryCache, MutationCache } from '@tanstack/react-query';
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes fresh in cache for instant tab switches
+      staleTime: 1000 * 30, // 30 seconds fresh in cache, then background revalidates
       gcTime: 1000 * 60 * 60 * 24, // 24 hours garbage collection time
       refetchOnWindowFocus: false, // Don't trigger refetch on every focus change
       refetchOnReconnect: true,
-      refetchOnMount: false,     // Use in-memory / persistent cache immediately on mount
+      refetchOnMount: true, // Always revalidate stale cache on mount so multi-device updates appear
     },
   },
   queryCache: new QueryCache({

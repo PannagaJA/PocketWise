@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { profileService } from '../lib/services/profile.service';
 import { notificationService } from '../lib/notifications/notification.service';
 import { shakeService } from '../lib/shake/shakeService';
+import { queryClient } from '../lib/queryClient';
 
 interface AuthContextType {
   session: Session | null;
@@ -45,6 +46,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
+        // Refetch all queries when signed in so cloud records populate immediately
+        queryClient.invalidateQueries();
         if (event !== 'INITIAL_SESSION') {
           const displayName =
             session.user.user_metadata?.display_name ||
@@ -58,6 +61,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         shakeService.init(session.user.id).catch(console.error);
       } else {
         shakeService.clearUserSession().catch(console.error);
+        queryClient.clear();
       }
       setLoading(false);
     });
@@ -72,6 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch {}
     await shakeService.clearUserSession().catch(console.error);
+    queryClient.clear();
     await supabase.auth.signOut();
   };
 
