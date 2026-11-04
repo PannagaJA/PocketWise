@@ -18,7 +18,17 @@ async function hashPin(pin: string): Promise<string> {
   return hash.toString(16);
 }
 
+let _systemPickerActive = false;
+
 export const appLockService = {
+  isSystemPickerActive(): boolean {
+    return _systemPickerActive;
+  },
+
+  setSystemPickerActive(active: boolean): void {
+    _systemPickerActive = active;
+  },
+
   async isAppLockEnabled(): Promise<boolean> {
     try {
       const val = await SecureStore.getItemAsync(APP_LOCK_ENABLED_KEY);
@@ -61,6 +71,7 @@ export const appLockService = {
   },
 
   async shouldRelock(backgroundTimestamp: number | null): Promise<boolean> {
+    if (_systemPickerActive) return false;
     const isEnabled = await this.isAppLockEnabled();
     if (!isEnabled || !backgroundTimestamp) return false;
 

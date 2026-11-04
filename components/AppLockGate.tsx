@@ -46,8 +46,8 @@ export function AppLockGate({ children }: AppLockGateProps) {
 
   const handleAppStateChange = async (nextAppState: AppStateStatus) => {
     if (nextAppState === 'background' || nextAppState === 'inactive') {
-      // Do not count biometric prompt system dialog appearance as app background
-      if (isAuthenticatingRef.current) return;
+      // Do not count biometric prompt system dialog or system picker appearance as app background
+      if (isAuthenticatingRef.current || appLockService.isSystemPickerActive()) return;
       if (backgroundTimestampRef.current === null) {
         backgroundTimestampRef.current = Date.now();
       }
@@ -57,6 +57,10 @@ export function AppLockGate({ children }: AppLockGateProps) {
         deepLinkService.setLockedState(true);
       }
     } else if (nextAppState === 'active') {
+      if (appLockService.isSystemPickerActive()) {
+        backgroundTimestampRef.current = null;
+        return;
+      }
       if (backgroundTimestampRef.current !== null) {
         const elapsed = (Date.now() - backgroundTimestampRef.current) / 1000;
         // Fast-path synchronous lock check to prevent any flash of dashboard or dialogs

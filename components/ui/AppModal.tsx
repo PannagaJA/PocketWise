@@ -292,37 +292,7 @@ export const AppModal: React.FC<AppModalProps> = ({
     return () => backHandler.remove();
   }, [visible, isLocked, handleClose]);
 
-  // Immediately dismiss and unmount modal if the app transitions to locked state
-  useEffect(() => {
-    if (isLocked) {
-      setRendered(false);
-      isDismissingRef.current = false;
-      fadeAnim.setValue(0);
-      slideAnim.setValue(stableScreenHeight);
-      scaleAnim.setValue(0.92);
-      if (handleClose) {
-        handleClose();
-      }
-    }
-  }, [isLocked, handleClose]);
-
-  // Immediately dismiss and unmount modal when the app moves to background or becomes inactive
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'background' || nextState === 'inactive') {
-        setRendered(false);
-        isDismissingRef.current = false;
-        fadeAnim.setValue(0);
-        slideAnim.setValue(stableScreenHeight);
-        scaleAnim.setValue(0.92);
-        if (handleClose) {
-          handleClose();
-        }
-      }
-    });
-    return () => sub.remove();
-  }, [handleClose]);
-
+  // Do not show modal while the app is locked
   if (!rendered || isLocked) return null;
 
   const onModalRequestClose = () => {

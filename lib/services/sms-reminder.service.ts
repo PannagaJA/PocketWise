@@ -1,5 +1,6 @@
 import { Platform, Linking } from 'react-native';
 import { formatDate, formatMoney } from '../finance/core';
+import { appLockService } from '../security/app-lock.service';
 
 export interface PickedContactResult {
   success: boolean;
@@ -33,6 +34,19 @@ export function isContactsNativeModuleAvailable(): boolean {
  * Allows the user to choose a person from their phone contacts.
  */
 export async function pickContactFromDevice(): Promise<PickedContactResult> {
+  // Mark system picker active so AppLockGate does not lock or demand biometrics upon returning
+  appLockService.setSystemPickerActive(true);
+  try {
+    return await doPickContact();
+  } finally {
+    // Keep active briefly to absorb Android activity onResume transition
+    setTimeout(() => {
+      appLockService.setSystemPickerActive(false);
+    }, 1200);
+  }
+}
+
+async function doPickContact(): Promise<PickedContactResult> {
   // 1. Android Native Direct Picker (Fastest, cleanest & guaranteed to return name + phone)
   if (Platform.OS === 'android') {
     try {
