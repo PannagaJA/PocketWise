@@ -68,8 +68,33 @@ export const deepLinkService = {
         return '/goals';
       case 'transaction':
         return '/(tabs)/transactions';
+      case 'app_update':
+      case 'update':
+        return '/(tabs)/more';
       default:
         return '/(tabs)';
+    }
+  },
+
+  triggerAppUpdateFlow() {
+    const executeFlow = () => {
+      try {
+        if (typeof router?.push === 'function') {
+          router.push('/(tabs)/more' as any);
+        }
+        const { useUpdateStore } = require('../stores/updateStore');
+        useUpdateStore.getState().openModal();
+        useUpdateStore.getState().checkForUpdates(true).catch(() => {});
+      } catch (err) {
+        console.warn('[DeepLinkService] Error triggering update flow:', err);
+      }
+    };
+
+    if (isAppLockedState) {
+      pendingAction = executeFlow;
+      pendingRoute = null;
+    } else {
+      executeFlow();
     }
   },
 
@@ -77,21 +102,8 @@ export const deepLinkService = {
     const data = response?.notification?.request?.content?.data || {};
     const type = typeof data.type === 'string' ? data.type : typeof data.route === 'string' ? data.route : undefined;
 
-    if (type === 'app_update') {
-      const openUpdateAction = () => {
-        try {
-          const { useUpdateStore } = require('../stores/updateStore');
-          useUpdateStore.getState().checkForUpdates(true).catch(() => {});
-        } catch (err) {
-          console.warn('[DeepLinkService] Error triggering update modal:', err);
-        }
-      };
-
-      if (isAppLockedState) {
-        pendingAction = openUpdateAction;
-      } else {
-        openUpdateAction();
-      }
+    if (type === 'app_update' || type === 'update') {
+      this.triggerAppUpdateFlow();
       return;
     }
 

@@ -24,7 +24,45 @@ export const AppUpdateModal: React.FC = () => {
     installDownloadedApk,
   } = useUpdateStore();
 
-  if (!updateInfo) return null;
+  if (!updateInfo) {
+    if (modalVisible) {
+      return (
+        <AppBottomSheet
+          visible={modalVisible}
+          onClose={closeModal}
+          title="PocketWise Update"
+          subtitle={status === 'error' ? 'Update check failed' : 'Checking for latest release...'}
+          dismissOnBackdrop={true}
+          contentContainerStyle={styles.container}
+        >
+          <View style={{ paddingVertical: 36, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center' }}>
+            {status === 'error' ? (
+              <View style={{ alignItems: 'center' }}>
+                <AlertCircle size={38} color="#EF4444" />
+                <Text style={{ fontSize: 14, fontWeight: '700', color: '#1F2937', marginTop: 12, textAlign: 'center' }}>
+                  {errorMessage || 'Unable to fetch update details.'}
+                </Text>
+                <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
+                  Please check your internet connection and try again.
+                </Text>
+              </View>
+            ) : (
+              <View style={{ alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#4F46E5" />
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151', marginTop: 14 }}>
+                  Fetching latest update...
+                </Text>
+                <Text style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4 }}>
+                  Connecting to GitHub releases
+                </Text>
+              </View>
+            )}
+          </View>
+        </AppBottomSheet>
+      );
+    }
+    return null;
+  }
 
   const isDownloading = status === 'downloading';
   const isDownloaded = status === 'downloaded';

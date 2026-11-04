@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, StyleSheet, Platform, Linking } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
@@ -108,11 +108,16 @@ function GlobalRealtimeSync() {
         const notification = remoteMessage?.notification;
         const isUpdate =
           data.type === 'app_update' ||
+          data.type === 'update' ||
           data.update === 'true' ||
           notification?.title?.toLowerCase().includes('update');
 
         if (isUpdate) {
-          useUpdateStore.getState().checkForUpdates(true).catch(() => {});
+          deepLinkService.triggerAppUpdateFlow();
+        } else if (data.type || data.route) {
+          deepLinkService.handleNotificationResponse({
+            notification: { request: { content: { data } } },
+          });
         }
       });
 
@@ -125,13 +130,20 @@ function GlobalRealtimeSync() {
             const notification = remoteMessage?.notification;
             const isUpdate =
               data.type === 'app_update' ||
+              data.type === 'update' ||
               data.update === 'true' ||
               notification?.title?.toLowerCase().includes('update');
 
             if (isUpdate) {
               setTimeout(() => {
-                useUpdateStore.getState().checkForUpdates(true).catch(() => {});
-              }, 1200);
+                deepLinkService.triggerAppUpdateFlow();
+              }, 1000);
+            } else if (data.type || data.route) {
+              setTimeout(() => {
+                deepLinkService.handleNotificationResponse({
+                  notification: { request: { content: { data } } },
+                });
+              }, 1000);
             }
           }
         })
@@ -140,11 +152,30 @@ function GlobalRealtimeSync() {
       // Firebase messaging unavailable on web/mock
     }
 
+    // Handle deep links like pocketwise://more?update=true or pocketwise://update
+    const handleDeepLinkUrl = (event: { url: string }) => {
+      const url = event?.url || '';
+      if (url.includes('update') || url.includes('app_update')) {
+        deepLinkService.triggerAppUpdateFlow();
+      }
+    };
+
+    Linking.getInitialURL().then((initialUrl) => {
+      if (initialUrl && (initialUrl.includes('update') || initialUrl.includes('app_update'))) {
+        setTimeout(() => {
+          deepLinkService.triggerAppUpdateFlow();
+        }, 1000);
+      }
+    }).catch(() => {});
+
+    const linkingSub = Linking.addEventListener('url', handleDeepLinkUrl);
+
     if (!user?.id) return () => {
       clearTimeout(updateTimer);
       if (cleanupListener) cleanupListener();
       if (unsubscribeFcm) unsubscribeFcm();
       if (unsubscribeFcmOpen) unsubscribeFcmOpen();
+      linkingSub.remove();
     };
 
     // Listen to real-time postgres changes across all financial tables for the user
@@ -164,6 +195,7 @@ function GlobalRealtimeSync() {
       if (cleanupListener) cleanupListener();
       if (unsubscribeFcm) unsubscribeFcm();
       if (unsubscribeFcmOpen) unsubscribeFcmOpen();
+      linkingSub.remove();
       supabase.removeChannel(channel);
     };
   }, [user?.id]);
