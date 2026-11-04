@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Alert, ActivityIndicator, Pressable, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -14,6 +14,7 @@ import { AppSelectField } from '../../components/ui/AppSelectModal';
 import { useAuth } from '../../context/AuthContext';
 import { budgetService, Budget } from '../../lib/services/budget.service';
 import { categoryService } from '../../lib/services/category.service';
+import { transactionService } from '../../lib/services/transaction.service';
 import { formatMoney, parseMoneyToMinor } from '../../lib/finance/core';
 import { Plus, X, PieChart, AlertTriangle, ChevronDown, Check, Target, TrendingUp, ShieldCheck, Pencil, Trash2 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -46,6 +47,13 @@ export default function BudgetsScreen() {
     queryFn: () => categoryService.getCategories(user?.id || ''),
     enabled: !!user?.id,
   });
+
+  // Automatically categorize uncategorized past transactions against learned rules and default keywords on screen load
+  useEffect(() => {
+    if (user?.id) {
+      transactionService.autoCategorizeUncategorizedTransactions(user.id).catch(() => {});
+    }
+  }, [user?.id]);
 
   const expenseCategories = categories.filter((c) => c.type === 'expense');
   const selectedCatObj = expenseCategories.find((c) => c.id === selectedCategoryId);
