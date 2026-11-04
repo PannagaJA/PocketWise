@@ -58,7 +58,7 @@ export const exportService = {
 
     const dataRows = transactions.map((tx) => {
       const amountMajor = (Number(tx.amount_minor || 0) / 100).toFixed(2);
-      const categoryName = tx.category?.name || 'General';
+      const categoryName = tx.category?.name || 'Personal';
       const accountName = tx.account?.name || 'Default Account';
 
       return [
@@ -184,7 +184,7 @@ export const exportService = {
         const prefix = isIncome ? '+' : isExpense ? '-' : '';
         const amountClass = isIncome ? 'amount-income' : isExpense ? 'amount-expense' : 'amount-transfer';
         const typePillClass = isIncome ? 'type-income' : isExpense ? 'type-expense' : 'type-transfer';
-        const catName = tx.category?.name || 'General';
+        const catName = tx.category?.name || 'Personal';
         const accName = tx.account?.name || 'Default Account';
 
         return `
