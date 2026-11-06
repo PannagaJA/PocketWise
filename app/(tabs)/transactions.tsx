@@ -111,6 +111,12 @@ export default function TransactionsScreen() {
   // Progressive render limit for high performance (prevents blank screen freeze on mount)
   const [renderLimit, setRenderLimit] = useState(35);
 
+  // Sticky header measurement and scroll tracking state (bypasses Android stickyHeaderIndices touch bugs)
+  const [headerHeight, setHeaderHeight] = useState(56);
+  const [controlsLayoutY, setControlsLayoutY] = useState(240);
+  const controlsLayoutYRef = useRef(240);
+  const [isScrolledPastChart, setIsScrolledPastChart] = useState(false);
+
   useEffect(() => {
     setRenderLimit(35);
   }, [
@@ -589,194 +595,234 @@ export default function TransactionsScreen() {
     setSelectedCategoryId('');
   };
 
-  return (
-    <SafeAreaView className="flex-1" style={{ backgroundColor: '#F8F9FE' }} edges={['top']}>
-      {/* Persistent Static Top Header: Matches Image 2 & 100% click reliable */}
-      <View style={{ backgroundColor: '#F8F9FE' }} className="px-4 pt-2 pb-2.5 border-b border-zinc-100/70">
-        <Text className="text-[22px] font-extrabold text-zinc-950 tracking-tight">Transactions</Text>
-        <Text className="text-xs font-medium text-zinc-500 mt-0.5 mb-2.5">Real-time financial activity</Text>
+  const renderControlsSection = () => (
+    <View
+      style={{ backgroundColor: '#F8F9FE' }}
+      className="px-4 pt-2 pb-3"
+    >
+      {/* Search Bar Input & Custom Date/Month Filter Button on the Same Line */}
+      <View className="flex-row items-center gap-2 mb-3">
+        {/* Search Bar */}
+        <View className="flex-1 flex-row items-center bg-white border border-zinc-100 rounded-2xl px-3.5 py-2.5 shadow-xs">
+          <Search size={18} color="#71717A" />
+          <TextInput
+            placeholder="Search description, category..."
+            placeholderTextColor="#A1A1AA"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            className="flex-1 text-sm font-medium text-zinc-900 p-0 ml-2"
+          />
+          {searchQuery ? (
+            <Pressable onPress={() => setSearchQuery('')} className="p-1">
+              <X size={16} color="#71717A" />
+            </Pressable>
+          ) : null}
+        </View>
 
-        {/* Search Bar Input & Custom Date/Month Filter Button on the Same Line */}
-        <View className="flex-row items-center gap-2 mb-3">
-          {/* Search Bar */}
-          <View className="flex-1 flex-row items-center bg-white border border-zinc-100 rounded-2xl px-3.5 py-2.5 shadow-xs">
-            <Search size={18} color="#71717A" />
-            <TextInput
-              placeholder="Search description, category..."
-              placeholderTextColor="#A1A1AA"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              className="flex-1 text-sm font-medium text-zinc-900 p-0 ml-2"
-            />
-            {searchQuery ? (
-              <Pressable onPress={() => setSearchQuery('')} className="p-1">
-                <X size={16} color="#71717A" />
-              </Pressable>
-            ) : null}
-          </View>
-
-          {/* Custom Filter Button (Robust non-nested layout with separate clear button) */}
-          <View
-            style={{ maxWidth: 150 }}
-            className={`flex-row items-center rounded-2xl border ${
-              isFilterActive
-                ? 'bg-zinc-900 border-zinc-900'
-                : 'bg-white border-zinc-100 shadow-xs'
-            }`}
+        {/* Custom Filter Button (Robust non-nested layout with separate clear button) */}
+        <View
+          style={{ maxWidth: 150 }}
+          className={`flex-row items-center rounded-2xl border ${
+            isFilterActive
+              ? 'bg-zinc-900 border-zinc-900'
+              : 'bg-white border-zinc-100 shadow-xs'
+          }`}
+        >
+          <Pressable
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              setDateFilterModalVisible(true);
+            }}
+            className="flex-row items-center gap-1.5 py-2.5 pl-3 pr-1.5 shrink"
           >
+            <SlidersHorizontal size={15} color={isFilterActive ? '#FFF' : '#09090B'} />
+            <Text
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              className={`text-xs font-bold shrink ${isFilterActive ? 'text-white' : 'text-zinc-900'}`}
+            >
+              {getFilterButtonLabel()}
+            </Text>
+          </Pressable>
+
+          {isFilterActive ? (
+            <Pressable
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+                setDateFilterMode('all');
+                setSelectedCustomMonth('');
+                setCustomStartDate('');
+                setCustomEndDate('');
+                setSelectedAccountFilterId('all');
+                setSelectedCategoryFilter('all');
+              }}
+              hitSlop={{ top: 12, bottom: 12, left: 8, right: 12 }}
+              className="py-2.5 pr-2.5 pl-0.5 items-center justify-center"
+            >
+              <View className="w-4 h-4 rounded-full bg-white/25 items-center justify-center">
+                <X size={11} color="#FFF" strokeWidth={3} />
+              </View>
+            </Pressable>
+          ) : (
             <Pressable
               onPress={() => {
                 try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                 setDateFilterModalVisible(true);
               }}
-              className="flex-row items-center gap-1.5 py-2.5 pl-3 pr-1.5 shrink"
+              className="py-2.5 pr-2.5 pl-0 items-center justify-center"
             >
-              <SlidersHorizontal size={15} color={isFilterActive ? '#FFF' : '#09090B'} />
-              <Text
-                numberOfLines={1}
-                ellipsizeMode="tail"
-                className={`text-xs font-bold shrink ${isFilterActive ? 'text-white' : 'text-zinc-900'}`}
-              >
-                {getFilterButtonLabel()}
-              </Text>
+              <ChevronDown size={14} color="#71717A" />
             </Pressable>
-
-            {isFilterActive ? (
-              <Pressable
-                onPress={() => {
-                  try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
-                  setDateFilterMode('all');
-                  setSelectedCustomMonth('');
-                  setCustomStartDate('');
-                  setCustomEndDate('');
-                  setSelectedAccountFilterId('all');
-                  setSelectedCategoryFilter('all');
-                }}
-                hitSlop={{ top: 12, bottom: 12, left: 8, right: 12 }}
-                className="py-2.5 pr-2.5 pl-0.5 items-center justify-center"
-              >
-                <View className="w-4 h-4 rounded-full bg-white/25 items-center justify-center">
-                  <X size={11} color="#FFF" strokeWidth={3} />
-                </View>
-              </Pressable>
-            ) : (
-              <Pressable
-                onPress={() => {
-                  try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                  setDateFilterModalVisible(true);
-                }}
-                className="py-2.5 pr-2.5 pl-0 items-center justify-center"
-              >
-                <ChevronDown size={14} color="#71717A" />
-              </Pressable>
-            )}
-          </View>
+          )}
         </View>
+      </View>
 
-        {/* Filter Pills */}
-        <View className="flex-row bg-zinc-100/80 p-1 rounded-2xl mb-3">
-          <Pressable
-            onPress={() => {
-              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-              setActiveFilter('all');
+      {/* Filter Pills */}
+      <View className="flex-row bg-zinc-100/80 p-1 rounded-2xl mb-3">
+        <Pressable
+          onPress={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+            setActiveFilter('all');
+            setSelectedCategoryFilter('all');
+          }}
+          className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'all' ? 'bg-white shadow-xs' : ''}`}
+        >
+          <Text className={`font-bold text-xs ${activeFilter === 'all' ? 'text-zinc-950' : 'text-zinc-500'}`}>All</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+            setActiveFilter('income');
+            if (selectedCategoryFilter.toLowerCase() !== 'income') {
               setSelectedCategoryFilter('all');
-            }}
-            className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'all' ? 'bg-white shadow-xs' : ''}`}
-          >
-            <Text className={`font-bold text-xs ${activeFilter === 'all' ? 'text-zinc-950' : 'text-zinc-500'}`}>All</Text>
-          </Pressable>
+            }
+          }}
+          className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'income' ? 'bg-white shadow-xs' : ''}`}
+        >
+          <Text className={`font-bold text-xs ${activeFilter === 'income' ? 'text-emerald-600' : 'text-zinc-500'}`}>Income</Text>
+        </Pressable>
 
-          <Pressable
-            onPress={() => {
-              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-              setActiveFilter('income');
-              if (selectedCategoryFilter.toLowerCase() !== 'income') {
-                setSelectedCategoryFilter('all');
-              }
-            }}
-            className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'income' ? 'bg-white shadow-xs' : ''}`}
-          >
-            <Text className={`font-bold text-xs ${activeFilter === 'income' ? 'text-emerald-600' : 'text-zinc-500'}`}>Income</Text>
-          </Pressable>
+        <Pressable
+          onPress={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+            setActiveFilter('expense');
+            if (selectedCategoryFilter.toLowerCase() === 'transfer') {
+              setSelectedCategoryFilter('all');
+            }
+          }}
+          className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'expense' ? 'bg-white shadow-xs' : ''}`}
+        >
+          <Text className={`font-bold text-xs ${activeFilter === 'expense' ? 'text-rose-600' : 'text-zinc-500'}`}>Expense</Text>
+        </Pressable>
 
-          <Pressable
-            onPress={() => {
-              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-              setActiveFilter('expense');
-              if (selectedCategoryFilter.toLowerCase() === 'transfer') {
-                setSelectedCategoryFilter('all');
-              }
-            }}
-            className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'expense' ? 'bg-white shadow-xs' : ''}`}
-          >
-            <Text className={`font-bold text-xs ${activeFilter === 'expense' ? 'text-rose-600' : 'text-zinc-500'}`}>Expense</Text>
-          </Pressable>
+        <Pressable
+          onPress={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+            setActiveFilter('transfer');
+            setSelectedCategoryFilter('Transfer');
+          }}
+          className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'transfer' ? 'bg-white shadow-xs' : ''}`}
+        >
+          <Text className={`font-bold text-xs ${activeFilter === 'transfer' ? 'text-indigo-600' : 'text-zinc-500'}`}>Transfer</Text>
+        </Pressable>
+      </View>
 
-          <Pressable
-            onPress={() => {
-              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-              setActiveFilter('transfer');
-              setSelectedCategoryFilter('Transfer');
-            }}
-            className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'transfer' ? 'bg-white shadow-xs' : ''}`}
-          >
-            <Text className={`font-bold text-xs ${activeFilter === 'transfer' ? 'text-indigo-600' : 'text-zinc-500'}`}>Transfer</Text>
-          </Pressable>
-        </View>
+      {/* Action Row */}
+      <View className="flex-row gap-3">
+        <Pressable
+          onPress={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+            setAccModalVisible(true);
+          }}
+          className="flex-1 flex-row items-center justify-center py-2.5 px-3 bg-white border border-zinc-100 rounded-2xl active:bg-zinc-50 shadow-xs"
+        >
+          <Wallet size={16} color="#09090B" />
+          <Text className="text-zinc-900 font-bold text-xs ml-1.5">Account</Text>
+        </Pressable>
 
-        {/* Action Row */}
-        <View className="flex-row gap-3">
-          <Pressable
-            onPress={() => {
-              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-              setAccModalVisible(true);
-            }}
-            className="flex-1 flex-row items-center justify-center py-2.5 px-3 bg-white border border-zinc-100 rounded-2xl active:bg-zinc-50 shadow-xs"
-          >
-            <Wallet size={16} color="#09090B" />
-            <Text className="text-zinc-900 font-bold text-xs ml-1.5">Account</Text>
-          </Pressable>
+        <Pressable
+          onPress={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+            setSelectedAccountId(accounts[0]?.id || '');
+            setModalVisible(true);
+          }}
+          className="flex-1 flex-row items-center justify-center py-2.5 px-3 bg-zinc-950 rounded-2xl active:bg-zinc-800 shadow-xs"
+        >
+          <Plus size={16} color="#FFF" />
+          <Text className="text-white font-bold text-xs ml-1.5">Transaction</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
 
-          <Pressable
-            onPress={() => {
-              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-              setSelectedAccountId(accounts[0]?.id || '');
-              setModalVisible(true);
-            }}
-            className="flex-1 flex-row items-center justify-center py-2.5 px-3 bg-zinc-950 rounded-2xl active:bg-zinc-800 shadow-xs"
-          >
-            <Plus size={16} color="#FFF" />
-            <Text className="text-white font-bold text-xs ml-1.5">Transaction</Text>
-          </Pressable>
-        </View>
+  return (
+    <SafeAreaView className="flex-1" style={{ backgroundColor: '#F8F9FE' }} edges={['top']}>
+      {/* Persistent Title Header: Always visible at the top with highest elevation */}
+      <View
+        onLayout={(e) => {
+          const h = e.nativeEvent.layout.height;
+          if (h > 0) setHeaderHeight(h);
+        }}
+        style={{ backgroundColor: '#F8F9FE', zIndex: 1000, elevation: 20 }}
+        className="px-4 pt-2 pb-1"
+      >
+        <Text className="text-[22px] font-extrabold text-zinc-950 tracking-tight">Transactions</Text>
+        <Text className="text-xs font-medium text-zinc-500 mt-0.5">Real-time financial activity</Text>
       </View>
 
       <ScrollView
         className="flex-1"
         style={{ backgroundColor: '#F8F9FE' }}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 140, paddingTop: 6 }}
+        contentContainerStyle={{ paddingBottom: 140 }}
         onScroll={(e) => {
           const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
-          if (contentOffset.y + layoutMeasurement.height >= contentSize.height - 400) {
+          const scrollY = contentOffset.y;
+          const layoutY = controlsLayoutYRef.current;
+          const shouldBeSticky = layoutY > 0 ? scrollY >= layoutY : scrollY > 0;
+          if (shouldBeSticky !== isScrolledPastChart) {
+            setIsScrolledPastChart(shouldBeSticky);
+          }
+          if (scrollY + layoutMeasurement.height >= contentSize.height - 400) {
             setRenderLimit((prev) => (prev < displayedTransactions.length ? prev + 30 : prev));
           }
         }}
-        scrollEventThrottle={32}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#09090B']} />
         }
       >
-        {/* Total Spend Chart Card (Hidden while category filtering from financial analytics) */}
-        {selectedCategoryFilter === 'all' && (
-          <View className="px-4 mb-2">
+        {/* Child 0: Total Spend Chart Card (at top, below Title - matches Image 1) */}
+        <View
+          style={
+            selectedCategoryFilter !== 'all'
+              ? { height: 0, overflow: 'hidden', opacity: 0 }
+              : undefined
+          }
+        >
+          <View className="px-4 pt-1 mb-2">
+            {/* Spend Graph based on Spend with Dashboard Balance */}
             <SpendChartCard
               accounts={accounts}
               transactions={transactions}
               selectedAccountId={selectedAccountFilterId}
             />
           </View>
-        )}
+        </View>
+
+        {/* Child 1: Natural Controls Section (below the Card - matches Image 1) */}
+        <View
+          onLayout={(e) => {
+            const y = e.nativeEvent.layout.y;
+            controlsLayoutYRef.current = y;
+            setControlsLayoutY(y);
+          }}
+          style={{ opacity: isScrolledPastChart ? 0 : 1 }}
+          pointerEvents={isScrolledPastChart ? 'none' : 'auto'}
+        >
+          {renderControlsSection()}
+        </View>
 
         {/* Child 2: Transactions Progressively Rendered List */}
         <View className="px-4">
@@ -836,6 +882,25 @@ export default function TransactionsScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Floating Sticky Controls Overlay (Docks below Title when scrolled - matches Image 2 & 100% click reliable) */}
+      <View
+        pointerEvents={isScrolledPastChart ? 'auto' : 'none'}
+        style={{
+          position: 'absolute',
+          top: headerHeight,
+          left: 0,
+          right: 0,
+          zIndex: isScrolledPastChart ? 999 : -1,
+          elevation: isScrolledPastChart ? 10 : 0,
+          backgroundColor: '#F8F9FE',
+          borderBottomWidth: 1,
+          borderBottomColor: isScrolledPastChart ? '#E2E8F0' : 'transparent',
+          opacity: isScrolledPastChart ? 1 : 0,
+        }}
+      >
+        {renderControlsSection()}
+      </View>
 
       {/* Custom Date / Month / Bank Filter Modal */}
       <AppBottomSheet
