@@ -681,6 +681,153 @@ describe('Android Bank SMS Transaction Auto-Detection Parser Pipeline', () => {
     expect(matchCategoryToUserCategories('Transfer', mockCategoriesWithTags, 'expense')?.id).toBe('cat_trf_exp');
     expect(matchCategoryToUserCategories('NEFT', mockCategoriesWithTags, 'expense')?.id).toBe('cat_trf_exp');
   });
+
+  // Test 30: Extracts exact date and time from message body and falls back to SMS reception timestamp
+  test('30. Extracts exact date and time from SMS body and preserves message timestamp', () => {
+    const { extractTransactionDate } = require('../lib/sms/parser/dateParser');
+    const { toLocalDateString } = require('../lib/finance/core');
+
+    // 1. Exact date + 24-hour time in message
+    const msg1 = 'Sent Rs.30.00 from HDFC Bank A/C *5472 to Thirupathi V on 04-11-26 14:35:22 via UPI. Ref 123';
+    const iso1 = extractTransactionDate(msg1);
+    expect(toLocalDateString(iso1)).toBe('2026-11-04');
+    const d1 = new Date(iso1);
+    expect(d1.getHours()).toBe(14);
+    expect(d1.getMinutes()).toBe(35);
+    expect(d1.getSeconds()).toBe(22);
+
+    // 2. Exact date + 12-hour AM/PM time in message
+    const msg2 = 'Rs.450 debited from A/c XX1234 on 04-Nov-26 at 02:30 PM to Swiggy';
+    const iso2 = extractTransactionDate(msg2);
+    expect(toLocalDateString(iso2)).toBe('2026-11-04');
+    const d2 = new Date(iso2);
+    expect(d2.getHours()).toBe(14);
+    expect(d2.getMinutes()).toBe(30);
+
+    // 3. Exact date in message, time from fallback SMS arrival timestamp (NOT current detection time)
+    const specificSmsTimestamp = new Date(2026, 10, 4, 10, 15, 30).getTime();
+    const msg3 = 'Sent Rs.30.00 from HDFC Bank A/C *5472 to Thirupathi V on 04-11-26 via UPI. Ref 456';
+    const iso3 = extractTransactionDate(msg3, specificSmsTimestamp);
+    expect(toLocalDateString(iso3)).toBe('2026-11-04');
+    const d3 = new Date(iso3);
+    expect(d3.getHours()).toBe(10);
+    expect(d3.getMinutes()).toBe(15);
+    expect(d3.getSeconds()).toBe(30);
+
+    // 4. No date or time in body -> uses full fallback SMS arrival timestamp
+    const msg4 = 'HDFC Bank: Rs.450 debited from A/c XX1234 to UPI Ref 4281901829.';
+    const iso4 = extractTransactionDate(msg4, specificSmsTimestamp);
+    expect(toLocalDateString(iso4)).toBe('2026-11-04');
+    const d4 = new Date(iso4);
+    expect(d4.getHours()).toBe(10);
+    expect(d4.getMinutes()).toBe(15);
+  });
+
+  // Test 31: Multiple payments of same amount at same shop with different reference IDs are not duplicates
+  test('31. Differentiates multiple payments of the same amount with distinct UPI reference IDs', () => {
+    const tx1: ParsedSmsTransaction = {
+      sourceMessageId: 'sms_1',
+      smsSender: 'HDFCBK',
+      type: 'expense',
+      amount: 30,
+      amountMinor: 3000,
+      currency: 'INR',
+      bankId: 'hdfc',
+      bankName: 'HDFC Bank',
+      maskedAccount: 'XX5472',
+      merchant: 'Thirupathi V',
+      paymentMethod: 'UPI',
+      category: 'Personal',
+      transactionDate: '2026-11-04T10:00:00.000Z',
+      referenceNumber: 'REF_TX_A1',
+      upiReference: 'REF_TX_A1',
+      confidenceScore: 95,
+      isSalary: false,
+      isRefund: false,
+      isTransfer: false,
+      isAutoDetected: true,
+      needsReview: false,
+    };
+
+    const tx2: ParsedSmsTransaction = {
+      ...tx1,
+      sourceMessageId: 'sms_2',
+      referenceNumber: 'REF_TX_B2',
+      upiReference: 'REF_TX_B2',
+      transactionDate: '2026-11-04T10:05:00.000Z',
+    };
+
+    const existingStoredTxs = [
+      {
+        id: 'db_tx_1',
+        amount_minor: 3000,
+        type: 'expense',
+        date: '2026-11-04',
+        notes: 'UPI Ref: REF_TX_A1',
+        referenceNumber: 'REF_TX_A1',
+      },
+    ];
+
+    // tx1 is a duplicate of db_tx_1 (same reference number)
+    expect(isDuplicateTransaction(tx1, existingStoredTxs)).toBe(true);
+    // tx2 is NOT a duplicate (different reference number)
+    expect(isDuplicateTransaction(tx2, existingStoredTxs)).toBe(false);
+  });
+
+  // Test 32: User's exact Google Messages screenshots (HDFC & BOB)
+  test('32. Parses user actual Google Messages from screenshots accurately', () => {
+    const { toLocalDateString } = require('../lib/finance/core');
+
+    // Screenshot 1: HDFC 1
+    const hdfc1: RawSMS = {
+      sender: 'JM-HDFCBN-S',
+      body: 'Sent Rs.24.00\nFrom HDFC Bank A/C *5472\nTo Poojary Sathish Muddu\nOn 05/11/26\nRef 667597626913\nNot You?\nCall 18002586161/SMS BLOCK UPI to 7308080808',
+      timestamp: new Date('2026-11-05T22:01:00').getTime(),
+    };
+    const parsedHdfc1 = parseBankSms(hdfc1);
+    expect(parsedHdfc1).not.toBeNull();
+    expect(parsedHdfc1?.amount).toBe(24);
+    expect(parsedHdfc1?.merchant).toBe('Poojary Sathish Muddu');
+    expect(toLocalDateString(parsedHdfc1?.transactionDate)).toBe('2026-11-05');
+    expect(parsedHdfc1?.referenceNumber).toBe('667597626913');
+
+    // Screenshot 1: HDFC 2
+    const hdfc2: RawSMS = {
+      sender: 'JM-HDFCBN-S',
+      body: 'Sent Rs.150.00\nFrom HDFC Bank A/C *5472\nTo sri varshath\nOn 06/11/26\nRef 667699976394\nNot You?\nCall 18002586161/SMS BLOCK UPI to 7308080808',
+      timestamp: new Date('2026-11-06T09:04:00').getTime(),
+    };
+    const parsedHdfc2 = parseBankSms(hdfc2);
+    expect(parsedHdfc2).not.toBeNull();
+    expect(parsedHdfc2?.amount).toBe(150);
+    expect(parsedHdfc2?.merchant).toBe('Sri Varshath');
+    expect(toLocalDateString(parsedHdfc2?.transactionDate)).toBe('2026-11-06');
+    expect(parsedHdfc2?.referenceNumber).toBe('667699976394');
+
+    // Screenshot 2: Bank of Baroda 1
+    const bob1: RawSMS = {
+      sender: 'JD-BOBSMS-S',
+      body: 'Rs.6000.00 Dr. from A/C XXXXXX0572 and Cr. to ragh4813@ybl. Ref:667258977121. AvlBal:Rs118.08(2026:11:02 08:26:33). Not you? Call 18005700/5000-BOB',
+      timestamp: new Date('2026-11-02T20:27:00').getTime(),
+    };
+    const parsedBob1 = parseBankSms(bob1);
+    expect(parsedBob1).not.toBeNull();
+    expect(parsedBob1?.amount).toBe(6000);
+    expect(toLocalDateString(parsedBob1?.transactionDate)).toBe('2026-11-02');
+    expect(parsedBob1?.referenceNumber).toBe('667258977121');
+
+    // Screenshot 2: Bank of Baroda 2
+    const bob2: RawSMS = {
+      sender: 'JD-BOBSMS-S',
+      body: 'Rs.500.00 Dr. from A/C XXXXXX0572 and Cr. to groww.iccl5.brk@validhdfc. Ref:104418234186. AvlBal:Rs17.08(2026:11:06 06:57:01). Not you? Call 18005700/5000-BOB',
+      timestamp: new Date('2026-11-06T06:57:00').getTime(),
+    };
+    const parsedBob2 = parseBankSms(bob2);
+    expect(parsedBob2).not.toBeNull();
+    expect(parsedBob2?.amount).toBe(500);
+    expect(toLocalDateString(parsedBob2?.transactionDate)).toBe('2026-11-06');
+    expect(parsedBob2?.referenceNumber).toBe('104418234186');
+  });
 });
 
 
