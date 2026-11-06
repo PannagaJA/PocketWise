@@ -11,7 +11,7 @@ import { AppDialog } from '../components/ui/AppDialog';
 import { useAuth } from '../context/AuthContext';
 import { reminderService, Reminder } from '../lib/services/reminder.service';
 import { useModuleBack } from '../lib/navigation/moduleBack';
-import { DatePickerButton } from '../components/ui/DatePickerModal';
+import { DatePickerModal } from '../components/ui/DatePickerModal';
 import { TimePickerModal, format12HourTime } from '../components/ui/TimePickerModal';
 import { Plus, X, ArrowLeft, Calendar, CheckCircle2, Clock, Bell, Trash2, Check, AlertCircle, Receipt, RotateCcw, Target, Sparkles, ChevronRight, SlidersHorizontal } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -26,6 +26,7 @@ export default function RemindersScreen() {
 
   // Modal state
   const [modalVisible, setModalVisible] = useState(false);
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [timePickerVisible, setTimePickerVisible] = useState(false);
   const [reminderToDelete, setReminderToDelete] = useState<Reminder | null>(null);
 
@@ -39,6 +40,17 @@ export default function RemindersScreen() {
     const d = new Date();
     d.setDate(d.getDate() + 1);
     return d.toISOString().split('T')[0];
+  };
+
+  const formatDateDisplay = (dateStr: string) => {
+    if (!dateStr) return 'Select date';
+    try {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const dt = new Date(y, m - 1, d);
+      return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+      return dateStr;
+    }
   };
 
   const [scheduledDate, setScheduledDate] = useState<string>(getTomorrowDateStr());
@@ -570,12 +582,21 @@ export default function RemindersScreen() {
               {/* Custom Date & Time Controls */}
               <View className="flex-row gap-3">
                 <View className="flex-1">
-                  <DatePickerButton
-                    label="Reminder Date"
-                    value={scheduledDate}
-                    onSelectDate={setScheduledDate}
-                    placeholder="Select date"
-                  />
+                  <Text className="text-xs font-bold text-zinc-700 uppercase tracking-wider mb-2 ml-1">
+                    Reminder Date
+                  </Text>
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => setDatePickerVisible(true)}
+                    className="flex-row items-center justify-between p-3.5 bg-white border border-zinc-200 rounded-2xl active:bg-zinc-50 shadow-xs"
+                  >
+                    <View className="flex-row items-center gap-2">
+                      <Calendar size={16} color="#71717A" />
+                      <Text className="text-sm font-bold text-zinc-900">
+                        {formatDateDisplay(scheduledDate)}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
                 </View>
 
                 <View className="flex-1">
@@ -626,6 +647,17 @@ export default function RemindersScreen() {
           </View>
         </KeyboardAvoidingView>
       </AppBottomSheet>
+
+      {/* Date Picker Modal */}
+      <DatePickerModal
+        visible={datePickerVisible}
+        onClose={() => setDatePickerVisible(false)}
+        selectedDate={scheduledDate}
+        onSelectDate={(date) => {
+          if (date) setScheduledDate(date);
+        }}
+        title="Select Reminder Date"
+      />
 
       {/* Time Picker Modal */}
       <TimePickerModal
