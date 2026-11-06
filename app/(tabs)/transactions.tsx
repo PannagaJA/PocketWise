@@ -112,7 +112,6 @@ export default function TransactionsScreen() {
   const [renderLimit, setRenderLimit] = useState(35);
 
   // Sticky header measurement and scroll tracking state (bypasses Android stickyHeaderIndices touch bugs)
-  const [headerHeight, setHeaderHeight] = useState(56);
   const [controlsLayoutY, setControlsLayoutY] = useState(240);
   const controlsLayoutYRef = useRef(240);
   const [isScrolledPastChart, setIsScrolledPastChart] = useState(false);
@@ -758,17 +757,31 @@ export default function TransactionsScreen() {
 
   return (
     <SafeAreaView className="flex-1" style={{ backgroundColor: '#F8F9FE' }} edges={['top']}>
-      {/* Persistent Title Header: Always visible at the top with highest elevation */}
-      <View
-        onLayout={(e) => {
-          const h = e.nativeEvent.layout.height;
-          if (h > 0) setHeaderHeight(h);
-        }}
-        style={{ backgroundColor: '#F8F9FE', zIndex: 1000, elevation: 20 }}
-        className="px-4 pt-2 pb-1"
-      >
-        <Text className="text-[22px] font-extrabold text-zinc-950 tracking-tight">Transactions</Text>
-        <Text className="text-xs font-medium text-zinc-500 mt-0.5">Real-time financial activity</Text>
+      {/* Persistent Title Header with Anchored Floating Controls */}
+      <View style={{ zIndex: 1000, elevation: 20, backgroundColor: '#F8F9FE' }}>
+        <View className="px-4 pt-2 pb-1">
+          <Text className="text-[22px] font-extrabold text-zinc-950 tracking-tight">Transactions</Text>
+          <Text className="text-xs font-medium text-zinc-500 mt-0.5">Real-time financial activity</Text>
+        </View>
+
+        {/* Floating Sticky Controls Overlay (Anchored to exactly top: '100%' directly below Title Header) */}
+        <View
+          pointerEvents={isScrolledPastChart ? 'auto' : 'none'}
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            right: 0,
+            zIndex: isScrolledPastChart ? 999 : -1,
+            elevation: isScrolledPastChart ? 10 : 0,
+            backgroundColor: '#F8F9FE',
+            borderBottomWidth: 1,
+            borderBottomColor: isScrolledPastChart ? '#E2E8F0' : 'transparent',
+            opacity: isScrolledPastChart ? 1 : 0,
+          }}
+        >
+          {renderControlsSection()}
+        </View>
       </View>
 
       <ScrollView
@@ -882,25 +895,6 @@ export default function TransactionsScreen() {
           )}
         </View>
       </ScrollView>
-
-      {/* Floating Sticky Controls Overlay (Docks below Title when scrolled - matches Image 2 & 100% click reliable) */}
-      <View
-        pointerEvents={isScrolledPastChart ? 'auto' : 'none'}
-        style={{
-          position: 'absolute',
-          top: headerHeight,
-          left: 0,
-          right: 0,
-          zIndex: isScrolledPastChart ? 999 : -1,
-          elevation: isScrolledPastChart ? 10 : 0,
-          backgroundColor: '#F8F9FE',
-          borderBottomWidth: 1,
-          borderBottomColor: isScrolledPastChart ? '#E2E8F0' : 'transparent',
-          opacity: isScrolledPastChart ? 1 : 0,
-        }}
-      >
-        {renderControlsSection()}
-      </View>
 
       {/* Custom Date / Month / Bank Filter Modal */}
       <AppBottomSheet
