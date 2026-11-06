@@ -242,6 +242,14 @@ export class AppUpdateService {
       throw new Error('Failed to download update APK file.');
     }
 
+    const downloadedInfo = await FileSystem.getInfoAsync(result.uri);
+    if (!downloadedInfo.exists || !downloadedInfo.size || downloadedInfo.size < 10000000) {
+      try {
+        await FileSystem.deleteAsync(result.uri, { idempotent: true });
+      } catch {}
+      throw new Error('Downloaded APK appears incomplete or corrupted. Please check your network connection and retry.');
+    }
+
     return result.uri;
   }
 
@@ -270,6 +278,17 @@ export class AppUpdateService {
       }
     }
 
+    // 1. Primary: Native installer method with explicit queryIntentActivities + grantUriPermission
+    if (PocketWiseSmsModule?.installApk) {
+      try {
+        await PocketWiseSmsModule.installApk(fileUri);
+        return;
+      } catch (nativeErr: any) {
+        console.warn('[AppUpdateService] Native installApk failed, trying IntentLauncher fallback:', nativeErr);
+      }
+    }
+
+    // 2. Secondary: IntentLauncher with Content URI
     try {
       // Convert file:// URI to content:// URI via FileProvider
       const contentUri = await FileSystem.getContentUriAsync(fileUri);
@@ -282,7 +301,7 @@ export class AppUpdateService {
       });
     } catch (primaryErr) {
       console.warn('[AppUpdateService] IntentLauncher failed, trying fallback sharing:', primaryErr);
-      // Fallback: system share dialog which hands APK to package installer
+      // 3. Tertiary Fallback: system share dialog which hands APK to package installer
       await Sharing.shareAsync(fileUri, {
         mimeType: 'application/vnd.android.package-archive',
         dialogTitle: 'Install PocketWise Update',

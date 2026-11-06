@@ -2,7 +2,7 @@
   "expo": {
     "name": "PocketWise",
     "slug": "pocketwise",
-    "version": "1.0.25",
+    "version": "1.0.26",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "pocketwise",
@@ -24,6 +24,7 @@
     },
     "android": {
       "package": "com.pocketwise.app",
+      "versionCode": 10026,
       "softwareKeyboardLayoutMode": "resize",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
