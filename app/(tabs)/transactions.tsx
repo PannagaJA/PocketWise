@@ -111,6 +111,11 @@ export default function TransactionsScreen() {
   // Progressive render limit for high performance (prevents blank screen freeze on mount)
   const [renderLimit, setRenderLimit] = useState(35);
 
+  // Sticky header measurement and scroll tracking state (bypasses Android stickyHeaderIndices touch bugs)
+  const [headerHeight, setHeaderHeight] = useState(56);
+  const [chartHeight, setChartHeight] = useState(240);
+  const [isScrolledPastChart, setIsScrolledPastChart] = useState(false);
+
   useEffect(() => {
     setRenderLimit(35);
   }, [
@@ -589,10 +594,178 @@ export default function TransactionsScreen() {
     setSelectedCategoryId('');
   };
 
+  const renderControlsSection = (isFloating: boolean = false) => (
+    <View
+      style={{ backgroundColor: '#F8F9FE' }}
+      className={`px-4 pt-2 ${isFloating ? 'pb-2.5' : 'pb-3'}`}
+    >
+      {/* Search Bar Input & Custom Date/Month Filter Button on the Same Line */}
+      <View className="flex-row items-center gap-2 mb-3">
+        {/* Search Bar */}
+        <View className="flex-1 flex-row items-center bg-white border border-zinc-100 rounded-2xl px-3.5 py-2.5 shadow-xs">
+          <Search size={18} color="#71717A" />
+          <TextInput
+            placeholder="Search description, category..."
+            placeholderTextColor="#A1A1AA"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            className="flex-1 text-sm font-medium text-zinc-900 p-0 ml-2"
+          />
+          {searchQuery ? (
+            <Pressable onPress={() => setSearchQuery('')} className="p-1">
+              <X size={16} color="#71717A" />
+            </Pressable>
+          ) : null}
+        </View>
+
+        {/* Custom Filter Button (Robust non-nested layout with separate clear button) */}
+        <View
+          style={{ maxWidth: 150 }}
+          className={`flex-row items-center rounded-2xl border ${
+            isFilterActive
+              ? 'bg-zinc-900 border-zinc-900'
+              : 'bg-white border-zinc-100 shadow-xs'
+          }`}
+        >
+          <Pressable
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              setDateFilterModalVisible(true);
+            }}
+            className="flex-row items-center gap-1.5 py-2.5 pl-3 pr-1.5 shrink"
+          >
+            <SlidersHorizontal size={15} color={isFilterActive ? '#FFF' : '#09090B'} />
+            <Text
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              className={`text-xs font-bold shrink ${isFilterActive ? 'text-white' : 'text-zinc-900'}`}
+            >
+              {getFilterButtonLabel()}
+            </Text>
+          </Pressable>
+
+          {isFilterActive ? (
+            <Pressable
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+                setDateFilterMode('all');
+                setSelectedCustomMonth('');
+                setCustomStartDate('');
+                setCustomEndDate('');
+                setSelectedAccountFilterId('all');
+                setSelectedCategoryFilter('all');
+              }}
+              hitSlop={{ top: 12, bottom: 12, left: 8, right: 12 }}
+              className="py-2.5 pr-2.5 pl-0.5 items-center justify-center"
+            >
+              <View className="w-4 h-4 rounded-full bg-white/25 items-center justify-center">
+                <X size={11} color="#FFF" strokeWidth={3} />
+              </View>
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                setDateFilterModalVisible(true);
+              }}
+              className="py-2.5 pr-2.5 pl-0 items-center justify-center"
+            >
+              <ChevronDown size={14} color="#71717A" />
+            </Pressable>
+          )}
+        </View>
+      </View>
+
+      {/* Filter Pills */}
+      <View className="flex-row bg-zinc-100/80 p-1 rounded-2xl mb-3">
+        <Pressable
+          onPress={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+            setActiveFilter('all');
+            setSelectedCategoryFilter('all');
+          }}
+          className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'all' ? 'bg-white shadow-xs' : ''}`}
+        >
+          <Text className={`font-bold text-xs ${activeFilter === 'all' ? 'text-zinc-950' : 'text-zinc-500'}`}>All</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+            setActiveFilter('income');
+            if (selectedCategoryFilter.toLowerCase() !== 'income') {
+              setSelectedCategoryFilter('all');
+            }
+          }}
+          className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'income' ? 'bg-white shadow-xs' : ''}`}
+        >
+          <Text className={`font-bold text-xs ${activeFilter === 'income' ? 'text-emerald-600' : 'text-zinc-500'}`}>Income</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+            setActiveFilter('expense');
+            if (selectedCategoryFilter.toLowerCase() === 'transfer') {
+              setSelectedCategoryFilter('all');
+            }
+          }}
+          className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'expense' ? 'bg-white shadow-xs' : ''}`}
+        >
+          <Text className={`font-bold text-xs ${activeFilter === 'expense' ? 'text-rose-600' : 'text-zinc-500'}`}>Expense</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+            setActiveFilter('transfer');
+            setSelectedCategoryFilter('Transfer');
+          }}
+          className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'transfer' ? 'bg-white shadow-xs' : ''}`}
+        >
+          <Text className={`font-bold text-xs ${activeFilter === 'transfer' ? 'text-indigo-600' : 'text-zinc-500'}`}>Transfer</Text>
+        </Pressable>
+      </View>
+
+      {/* Action Row */}
+      <View className="flex-row gap-3">
+        <Pressable
+          onPress={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+            setAccModalVisible(true);
+          }}
+          className="flex-1 flex-row items-center justify-center py-2.5 px-3 bg-white border border-zinc-100 rounded-2xl active:bg-zinc-50 shadow-xs"
+        >
+          <Wallet size={16} color="#09090B" />
+          <Text className="text-zinc-900 font-bold text-xs ml-1.5">Account</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+            setSelectedAccountId(accounts[0]?.id || '');
+            setModalVisible(true);
+          }}
+          className="flex-1 flex-row items-center justify-center py-2.5 px-3 bg-zinc-950 rounded-2xl active:bg-zinc-800 shadow-xs"
+        >
+          <Plus size={16} color="#FFF" />
+          <Text className="text-white font-bold text-xs ml-1.5">Transaction</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView className="flex-1" style={{ backgroundColor: '#F8F9FE' }} edges={['top']}>
       {/* Persistent Header: Always visible at the top */}
-      <View style={{ backgroundColor: '#F8F9FE' }} className="px-4 pt-2 pb-1">
+      <View
+        onLayout={(e) => {
+          const h = e.nativeEvent.layout.height;
+          if (h > 0) setHeaderHeight(h);
+        }}
+        style={{ backgroundColor: '#F8F9FE' }}
+        className="px-4 pt-2 pb-1"
+      >
         <Text className="text-[22px] font-extrabold text-zinc-950 tracking-tight">Transactions</Text>
         <Text className="text-xs font-medium text-zinc-500 mt-0.5">Real-time financial activity</Text>
       </View>
@@ -601,21 +774,30 @@ export default function TransactionsScreen() {
         className="flex-1"
         style={{ backgroundColor: '#F8F9FE' }}
         showsVerticalScrollIndicator={false}
-        stickyHeaderIndices={[1]}
         contentContainerStyle={{ paddingBottom: 140 }}
         onScroll={(e) => {
           const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
-          if (contentOffset.y + layoutMeasurement.height >= contentSize.height - 400) {
+          const scrollY = contentOffset.y;
+          const threshold = selectedCategoryFilter === 'all' ? Math.max(chartHeight - 8, 40) : 0;
+          const shouldBeSticky = scrollY >= threshold;
+          if (shouldBeSticky !== isScrolledPastChart) {
+            setIsScrolledPastChart(shouldBeSticky);
+          }
+          if (scrollY + layoutMeasurement.height >= contentSize.height - 400) {
             setRenderLimit((prev) => (prev < displayedTransactions.length ? prev + 30 : prev));
           }
         }}
-        scrollEventThrottle={32}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#09090B']} />
         }
       >
-        {/* Child 0: Total Spend Chart Card (Permanently index 0 to avoid Android stickyHeaderIndices shifting bug) */}
+        {/* Child 0: Total Spend Chart Card */}
         <View
+          onLayout={(e) => {
+            const h = e.nativeEvent.layout.height;
+            if (h > 0) setChartHeight(h);
+          }}
           style={
             selectedCategoryFilter !== 'all'
               ? { height: 0, overflow: 'hidden', opacity: 0 }
@@ -632,162 +814,8 @@ export default function TransactionsScreen() {
           </View>
         </View>
 
-        {/* Child 1: Controls Section (STICKY right below the header!) */}
-        <View style={{ backgroundColor: '#F8F9FE', zIndex: 10 }} className="px-4 pt-2 pb-3">
-          {/* Search Bar Input & Custom Date/Month Filter Button on the Same Line */}
-          <View className="flex-row items-center gap-2 mb-3">
-            {/* Search Bar */}
-            <View className="flex-1 flex-row items-center bg-white border border-zinc-100 rounded-2xl px-3.5 py-2.5 shadow-xs">
-              <Search size={18} color="#71717A" />
-              <TextInput
-                placeholder="Search description, category..."
-                placeholderTextColor="#A1A1AA"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                className="flex-1 text-sm font-medium text-zinc-900 p-0 ml-2"
-              />
-              {searchQuery ? (
-                <Pressable onPress={() => setSearchQuery('')} className="p-1">
-                  <X size={16} color="#71717A" />
-                </Pressable>
-              ) : null}
-            </View>
-
-            {/* Custom Filter Button (Robust non-nested layout with separate clear button) */}
-            <View
-              style={{ maxWidth: 150 }}
-              className={`flex-row items-center rounded-2xl border ${
-                isFilterActive
-                  ? 'bg-zinc-900 border-zinc-900'
-                  : 'bg-white border-zinc-100 shadow-xs'
-              }`}
-            >
-              <Pressable
-                onPress={() => {
-                  try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                  setDateFilterModalVisible(true);
-                }}
-                className="flex-row items-center gap-1.5 py-2.5 pl-3 pr-1.5 shrink"
-              >
-                <SlidersHorizontal size={15} color={isFilterActive ? '#FFF' : '#09090B'} />
-                <Text
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                  className={`text-xs font-bold shrink ${isFilterActive ? 'text-white' : 'text-zinc-900'}`}
-                >
-                  {getFilterButtonLabel()}
-                </Text>
-              </Pressable>
-
-              {isFilterActive ? (
-                <Pressable
-                  onPress={() => {
-                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
-                    setDateFilterMode('all');
-                    setSelectedCustomMonth('');
-                    setCustomStartDate('');
-                    setCustomEndDate('');
-                    setSelectedAccountFilterId('all');
-                    setSelectedCategoryFilter('all');
-                  }}
-                  hitSlop={{ top: 12, bottom: 12, left: 8, right: 12 }}
-                  className="py-2.5 pr-2.5 pl-0.5 items-center justify-center"
-                >
-                  <View className="w-4 h-4 rounded-full bg-white/25 items-center justify-center">
-                    <X size={11} color="#FFF" strokeWidth={3} />
-                  </View>
-                </Pressable>
-              ) : (
-                <Pressable
-                  onPress={() => {
-                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                    setDateFilterModalVisible(true);
-                  }}
-                  className="py-2.5 pr-2.5 pl-0 items-center justify-center"
-                >
-                  <ChevronDown size={14} color="#71717A" />
-                </Pressable>
-              )}
-            </View>
-          </View>
-
-          {/* Filter Pills */}
-          <View className="flex-row bg-zinc-100/80 p-1 rounded-2xl mb-3">
-            <Pressable
-              onPress={() => {
-                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                setActiveFilter('all');
-                setSelectedCategoryFilter('all');
-              }}
-              className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'all' ? 'bg-white shadow-xs' : ''}`}
-            >
-              <Text className={`font-bold text-xs ${activeFilter === 'all' ? 'text-zinc-950' : 'text-zinc-500'}`}>All</Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => {
-                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                setActiveFilter('income');
-                if (selectedCategoryFilter.toLowerCase() !== 'income') {
-                  setSelectedCategoryFilter('all');
-                }
-              }}
-              className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'income' ? 'bg-white shadow-xs' : ''}`}
-            >
-              <Text className={`font-bold text-xs ${activeFilter === 'income' ? 'text-emerald-600' : 'text-zinc-500'}`}>Income</Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => {
-                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                setActiveFilter('expense');
-                if (selectedCategoryFilter.toLowerCase() === 'transfer') {
-                  setSelectedCategoryFilter('all');
-                }
-              }}
-              className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'expense' ? 'bg-white shadow-xs' : ''}`}
-            >
-              <Text className={`font-bold text-xs ${activeFilter === 'expense' ? 'text-rose-600' : 'text-zinc-500'}`}>Expense</Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => {
-                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                setActiveFilter('transfer');
-                setSelectedCategoryFilter('Transfer');
-              }}
-              className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'transfer' ? 'bg-white shadow-xs' : ''}`}
-            >
-              <Text className={`font-bold text-xs ${activeFilter === 'transfer' ? 'text-indigo-600' : 'text-zinc-500'}`}>Transfer</Text>
-            </Pressable>
-          </View>
-
-          {/* Action Row */}
-          <View className="flex-row gap-3">
-            <Pressable
-              onPress={() => {
-                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                setAccModalVisible(true);
-              }}
-              className="flex-1 flex-row items-center justify-center py-2.5 px-3 bg-white border border-zinc-100 rounded-2xl active:bg-zinc-50 shadow-xs"
-            >
-              <Wallet size={16} color="#09090B" />
-              <Text className="text-zinc-900 font-bold text-xs ml-1.5">Account</Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => {
-                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                setSelectedAccountId(accounts[0]?.id || '');
-                setModalVisible(true);
-              }}
-              className="flex-1 flex-row items-center justify-center py-2.5 px-3 bg-zinc-950 rounded-2xl active:bg-zinc-800 shadow-xs"
-            >
-              <Plus size={16} color="#FFF" />
-              <Text className="text-white font-bold text-xs ml-1.5">Transaction</Text>
-            </Pressable>
-          </View>
-        </View>
+        {/* Child 1: Natural Controls Section */}
+        {renderControlsSection(false)}
 
         {/* Child 2: Transactions Progressively Rendered List */}
         <View className="px-4">
@@ -847,6 +875,25 @@ export default function TransactionsScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Floating Sticky Controls Overlay (Rendered outside ScrollView to eliminate native Android stickyHeaderIndices touch/hit-test bugs) */}
+      <View
+        pointerEvents={isScrolledPastChart ? 'auto' : 'none'}
+        style={{
+          position: 'absolute',
+          top: headerHeight,
+          left: 0,
+          right: 0,
+          zIndex: 999,
+          elevation: 10,
+          backgroundColor: '#F8F9FE',
+          borderBottomWidth: isScrolledPastChart ? 1 : 0,
+          borderBottomColor: '#E2E8F0',
+          opacity: isScrolledPastChart ? 1 : 0,
+        }}
+      >
+        {renderControlsSection(true)}
+      </View>
 
       {/* Custom Date / Month / Bank Filter Modal */}
       <AppBottomSheet
