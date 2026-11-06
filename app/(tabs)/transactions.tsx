@@ -106,6 +106,22 @@ export default function TransactionsScreen() {
   const [customStartDate, setCustomStartDate] = useState<string>(''); // e.g. "2026-08-01"
   const [customEndDate, setCustomEndDate] = useState<string>(''); // e.g. "2026-08-31"
 
+  // Progressive render limit for high performance (prevents blank screen freeze on mount)
+  const [renderLimit, setRenderLimit] = useState(35);
+
+  useEffect(() => {
+    setRenderLimit(35);
+  }, [
+    searchQuery,
+    activeFilter,
+    selectedAccountFilterId,
+    selectedCategoryFilter,
+    dateFilterMode,
+    selectedCustomMonth,
+    customStartDate,
+    customEndDate,
+  ]);
+
   // Form state
   const [type, setType] = useState<'income' | 'expense' | 'transfer'>('expense');
   const [description, setDescription] = useState('');
@@ -319,9 +335,14 @@ export default function TransactionsScreen() {
     }
   }, [params?.editId, transactions, handleOpenEditTx]);
 
+  const handledCategoryParamRef = useRef<string | null>(null);
+
   useEffect(() => {
-    const targetCat = pendingCategoryFilter || params?.category;
+    const targetCat = pendingCategoryFilter || (params?.category && params.category !== handledCategoryParamRef.current ? params?.category : undefined);
     if (targetCat) {
+      if (params?.category) {
+        handledCategoryParamRef.current = params.category;
+      }
       const cat = targetCat.trim();
       setSelectedAccountFilterId('all');
       setDateFilterMode('all');
@@ -578,14 +599,27 @@ export default function TransactionsScreen() {
         className="flex-1"
         style={{ backgroundColor: '#F8F9FE' }}
         showsVerticalScrollIndicator={false}
-        stickyHeaderIndices={selectedCategoryFilter !== 'all' ? [0] : [1]}
+        stickyHeaderIndices={[1]}
         contentContainerStyle={{ paddingBottom: 140 }}
+        onScroll={(e) => {
+          const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
+          if (contentOffset.y + layoutMeasurement.height >= contentSize.height - 400) {
+            setRenderLimit((prev) => (prev < displayedTransactions.length ? prev + 30 : prev));
+          }
+        }}
+        scrollEventThrottle={32}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#09090B']} />
         }
       >
-        {/* Child 0: Total Spend Chart Card (Hidden while category filtering from financial analytics) */}
-        {selectedCategoryFilter === 'all' && (
+        {/* Child 0: Total Spend Chart Card (Permanently index 0 to avoid Android stickyHeaderIndices shifting bug) */}
+        <View
+          style={
+            selectedCategoryFilter !== 'all'
+              ? { height: 0, overflow: 'hidden', opacity: 0 }
+              : undefined
+          }
+        >
           <View className="px-4 pt-2 mb-2">
             {/* Spend Graph based on Spend with Dashboard Balance */}
             <SpendChartCard
@@ -594,7 +628,7 @@ export default function TransactionsScreen() {
               selectedAccountId={selectedAccountFilterId}
             />
           </View>
-        )}
+        </View>
 
         {/* Child 1: Controls Section (STICKY right below the header!) */}
         <View style={{ backgroundColor: '#F8F9FE', zIndex: 10 }} className="px-4 pt-2 pb-3">
@@ -617,43 +651,62 @@ export default function TransactionsScreen() {
               ) : null}
             </View>
 
-            {/* Custom Filter Button */}
-            <Pressable
-              onPress={() => {
-                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                setDateFilterModalVisible(true);
-              }}
-              style={{ maxWidth: 140 }}
-              className={`flex-row items-center gap-1.5 py-2.5 px-3 rounded-2xl border ${
+            {/* Custom Filter Button (Robust non-nested layout with separate clear button) */}
+            <View
+              style={{ maxWidth: 150 }}
+              className={`flex-row items-center rounded-2xl border ${
                 isFilterActive
                   ? 'bg-zinc-900 border-zinc-900'
                   : 'bg-white border-zinc-100 shadow-xs'
               }`}
             >
-              <SlidersHorizontal size={16} color={isFilterActive ? '#FFF' : '#09090B'} />
-              <Text
-                numberOfLines={1}
-                ellipsizeMode="tail"
-                className={`text-xs font-bold shrink ${isFilterActive ? 'text-white' : 'text-zinc-900'}`}
+              <Pressable
+                onPress={() => {
+                  try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                  setDateFilterModalVisible(true);
+                }}
+                className="flex-row items-center gap-1.5 py-2.5 pl-3 pr-1.5 shrink"
               >
-                {getFilterButtonLabel()}
-              </Text>
+                <SlidersHorizontal size={15} color={isFilterActive ? '#FFF' : '#09090B'} />
+                <Text
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  className={`text-xs font-bold shrink ${isFilterActive ? 'text-white' : 'text-zinc-900'}`}
+                >
+                  {getFilterButtonLabel()}
+                </Text>
+              </Pressable>
+
               {isFilterActive ? (
                 <Pressable
-                  onPress={(e) => {
-                    e.stopPropagation();
+                  onPress={() => {
+                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
                     setDateFilterMode('all');
+                    setSelectedCustomMonth('');
+                    setCustomStartDate('');
+                    setCustomEndDate('');
                     setSelectedAccountFilterId('all');
                     setSelectedCategoryFilter('all');
                   }}
-                  className="ml-0.5"
+                  hitSlop={{ top: 12, bottom: 12, left: 8, right: 12 }}
+                  className="py-2.5 pr-2.5 pl-0.5 items-center justify-center"
                 >
-                  <X size={14} color="#FFF" />
+                  <View className="w-4 h-4 rounded-full bg-white/25 items-center justify-center">
+                    <X size={11} color="#FFF" strokeWidth={3} />
+                  </View>
                 </Pressable>
               ) : (
-                <ChevronDown size={14} color="#71717A" />
+                <Pressable
+                  onPress={() => {
+                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                    setDateFilterModalVisible(true);
+                  }}
+                  className="py-2.5 pr-2.5 pl-0 items-center justify-center"
+                >
+                  <ChevronDown size={14} color="#71717A" />
+                </Pressable>
               )}
-            </Pressable>
+            </View>
           </View>
 
           {/* Filter Pills */}
@@ -662,6 +715,7 @@ export default function TransactionsScreen() {
               onPress={() => {
                 try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                 setActiveFilter('all');
+                setSelectedCategoryFilter('all');
               }}
               className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'all' ? 'bg-white shadow-xs' : ''}`}
             >
@@ -672,6 +726,9 @@ export default function TransactionsScreen() {
               onPress={() => {
                 try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                 setActiveFilter('income');
+                if (selectedCategoryFilter.toLowerCase() !== 'income') {
+                  setSelectedCategoryFilter('all');
+                }
               }}
               className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'income' ? 'bg-white shadow-xs' : ''}`}
             >
@@ -682,6 +739,9 @@ export default function TransactionsScreen() {
               onPress={() => {
                 try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                 setActiveFilter('expense');
+                if (selectedCategoryFilter.toLowerCase() === 'transfer') {
+                  setSelectedCategoryFilter('all');
+                }
               }}
               className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'expense' ? 'bg-white shadow-xs' : ''}`}
             >
@@ -692,6 +752,7 @@ export default function TransactionsScreen() {
               onPress={() => {
                 try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                 setActiveFilter('transfer');
+                setSelectedCategoryFilter('Transfer');
               }}
               className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'transfer' ? 'bg-white shadow-xs' : ''}`}
             >
@@ -726,7 +787,7 @@ export default function TransactionsScreen() {
           </View>
         </View>
 
-        {/* Child 2: Transactions Virtualized / Rendered List */}
+        {/* Child 2: Transactions Progressively Rendered List */}
         <View className="px-4">
           {loadingTx ? (
             <View className="py-8">
@@ -750,7 +811,7 @@ export default function TransactionsScreen() {
                   : `No transactions matched the "${activeFilter}" filter.`}
               </Text>
               {searchQuery || activeFilter !== 'all' || isFilterActive ? (
-                <Button size="sm" variant="outline" onPress={() => { setSearchQuery(''); setActiveFilter('all'); setDateFilterMode('all'); setSelectedAccountFilterId('all'); setSelectedCategoryFilter('all'); }}>
+                <Button size="sm" variant="outline" onPress={() => { setSearchQuery(''); setActiveFilter('all'); setDateFilterMode('all'); setSelectedAccountFilterId('all'); setSelectedCategoryFilter('all'); setSelectedCustomMonth(''); setCustomStartDate(''); setCustomEndDate(''); }}>
                   <Text className="text-zinc-900 font-semibold text-xs">Clear Search & Filters</Text>
                 </Button>
               ) : (
@@ -760,7 +821,7 @@ export default function TransactionsScreen() {
               )}
             </Card>
           ) : (
-            displayedTransactions.map((tx) => {
+            displayedTransactions.slice(0, renderLimit).map((tx) => {
               const accountName =
                 tx.account?.name ||
                 (Array.isArray(tx.account) && (tx.account as any)[0]?.name) ||
@@ -894,6 +955,47 @@ export default function TransactionsScreen() {
             })}
           </View>
 
+          {/* Category Filter Section */}
+          <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5">Category</Text>
+          <View className="flex-row flex-wrap gap-2 mb-4">
+            <Pressable
+              onPress={() => {
+                try { Haptics.selectionAsync(); } catch {}
+                setSelectedCategoryFilter('all');
+              }}
+              className={`px-4 py-2.5 rounded-xl border ${
+                selectedCategoryFilter === 'all'
+                  ? 'bg-zinc-900 border-zinc-900'
+                  : 'bg-zinc-50 border-zinc-200 active:bg-zinc-100'
+              }`}
+            >
+              <Text className={`text-xs font-bold ${selectedCategoryFilter === 'all' ? 'text-white' : 'text-zinc-800'}`}>
+                All Categories
+              </Text>
+            </Pressable>
+            {categories.map((cat) => {
+              const isSelected = selectedCategoryFilter.toLowerCase() === cat.name.toLowerCase();
+              return (
+                <Pressable
+                  key={cat.id}
+                  onPress={() => {
+                    try { Haptics.selectionAsync(); } catch {}
+                    setSelectedCategoryFilter(isSelected ? 'all' : cat.name);
+                  }}
+                  className={`px-4 py-2.5 rounded-xl border ${
+                    isSelected
+                      ? 'bg-zinc-900 border-zinc-900'
+                      : 'bg-zinc-50 border-zinc-200 active:bg-zinc-100'
+                  }`}
+                >
+                  <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-zinc-800'}`}>
+                    {cat.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
           {/* Modal Actions */}
           <View className="flex-row gap-3 mt-3">
             <Button
@@ -906,6 +1008,7 @@ export default function TransactionsScreen() {
                 setCustomStartDate('');
                 setCustomEndDate('');
                 setSelectedAccountFilterId('all');
+                setSelectedCategoryFilter('all');
                 setDateFilterModalVisible(false);
               }}
             >
