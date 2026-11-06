@@ -253,7 +253,7 @@ class SmsListenerService {
       for (const msg of messages) {
         if (!msg.body) continue;
         const parsed = parseBankSms(msg, accountMappings, learnedCategories);
-        if (!parsed || !parsed.merchant) continue;
+        if (!parsed) continue;
 
         const cleanPayee = (parsed.merchant || '').replace(/@.*$/, '').trim();
         const parsedDateStr = toLocalDateString(parsed.transactionDate);
@@ -286,6 +286,9 @@ class SmsListenerService {
           }
           if (parsed.transactionDate && (!match.created_at || Math.abs(new Date(match.created_at).getTime() - new Date(parsed.transactionDate).getTime()) > 300000)) {
             updates.created_at = parsed.transactionDate;
+          }
+          if (parsed.referenceNumber && (!match.notes || !match.notes.includes(parsed.referenceNumber))) {
+            updates.notes = `Ref: ${parsed.referenceNumber}`;
           }
 
           if (Object.keys(updates).length > 0) {
