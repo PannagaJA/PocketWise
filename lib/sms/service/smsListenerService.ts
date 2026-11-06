@@ -173,7 +173,7 @@ class SmsListenerService {
   /**
    * Scan and sync recent bank transactions from the Android SMS Inbox (content://sms/inbox).
    */
-  async syncRecentInboxSms(): Promise<{ total: number; detected: number; saved: number }> {
+  async syncRecentInboxSms(isManualScan: boolean = false): Promise<{ total: number; detected: number; saved: number }> {
     if (Platform.OS !== 'android' || !PocketWiseSmsModule?.readRecentInboxSms) {
       return { total: 0, detected: 0, saved: 0 };
     }
@@ -197,19 +197,17 @@ class SmsListenerService {
 
       for (const msg of chronological) {
         if (!msg.body) continue;
-        const result = await this.processIncomingSms(msg);
+        const result = await this.processIncomingSms(msg, isManualScan);
         if (result) {
           detectedCount++;
-          if (!result.needsReview) {
-            savedCount++;
-          }
+          savedCount++;
         }
       }
 
       // Also run retroactive upgrade for any generic transactions ('Bank Payment (UPI)', etc.) in DB
       const upgradedCount = await this.upgradeGenericTransactions();
 
-      if (detectedCount > 0 || upgradedCount > 0) {
+      if (detectedCount > 0 || upgradedCount > 0 || isManualScan) {
         queryClient.invalidateQueries({ queryKey: ['transactions'] });
         queryClient.invalidateQueries({ queryKey: ['accounts'] });
         queryClient.invalidateQueries({ queryKey: ['dashboard'] });
@@ -334,10 +332,10 @@ class SmsListenerService {
   /**
    * Process an incoming raw SMS object through the local pipeline.
    */
-  async processIncomingSms(rawSms: RawSMS): Promise<ParsedSmsTransaction | null> {
+  async processIncomingSms(rawSms: RawSMS, isManualScan: boolean = false): Promise<ParsedSmsTransaction | null> {
     return runSmsProcessWithLock(async () => {
-      // 1. In-memory exact SMS ID check
-      if (rawSms.id && this.processedSmsIds.has(rawSms.id)) {
+      // 1. In-memory exact SMS ID check (bypassed on manual scan so missed past transactions are evaluated)
+      if (!isManualScan && rawSms.id && this.processedSmsIds.has(rawSms.id)) {
         return null;
       }
       if (rawSms.id) {
@@ -354,22 +352,24 @@ class SmsListenerService {
 
       // 2. Persistent Reference / UTR & Fingerprint deduplication check
       const txFingerprint = createTransactionFingerprint(parsedTx);
-      if (parsedTx.referenceNumber && (await smsStorage.isRefIdProcessed(parsedTx.referenceNumber))) {
-        console.log('[SMS Parser] Duplicate referenceNumber ignored:', parsedTx.referenceNumber);
-        return null;
-      }
-      if (parsedTx.upiReference && (await smsStorage.isRefIdProcessed(parsedTx.upiReference))) {
-        console.log('[SMS Parser] Duplicate upiReference ignored:', parsedTx.upiReference);
-        return null;
-      }
-      if (txFingerprint && (await smsStorage.isRefIdProcessed(txFingerprint))) {
-        console.log('[SMS Parser] Duplicate fingerprint ignored:', txFingerprint);
-        return null;
+      if (!isManualScan) {
+        if (parsedTx.referenceNumber && (await smsStorage.isRefIdProcessed(parsedTx.referenceNumber))) {
+          console.log('[SMS Parser] Duplicate referenceNumber ignored:', parsedTx.referenceNumber);
+          return null;
+        }
+        if (parsedTx.upiReference && (await smsStorage.isRefIdProcessed(parsedTx.upiReference))) {
+          console.log('[SMS Parser] Duplicate upiReference ignored:', parsedTx.upiReference);
+          return null;
+        }
+        if (txFingerprint && (await smsStorage.isRefIdProcessed(txFingerprint))) {
+          console.log('[SMS Parser] Duplicate fingerprint ignored:', txFingerprint);
+          return null;
+        }
       }
 
       // 3. Check duplicate against pending reviews queue
       const pendingReviews = await smsStorage.getPendingReviews();
-      if (isDuplicateTransaction(parsedTx, pendingReviews)) {
+      if (!isManualScan && isDuplicateTransaction(parsedTx, pendingReviews)) {
         console.log('[SMS Parser] Duplicate pending review ignored:', parsedTx.referenceNumber || parsedTx.amount);
         if (txFingerprint) await smsStorage.markRefIdProcessed(txFingerprint);
         return null;
@@ -401,12 +401,12 @@ class SmsListenerService {
       // Update statistics count
       await smsStorage.incrementDetectedCount();
 
-      // If it needs review, only add to pending reviews queue for user confirmation (DO NOT auto-save yet)
-      if (parsedTx.needsReview) {
+      // Auto-save all valid financial transactions so user never misses payments in Transactions screen
+      await this.saveTransactionToStore(parsedTx);
+
+      // If confidence score is low or bank unknown, also track in pending review queue for user verification
+      if (parsedTx.needsReview && !isManualScan) {
         await smsStorage.addPendingReview(parsedTx);
-      } else {
-        // Auto-save high-confidence transaction directly into App Store & Supabase
-        await this.saveTransactionToStore(parsedTx);
       }
 
       // Trigger callbacks
@@ -540,15 +540,22 @@ class SmsListenerService {
 
         // Check if an exact match already exists in Supabase
         const recentAccountTxs = await transactionService.getTransactions(userId, 50, targetAccount.id);
-        const alreadyExists = recentAccountTxs.some(
-          (t) =>
-            t.type === (parsedTx.type === 'income' ? 'income' : 'expense') &&
-            t.amount_minor === parsedTx.amountMinor &&
-            (t.date || '').substring(0, 10) === txDateStr &&
-            ((t.description || '').trim().toLowerCase() === cleanDescription.trim().toLowerCase() ||
-              (parsedTx.referenceNumber && t.notes?.includes(parsedTx.referenceNumber)) ||
-              (parsedTx.upiReference && t.notes?.includes(parsedTx.upiReference)))
-        );
+        const alreadyExists = recentAccountTxs.some((t) => {
+          if (t.type !== (parsedTx.type === 'income' ? 'income' : 'expense')) return false;
+          if (t.amount_minor !== parsedTx.amountMinor) return false;
+          if ((t.date || '').substring(0, 10) !== txDateStr) return false;
+
+          const newRef = (parsedTx.referenceNumber || parsedTx.upiReference || '').trim();
+
+          // If incoming transaction has a unique reference number:
+          if (newRef) {
+            // It is only a duplicate if an existing transaction already contains this exact reference number!
+            return !!(t.notes && t.notes.includes(newRef));
+          }
+
+          // Fallback if no reference number exists on the SMS
+          return (t.description || '').trim().toLowerCase() === cleanDescription.trim().toLowerCase();
+        });
 
         if (alreadyExists) {
           console.log('[SMS Listener] Prevented duplicate Supabase transaction creation:', cleanDescription, parsedTx.amountMinor);
@@ -587,6 +594,11 @@ class SmsListenerService {
           date: txDateStr,
           notes: parsedTx.referenceNumber ? `Ref: ${parsedTx.referenceNumber}` : (parsedTx.upiReference ? `UPI Ref: ${parsedTx.upiReference}` : undefined),
         });
+
+        // Clean up pending reviews queue if this transaction was previously waiting for review
+        if (parsedTx.sourceMessageId) {
+          await smsStorage.removePendingReview(parsedTx.sourceMessageId).catch(() => {});
+        }
 
         // Instantly invalidate TanStack Query caches so dashboard, transactions & budgets update immediately
         queryClient.invalidateQueries({ queryKey: ['transactions'] });
