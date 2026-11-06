@@ -19,6 +19,7 @@ import { notificationService } from '../lib/notifications/notification.service';
 import { Plus, X, ArrowLeft, Calendar, CheckCircle2, Clock, AlertCircle, ShieldAlert, ChevronLeft, ChevronRight, Check, Pencil, Trash2, RotateCcw } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { TimePickerModal, format12HourTime } from '../components/ui/TimePickerModal';
+import { DatePickerModal } from '../components/ui/DatePickerModal';
 import { useModuleBack } from '../lib/navigation/moduleBack';
 
 export default function BillsScreen() {
@@ -38,6 +39,7 @@ export default function BillsScreen() {
   const [editAmount, setEditAmount] = useState('');
   const [editDueDate, setEditDueDate] = useState('');
   const [editFrequency, setEditFrequency] = useState<'monthly' | 'yearly' | 'one_time'>('monthly');
+  const [editDatePickerVisible, setEditDatePickerVisible] = useState(false);
 
   // Form state
   const [name, setName] = useState('');
@@ -47,28 +49,6 @@ export default function BillsScreen() {
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [frequency, setFrequency] = useState<'monthly' | 'yearly' | 'one_time'>('monthly');
-
-  // Interactive Calendar State
-  const now = new Date();
-  const [calendarMonth, setCalendarMonth] = useState(now.getMonth());
-  const [calendarYear, setCalendarYear] = useState(now.getFullYear());
-
-  const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
-
-  const daysInMonth = (month: number, year: number) => new Date(year, month + 1, 0).getDate();
-  const firstDayOfMonth = (month: number, year: number) => new Date(year, month, 1).getDay();
-
-  const handleSelectDay = (day: number) => {
-    const formattedMonth = String(calendarMonth + 1).padStart(2, '0');
-    const formattedDay = String(day).padStart(2, '0');
-    const formattedDate = `${calendarYear}-${formattedMonth}-${formattedDay}`;
-    setDueDate(formattedDate);
-    setCalendarModalVisible(false);
-    try { Haptics.selectionAsync(); } catch {}
-  };
 
   const { data: bills = [], isLoading: loadingBills } = useQuery({
     queryKey: ['bills', user?.id],
@@ -415,12 +395,36 @@ export default function BillsScreen() {
               </View>
             </View>
 
-            <Input
-              label="Due Date (YYYY-MM-DD)"
-              placeholder="YYYY-MM-DD"
-              value={editDueDate}
-              onChangeText={setEditDueDate}
-            />
+            {/* Due Date Picker Button */}
+            <View className="mb-4">
+              <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Due Date</Text>
+              <Pressable
+                onPress={() => {
+                  Keyboard.dismiss();
+                  try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                  setEditDatePickerVisible(true);
+                }}
+                className="flex-row items-center justify-between bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 active:bg-zinc-100"
+              >
+                <View className="flex-row items-center gap-2.5 flex-1 pr-1">
+                  <Calendar size={18} color="#6366F1" />
+                  <Text className={`text-sm ${editDueDate ? 'text-zinc-900 font-bold' : 'text-zinc-400 font-medium'}`} numberOfLines={1}>
+                    {editDueDate ? formatDate(editDueDate) : 'Select due date'}
+                  </Text>
+                </View>
+                {editDueDate ? (
+                  <Pressable
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      setEditDueDate('');
+                    }}
+                    className="w-5 h-5 rounded-full bg-zinc-200 items-center justify-center ml-1"
+                  >
+                    <X size={12} color="#3F3F46" />
+                  </Pressable>
+                ) : null}
+              </Pressable>
+            </View>
 
             <View className="flex-row gap-3 mt-4">
               <Button
@@ -500,96 +504,36 @@ export default function BillsScreen() {
               onChangeText={setAmount}
             />
 
-            {/* Interactive Calendar Date Picker Button */}
+            {/* Due Date Picker Button */}
             <View className="mb-4">
               <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Due Date</Text>
               <Pressable
                 onPress={() => {
-                  try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                   Keyboard.dismiss();
-                  setCalendarModalVisible(!calendarModalVisible);
+                  try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                  setCalendarModalVisible(true);
                 }}
-                className="flex-row justify-between items-center p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl"
+                className="flex-row items-center justify-between bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 active:bg-zinc-100"
               >
-                <View className="flex-row items-center gap-2">
+                <View className="flex-row items-center gap-2.5 flex-1 pr-1">
                   <Calendar size={18} color="#6366F1" />
-                  <Text className="text-sm font-medium text-zinc-900">{formatDate(dueDate)}</Text>
+                  <Text className={`text-sm ${dueDate ? 'text-zinc-900 font-bold' : 'text-zinc-400 font-medium'}`} numberOfLines={1}>
+                    {dueDate ? formatDate(dueDate) : 'Select due date'}
+                  </Text>
                 </View>
-                <Text className="text-xs font-bold text-indigo-600">{calendarModalVisible ? 'Close' : 'Pick Date'}</Text>
+                {dueDate ? (
+                  <Pressable
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      setDueDate('');
+                    }}
+                    className="w-5 h-5 rounded-full bg-zinc-200 items-center justify-center ml-1"
+                  >
+                    <X size={12} color="#3F3F46" />
+                  </Pressable>
+                ) : null}
               </Pressable>
             </View>
-
-            {/* Inline Calendar when toggled */}
-            {calendarModalVisible && (
-              <View className="p-3 bg-zinc-50 border border-zinc-200 rounded-2xl mb-4">
-                {/* Calendar Header */}
-                <View className="flex-row justify-between items-center mb-3">
-                  <Pressable
-                    onPress={() => {
-                      if (calendarMonth === 0) {
-                        setCalendarMonth(11);
-                        setCalendarYear(calendarYear - 1);
-                      } else {
-                        setCalendarMonth(calendarMonth - 1);
-                      }
-                    }}
-                    className="p-1.5 rounded-full active:bg-zinc-200"
-                  >
-                    <ChevronLeft size={18} color="#09090B" />
-                  </Pressable>
-
-                  <Text className="text-sm font-bold text-zinc-900">
-                    {monthNames[calendarMonth]} {calendarYear}
-                  </Text>
-
-                  <Pressable
-                    onPress={() => {
-                      if (calendarMonth === 11) {
-                        setCalendarMonth(0);
-                        setCalendarYear(calendarYear + 1);
-                      } else {
-                        setCalendarMonth(calendarMonth + 1);
-                      }
-                    }}
-                    className="p-1.5 rounded-full active:bg-zinc-200"
-                  >
-                    <ChevronRight size={18} color="#09090B" />
-                  </Pressable>
-                </View>
-
-                {/* Days of Week Header */}
-                <View className="flex-row justify-between mb-1.5">
-                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
-                    <Text key={d} className="w-8 text-center text-[11px] font-bold text-zinc-400">{d}</Text>
-                  ))}
-                </View>
-
-                {/* Calendar Grid */}
-                <View className="flex-row flex-wrap">
-                  {Array.from({ length: firstDayOfMonth(calendarMonth, calendarYear) }).map((_, i) => (
-                    <View key={`empty-${i}`} className="w-[14.28%] h-8" />
-                  ))}
-
-                  {Array.from({ length: daysInMonth(calendarMonth, calendarYear) }).map((_, i) => {
-                    const day = i + 1;
-                    const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                    const isSelected = dueDate === dateStr;
-
-                    return (
-                      <Pressable
-                        key={day}
-                        onPress={() => handleSelectDay(day)}
-                        className={`w-[14.28%] h-8 items-center justify-center rounded-lg mb-1 ${
-                          isSelected ? 'bg-indigo-600' : 'active:bg-zinc-200'
-                        }`}
-                      >
-                        <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-zinc-900'}`}>{day}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-            )}
 
             {/* Reminder Time Selection */}
             <View className="mb-4">
@@ -634,6 +578,24 @@ export default function BillsScreen() {
           </View>
         )}
       </AppBottomSheet>
+
+      {/* Add Bill Date Picker Modal */}
+      <DatePickerModal
+        visible={calendarModalVisible}
+        onClose={() => setCalendarModalVisible(false)}
+        selectedDate={dueDate}
+        onSelectDate={(d) => setDueDate(d)}
+        title="Select Bill Due Date"
+      />
+
+      {/* Edit Bill Date Picker Modal */}
+      <DatePickerModal
+        visible={editDatePickerVisible}
+        onClose={() => setEditDatePickerVisible(false)}
+        selectedDate={editDueDate}
+        onSelectDate={(d) => setEditDueDate(d)}
+        title="Select Due Date"
+      />
 
       {/* Time Picker Modal */}
       <TimePickerModal
