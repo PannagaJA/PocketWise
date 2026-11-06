@@ -1,5 +1,5 @@
 import React, { useState, useMemo, memo, useCallback, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, Alert, ActivityIndicator, Pressable, RefreshControl, TextInput, KeyboardAvoidingView, Platform, Keyboard, FlatList, TouchableOpacity, NativeSyntheticEvent, NativeScrollEvent, LayoutAnimation, UIManager } from 'react-native';
+import { View, Text, ScrollView, Alert, ActivityIndicator, Pressable, RefreshControl, TextInput, KeyboardAvoidingView, Platform, Keyboard, FlatList, TouchableOpacity, NativeSyntheticEvent, NativeScrollEvent, LayoutAnimation, UIManager, Animated, LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -110,6 +110,22 @@ export default function TransactionsScreen() {
 
   // Progressive render limit for high performance (prevents blank screen freeze on mount)
   const [renderLimit, setRenderLimit] = useState(35);
+
+  // Floating synchronized sticky controls measurement
+  const [headerHeight, setHeaderHeight] = useState(58);
+  const [chartHeight, setChartHeight] = useState(250);
+  const [controlsHeight, setControlsHeight] = useState(145);
+  const scrollY = useRef(new Animated.Value(0)).current;
+
+  const effectiveChartHeight = selectedCategoryFilter !== 'all' ? 0 : chartHeight;
+
+  const translateY = useMemo(() => {
+    return scrollY.interpolate({
+      inputRange: [0, Math.max(1, effectiveChartHeight)],
+      outputRange: [effectiveChartHeight, 0],
+      extrapolate: 'clamp',
+    });
+  }, [effectiveChartHeight, scrollY]);
 
   useEffect(() => {
     setRenderLimit(35);
@@ -607,9 +623,9 @@ export default function TransactionsScreen() {
             className="flex-1 text-sm font-medium text-zinc-900 p-0 ml-2"
           />
           {searchQuery ? (
-            <Pressable onPress={() => setSearchQuery('')} className="p-1">
+            <TouchableOpacity activeOpacity={0.7} onPress={() => setSearchQuery('')} className="p-1">
               <X size={16} color="#71717A" />
-            </Pressable>
+            </TouchableOpacity>
           ) : null}
         </View>
 
@@ -622,7 +638,8 @@ export default function TransactionsScreen() {
               : 'bg-white border-zinc-100 shadow-xs'
           }`}
         >
-          <Pressable
+          <TouchableOpacity
+            activeOpacity={0.7}
             onPress={() => {
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
               setDateFilterModalVisible(true);
@@ -637,10 +654,11 @@ export default function TransactionsScreen() {
             >
               {getFilterButtonLabel()}
             </Text>
-          </Pressable>
+          </TouchableOpacity>
 
           {isFilterActive ? (
-            <Pressable
+            <TouchableOpacity
+              activeOpacity={0.7}
               onPress={() => {
                 try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
                 setDateFilterMode('all');
@@ -656,9 +674,10 @@ export default function TransactionsScreen() {
               <View className="w-4 h-4 rounded-full bg-white/25 items-center justify-center">
                 <X size={11} color="#FFF" strokeWidth={3} />
               </View>
-            </Pressable>
+            </TouchableOpacity>
           ) : (
-            <Pressable
+            <TouchableOpacity
+              activeOpacity={0.7}
               onPress={() => {
                 try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                 setDateFilterModalVisible(true);
@@ -666,14 +685,15 @@ export default function TransactionsScreen() {
               className="py-2.5 pr-2.5 pl-0 items-center justify-center"
             >
               <ChevronDown size={14} color="#71717A" />
-            </Pressable>
+            </TouchableOpacity>
           )}
         </View>
       </View>
 
       {/* Filter Pills */}
       <View className="flex-row bg-zinc-100/80 p-1 rounded-2xl mb-3">
-        <Pressable
+        <TouchableOpacity
+          activeOpacity={0.7}
           onPress={() => {
             try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
             setActiveFilter('all');
@@ -682,9 +702,10 @@ export default function TransactionsScreen() {
           className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'all' ? 'bg-white shadow-xs' : ''}`}
         >
           <Text className={`font-bold text-xs ${activeFilter === 'all' ? 'text-zinc-950' : 'text-zinc-500'}`}>All</Text>
-        </Pressable>
+        </TouchableOpacity>
 
-        <Pressable
+        <TouchableOpacity
+          activeOpacity={0.7}
           onPress={() => {
             try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
             setActiveFilter('income');
@@ -695,9 +716,10 @@ export default function TransactionsScreen() {
           className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'income' ? 'bg-white shadow-xs' : ''}`}
         >
           <Text className={`font-bold text-xs ${activeFilter === 'income' ? 'text-emerald-600' : 'text-zinc-500'}`}>Income</Text>
-        </Pressable>
+        </TouchableOpacity>
 
-        <Pressable
+        <TouchableOpacity
+          activeOpacity={0.7}
           onPress={() => {
             try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
             setActiveFilter('expense');
@@ -708,9 +730,10 @@ export default function TransactionsScreen() {
           className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'expense' ? 'bg-white shadow-xs' : ''}`}
         >
           <Text className={`font-bold text-xs ${activeFilter === 'expense' ? 'text-rose-600' : 'text-zinc-500'}`}>Expense</Text>
-        </Pressable>
+        </TouchableOpacity>
 
-        <Pressable
+        <TouchableOpacity
+          activeOpacity={0.7}
           onPress={() => {
             try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
             setActiveFilter('transfer');
@@ -719,12 +742,13 @@ export default function TransactionsScreen() {
           className={`flex-1 py-2 rounded-xl items-center ${activeFilter === 'transfer' ? 'bg-white shadow-xs' : ''}`}
         >
           <Text className={`font-bold text-xs ${activeFilter === 'transfer' ? 'text-indigo-600' : 'text-zinc-500'}`}>Transfer</Text>
-        </Pressable>
+        </TouchableOpacity>
       </View>
 
       {/* Action Row */}
       <View className="flex-row gap-3">
-        <Pressable
+        <TouchableOpacity
+          activeOpacity={0.7}
           onPress={() => {
             try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
             setAccModalVisible(true);
@@ -733,9 +757,10 @@ export default function TransactionsScreen() {
         >
           <Wallet size={16} color="#09090B" />
           <Text className="text-zinc-900 font-bold text-xs ml-1.5">Account</Text>
-        </Pressable>
+        </TouchableOpacity>
 
-        <Pressable
+        <TouchableOpacity
+          activeOpacity={0.7}
           onPress={() => {
             try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
             setSelectedAccountId(accounts[0]?.id || '');
@@ -745,117 +770,154 @@ export default function TransactionsScreen() {
         >
           <Plus size={16} color="#FFF" />
           <Text className="text-white font-bold text-xs ml-1.5">Transaction</Text>
-        </Pressable>
+        </TouchableOpacity>
       </View>
     </View>
   );
 
   return (
     <SafeAreaView className="flex-1" style={{ backgroundColor: '#F8F9FE' }} edges={['top']}>
-      {/* Persistent Title Header: Statically pinned at the top */}
-      <View style={{ backgroundColor: '#F8F9FE', zIndex: 100 }} className="px-4 pt-2 pb-1">
-        <Text className="text-[22px] font-extrabold text-zinc-950 tracking-tight">Transactions</Text>
-        <Text className="text-xs font-medium text-zinc-500 mt-0.5">Real-time financial activity</Text>
-      </View>
-
-      <ScrollView
-        className="flex-1"
-        style={{ backgroundColor: '#F8F9FE' }}
-        showsVerticalScrollIndicator={false}
-        stickyHeaderIndices={[1]}
-        contentContainerStyle={{ paddingBottom: 140 }}
-        onScroll={(e) => {
-          const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
-          if (contentOffset.y + layoutMeasurement.height >= contentSize.height - 400) {
-            setRenderLimit((prev) => (prev < displayedTransactions.length ? prev + 30 : prev));
-          }
-        }}
-        scrollEventThrottle={32}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#09090B']} />
-        }
-      >
-        {/* Child 0: Total Spend Chart Card (at top, below Title - matches Image 3) */}
+      <View style={{ flex: 1, position: 'relative', backgroundColor: '#F8F9FE' }}>
+        {/* Persistent Title Header: Statically pinned at the top */}
         <View
-          style={
-            selectedCategoryFilter !== 'all'
-              ? { height: 0, overflow: 'hidden', opacity: 0 }
-              : undefined
+          onLayout={(e: LayoutChangeEvent) => {
+            const h = e.nativeEvent.layout.height;
+            if (h > 0) setHeaderHeight(h);
+          }}
+          style={{ backgroundColor: '#F8F9FE', zIndex: 100 }}
+          className="px-4 pt-2 pb-1"
+        >
+          <Text className="text-[22px] font-extrabold text-zinc-950 tracking-tight">Transactions</Text>
+          <Text className="text-xs font-medium text-zinc-500 mt-0.5">Real-time financial activity</Text>
+        </View>
+
+        {/* Scrollable Container with Chart, Spacer, and Transactions List */}
+        <Animated.ScrollView
+          className="flex-1"
+          style={{ backgroundColor: '#F8F9FE' }}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 140 }}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            {
+              useNativeDriver: true,
+              listener: (e: any) => {
+                const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
+                if (contentOffset.y + layoutMeasurement.height >= contentSize.height - 400) {
+                  setRenderLimit((prev) => (prev < displayedTransactions.length ? prev + 30 : prev));
+                }
+              },
+            }
+          )}
+          scrollEventThrottle={16}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#09090B']} />
           }
         >
-          <View className="px-4 pt-1 mb-2">
-            {/* Spend Graph based on Spend with Dashboard Balance */}
-            <SpendChartCard
-              accounts={accounts}
-              transactions={transactions}
-              selectedAccountId={selectedAccountFilterId}
-            />
-          </View>
-        </View>
-
-        {/* Child 1: Controls Section (Sticky directly below Title Header - matches Image 4) */}
-        <View style={{ backgroundColor: '#F8F9FE', zIndex: 50 }}>
-          {renderControlsSection()}
-        </View>
-
-        {/* Child 2: Transactions Progressively Rendered List */}
-        <View className="px-4">
-          {loadingTx ? (
-            <View className="py-8">
-              <ActivityIndicator size="small" color="#09090B" />
+          {/* Child 0: Total Spend Chart Card (at top, below Title - matches Image 3) */}
+          <View
+            onLayout={(e: LayoutChangeEvent) => {
+              const h = e.nativeEvent.layout.height;
+              if (h > 0) setChartHeight(h);
+            }}
+            style={
+              selectedCategoryFilter !== 'all'
+                ? { height: 0, overflow: 'hidden', opacity: 0 }
+                : undefined
+            }
+          >
+            <View className="px-4 pt-1 mb-2">
+              {/* Spend Graph based on Spend with Dashboard Balance */}
+              <SpendChartCard
+                accounts={accounts}
+                transactions={transactions}
+                selectedAccountId={selectedAccountFilterId}
+              />
             </View>
-          ) : displayedTransactions.length === 0 ? (
-            <Card className="p-6 bg-white border border-zinc-200 items-center mt-2 rounded-2xl">
-              <View className="w-12 h-12 rounded-full bg-zinc-100 items-center justify-center mb-2">
-                <Filter size={20} color="#71717A" />
+          </View>
+
+          {/* Child 1: Spacer reserving exact space for the Controls Section */}
+          <View style={{ height: controlsHeight }} />
+
+          {/* Child 2: Transactions Progressively Rendered List */}
+          <View className="px-4">
+            {loadingTx ? (
+              <View className="py-8">
+                <ActivityIndicator size="small" color="#09090B" />
               </View>
-              <Text className="text-sm font-bold text-zinc-800">
-                {searchQuery || isFilterActive ? 'No matching transactions' : `No ${activeFilter === 'all' ? '' : activeFilter} transactions found`}
-              </Text>
-              <Text className="text-xs text-zinc-400 mt-0.5 mb-4 text-center">
-                {searchQuery
-                  ? `No transactions matched "${searchQuery}".`
-                  : isFilterActive
-                  ? `No transactions match the selected filter criteria.`
-                  : activeFilter === 'all'
-                  ? 'Record your first transaction to get started!'
-                  : `No transactions matched the "${activeFilter}" filter.`}
-              </Text>
-              {searchQuery || activeFilter !== 'all' || isFilterActive ? (
-                <Button size="sm" variant="outline" onPress={() => { setSearchQuery(''); setActiveFilter('all'); setDateFilterMode('all'); setSelectedAccountFilterId('all'); setSelectedCategoryFilter('all'); setSelectedCustomMonth(''); setCustomStartDate(''); setCustomEndDate(''); }}>
-                  <Text className="text-zinc-900 font-semibold text-xs">Clear Search & Filters</Text>
-                </Button>
-              ) : (
-                <Button size="sm" variant="primary" onPress={() => setModalVisible(true)}>
-                  <Text className="text-white font-semibold text-xs">Record Transaction</Text>
-                </Button>
-              )}
-            </Card>
-          ) : (
-            displayedTransactions.slice(0, renderLimit).map((tx) => {
-              const accountName =
-                tx.account?.name ||
-                (Array.isArray(tx.account) && (tx.account as any)[0]?.name) ||
-                accounts.find((a) => a.id === tx.account_id)?.name ||
-                'Account';
-              const categoryName =
-                tx.category?.name ||
-                (Array.isArray(tx.category) && (tx.category as any)[0]?.name) ||
-                categories.find((c) => c.id === tx.category_id)?.name ||
-                'Personal';
-              return (
-                <TransactionItem
-                  key={tx.id}
-                  tx={tx}
-                  accountName={accountName}
-                  categoryName={categoryName}
-                  onPress={() => handleOpenDetailTx(tx)}
-                />
-              );
-            })
-          )}
-        </View>
-      </ScrollView>
+            ) : displayedTransactions.length === 0 ? (
+              <Card className="p-6 bg-white border border-zinc-200 items-center mt-2 rounded-2xl">
+                <View className="w-12 h-12 rounded-full bg-zinc-100 items-center justify-center mb-2">
+                  <Filter size={20} color="#71717A" />
+                </View>
+                <Text className="text-sm font-bold text-zinc-800">
+                  {searchQuery || isFilterActive ? 'No matching transactions' : `No ${activeFilter === 'all' ? '' : activeFilter} transactions found`}
+                </Text>
+                <Text className="text-xs text-zinc-400 mt-0.5 mb-4 text-center">
+                  {searchQuery
+                    ? `No transactions matched "${searchQuery}".`
+                    : isFilterActive
+                    ? `No transactions match the selected filter criteria.`
+                    : activeFilter === 'all'
+                    ? 'Record your first transaction to get started!'
+                    : `No transactions matched the "${activeFilter}" filter.`}
+                </Text>
+                {searchQuery || activeFilter !== 'all' || isFilterActive ? (
+                  <Button size="sm" variant="outline" onPress={() => { setSearchQuery(''); setActiveFilter('all'); setDateFilterMode('all'); setSelectedAccountFilterId('all'); setSelectedCategoryFilter('all'); setSelectedCustomMonth(''); setCustomStartDate(''); setCustomEndDate(''); }}>
+                    <Text className="text-zinc-900 font-semibold text-xs">Clear Search & Filters</Text>
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="primary" onPress={() => setModalVisible(true)}>
+                    <Text className="text-white font-semibold text-xs">Record Transaction</Text>
+                  </Button>
+                )}
+              </Card>
+            ) : (
+              displayedTransactions.slice(0, renderLimit).map((tx) => {
+                const accountName =
+                  tx.account?.name ||
+                  (Array.isArray(tx.account) && (tx.account as any)[0]?.name) ||
+                  accounts.find((a) => a.id === tx.account_id)?.name ||
+                  'Account';
+                const categoryName =
+                  tx.category?.name ||
+                  (Array.isArray(tx.category) && (tx.category as any)[0]?.name) ||
+                  categories.find((c) => c.id === tx.category_id)?.name ||
+                  'Personal';
+                return (
+                  <TransactionItem
+                    key={tx.id}
+                    tx={tx}
+                    accountName={accountName}
+                    categoryName={categoryName}
+                    onPress={() => handleOpenDetailTx(tx)}
+                  />
+                );
+              })
+            )}
+          </View>
+        </Animated.ScrollView>
+
+        {/* Child 3: Standalone Synchronized Controls Section */}
+        {/* Rendered outside the ScrollView so Android touches are 100% direct and reliable */}
+        <Animated.View
+          onLayout={(e: LayoutChangeEvent) => {
+            const h = e.nativeEvent.layout.height;
+            if (h > 0) setControlsHeight(h);
+          }}
+          style={{
+            position: 'absolute',
+            top: headerHeight,
+            left: 0,
+            right: 0,
+            zIndex: 50,
+            transform: [{ translateY }],
+            backgroundColor: '#F8F9FE',
+          }}
+        >
+          {renderControlsSection()}
+        </Animated.View>
+      </View>
 
       {/* Custom Date / Month / Bank Filter Modal */}
       <AppBottomSheet
