@@ -9,14 +9,26 @@ export function createTransactionFingerprint(tx: {
   transactionDate: string;
   referenceNumber?: string;
   upiReference?: string;
+  merchant?: string;
+  sourceMessageId?: string;
 }): string {
-  if (tx.referenceNumber) return `ref_${tx.referenceNumber.toUpperCase().trim()}`;
-  if (tx.upiReference) return `upi_${tx.upiReference.toUpperCase().trim()}`;
+  if (tx.referenceNumber && tx.referenceNumber.trim().length >= 6) {
+    return `ref_${tx.referenceNumber.toUpperCase().trim()}`;
+  }
+  if (tx.upiReference && tx.upiReference.trim().length >= 6) {
+    return `upi_${tx.upiReference.toUpperCase().trim()}`;
+  }
 
-  const dateStr = tx.transactionDate ? tx.transactionDate.split('T')[0] : 'nodate';
+  // Include merchant and unique message ID / time so multiple legitimate payments of same amount are NOT treated as identical
   const cleanBank = (tx.bankId || 'any').toLowerCase().trim();
   const cleanAcc = (tx.maskedAccount || 'any').replace(/\D/g, '').slice(-4);
-  return `fp_${cleanBank}_${cleanAcc}_${tx.amountMinor}_${tx.type}_${dateStr}`;
+  const cleanMerchant = (tx.merchant || 'any').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20);
+  const dateOrTimeStr = tx.transactionDate || 'nodate';
+  const msgId = tx.sourceMessageId && !tx.sourceMessageId.startsWith('sms_') && !tx.sourceMessageId.startsWith('tx_')
+    ? `_id_${tx.sourceMessageId}`
+    : '';
+
+  return `fp_${cleanBank}_${cleanAcc}_${cleanMerchant}_${tx.amountMinor}_${tx.type}_${dateOrTimeStr}${msgId}`;
 }
 
 /**
@@ -43,6 +55,8 @@ export function isDuplicateTransaction(
     const txRef = (tx.referenceNumber || tx.reference_number || '')?.toUpperCase().trim();
     const txUpi = (tx.upiReference || tx.upi_reference || '')?.toUpperCase().trim();
     const txNotes = (tx.notes || tx.description || '')?.toUpperCase();
+    const txNotesRef = (txNotes.match(/(?:ref|rrn|utr|upi\s*ref)(?:\s*:|\s+no\.?|\s+)?\s*([a-zA-Z0-9]{8,18})/i) || [])[1]?.toUpperCase().trim();
+    const effectiveTxRef = txRef || txUpi || txNotesRef;
 
     // 1. Explicit Reference / UTR check
     if (newRef) {
@@ -63,6 +77,46 @@ export function isDuplicateTransaction(
     const txType = tx.type || 'expense';
 
     if (txAmount === newAmount && txType === newType && txDateStr === newDateStr) {
+      // If both have explicit different reference numbers, they are definitely NOT duplicates
+      if (newRef && effectiveTxRef && newRef !== effectiveTxRef) {
+        continue;
+      }
+      if (newUpiRef && effectiveTxRef && newUpiRef !== effectiveTxRef) {
+        continue;
+      }
+
+      // Check for conflicting distinct payee names
+      const txDesc = (tx.description || '').toLowerCase().trim();
+      const newMerchant = (newTx.merchant || '').toLowerCase().trim();
+
+      const genericWords = [
+        'bank transaction',
+        'bank payment',
+        'received payment',
+        'payment',
+        'transfer',
+        'salary',
+        'credit',
+        'debit',
+        'unknown',
+        'upi',
+      ];
+      const isGeneric = (str: string) => !str || genericWords.some((w) => str.includes(w));
+
+      // If both have distinct non-generic payee names, verify whether they match
+      if (!isGeneric(txDesc) && !isGeneric(newMerchant)) {
+        const cleanTxDesc = txDesc.replace(/[^a-z0-9]/g, '');
+        const cleanNewMerchant = newMerchant.replace(/[^a-z0-9]/g, '');
+        if (
+          cleanTxDesc !== cleanNewMerchant &&
+          !cleanTxDesc.includes(cleanNewMerchant) &&
+          !cleanNewMerchant.includes(cleanTxDesc)
+        ) {
+          // Different payees! (e.g. Paid Rs 30 at Shop A vs Shop B) -> NOT duplicate!
+          continue;
+        }
+      }
+
       const txAccountName = (tx.account?.name || tx.account_name || '').toLowerCase();
       const txBankId = (tx.bankId || tx.bank_id || '').toLowerCase();
 
@@ -87,21 +141,6 @@ export function isDuplicateTransaction(
       const maskedMatches = !newMasked || !txMasked || newMasked === txMasked;
 
       if (bankOrAccountMatches && maskedMatches) {
-        return true;
-      }
-
-      // If both are exact same amount on same date and type, and description/merchant has overlap
-      const txDesc = (tx.description || '').toLowerCase();
-      const newMerchant = (newTx.merchant || '').toLowerCase();
-      if (
-        (bankOrAccountMatches && maskedMatches && txDesc && newMerchant && (txDesc.includes(newMerchant) || newMerchant.includes(txDesc))) ||
-        (txNotes && (txNotes.includes('AUTO DETECTED') || (newBankName && txNotes.includes(newBankName.toUpperCase()))))
-      ) {
-        return true;
-      }
-
-      // If both have identical amount, type, date and at least one is without bank detail
-      if (!txBankId && !txAccountName) {
         return true;
       }
     }
