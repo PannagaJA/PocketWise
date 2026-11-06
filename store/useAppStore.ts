@@ -29,6 +29,7 @@ export interface Transaction {
   category_color?: string;
   description: string;
   date: string;
+  created_at?: string;
 }
 
 export interface Subscription {
@@ -111,15 +112,24 @@ export const useAppStore = create<AppStore>((set) => ({
       accounts: state.accounts.map((a) => (a.id === accountId ? { ...a, balance: newBalance } : a)),
     })),
   addTransaction: (tx) =>
-    set((state) => ({
-      transactions: [
+    set((state) => {
+      const updated = [
         {
           ...tx,
           description: cleanTransactionDescription(tx.description, tx.category_name, tx.type),
         },
         ...state.transactions,
-      ],
-    })),
+      ];
+      updated.sort((a, b) => {
+        const dateA = (a.date || '').substring(0, 10);
+        const dateB = (b.date || '').substring(0, 10);
+        if (dateA !== dateB) return dateB.localeCompare(dateA);
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return timeB - timeA;
+      });
+      return { transactions: updated };
+    }),
   addSubscription: (sub) => set((state) => ({ subscriptions: [...state.subscriptions, sub] })),
   fetchMockData: () => {},
 }));
