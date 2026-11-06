@@ -300,6 +300,88 @@ describe('Android Bank SMS Transaction Auto-Detection Parser Pipeline', () => {
     expect(isDuplicateTransaction(duplicateIncoming, existing)).toBe(true);
   });
 
+  // Test 16b: Multiple transactions of the same amount on the same day are NOT duplicates
+  test('16b. Does NOT drop separate transactions with same amount on same day as duplicates', () => {
+    const existing = [
+      {
+        id: 'tx_supabase_30',
+        account_id: 'a3d4f5b6-7c8d-9e0f-1a2b-3c4d5e6f7a8b',
+        account: { name: 'HDFC Bank (XX5472)' },
+        type: 'expense',
+        amount_minor: 3000,
+        currency: 'INR',
+        date: '2026-11-06',
+        description: 'Nandikeshwara Condiments (UPI)',
+        referenceNumber: '626686069936',
+      },
+    ];
+
+    const secondPaymentIncoming: ParsedSmsTransaction = {
+      smsSender: 'VM-HDFCBK-T',
+      type: 'expense',
+      amount: 30,
+      amountMinor: 3000,
+      currency: 'INR',
+      bankId: 'hdfc',
+      bankName: 'HDFC Bank',
+      paymentMethod: 'UPI',
+      maskedAccount: 'XX5472',
+      merchant: 'Thirupathi V',
+      referenceNumber: '626686070000',
+      category: 'Personal',
+      transactionDate: '2026-11-06T11:00:00.000Z',
+      confidenceScore: 90,
+      isSalary: false,
+      isRefund: false,
+      isTransfer: false,
+      isAutoDetected: true,
+      needsReview: false,
+    };
+
+    expect(isDuplicateTransaction(secondPaymentIncoming, existing)).toBe(false);
+  });
+
+  // Test 16c: Same shop, same amount on the same day with different reference numbers
+  test('16c. Does NOT drop two payments to the exact same shop of the same amount if reference numbers differ', () => {
+    const existing = [
+      {
+        id: 'tx_supabase_30_first',
+        account_id: 'a3d4f5b6-7c8d-9e0f-1a2b-3c4d5e6f7a8b',
+        account: { name: 'HDFC Bank (XX5472)' },
+        type: 'expense',
+        amount_minor: 3000,
+        currency: 'INR',
+        date: '2026-11-06',
+        description: 'Nandikeshwara Condiments (UPI)',
+        notes: 'Ref: 626686069936',
+      },
+    ];
+
+    const secondPaymentSameShop: ParsedSmsTransaction = {
+      smsSender: 'VM-HDFCBK-T',
+      type: 'expense',
+      amount: 30,
+      amountMinor: 3000,
+      currency: 'INR',
+      bankId: 'hdfc',
+      bankName: 'HDFC Bank',
+      paymentMethod: 'UPI',
+      maskedAccount: 'XX5472',
+      merchant: 'Nandikeshwara Condiments',
+      referenceNumber: '626686070000',
+      category: 'Personal',
+      transactionDate: '2026-11-06T11:30:00.000Z',
+      confidenceScore: 90,
+      isSalary: false,
+      isRefund: false,
+      isTransfer: false,
+      isAutoDetected: true,
+      needsReview: false,
+    };
+
+    expect(isDuplicateTransaction(secondPaymentSameShop, existing)).toBe(false);
+  });
+
   // Test 16: Deduplication with Supabase UUID account structure
   test('16. Deduplicates incoming transaction against Supabase transaction with UUID account_id', () => {
     const existing = [
