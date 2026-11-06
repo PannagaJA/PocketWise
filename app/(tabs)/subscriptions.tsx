@@ -18,6 +18,7 @@ import { parseMoneyToMinor } from '../../lib/finance/core';
 import { Plus, Bell, CreditCard, X, Calendar as CalendarIcon, ChevronLeft, ChevronRight, ShieldCheck, Trash2, AlertTriangle, Clock, RotateCcw, Pencil, Check } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { TimePickerModal, format12HourTime } from '../../components/ui/TimePickerModal';
+import { DatePickerModal } from '../../components/ui/DatePickerModal';
 
 export default function SubscriptionsScreen() {
   const { user } = useAuth();
@@ -43,8 +44,6 @@ export default function SubscriptionsScreen() {
   // Native Calendar & Time Picker Modal state
   const [calendarPickerVisible, setCalendarPickerVisible] = useState(false);
   const [timePickerVisible, setTimePickerVisible] = useState(false);
-  const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
-  const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth()); // 0-indexed
 
   const { data: subscriptions = [], isLoading: loadingSubs } = useQuery({
     queryKey: ['subscriptions', user?.id],
@@ -211,22 +210,6 @@ export default function SubscriptionsScreen() {
 
   const activeCount = subscriptions.length;
   const yearlySpend = totalMonthlySpend * 12;
-
-  // Calendar Helper Functions
-  const daysInMonth = (month: number, year: number) => new Date(year, month + 1, 0).getDate();
-  const firstDayOfMonth = (month: number, year: number) => new Date(year, month, 1).getDay();
-
-  const handleSelectDay = (day: number) => {
-    const formattedMonth = String(calendarMonth + 1).padStart(2, '0');
-    const formattedDay = String(day).padStart(2, '0');
-    setNextBillingDate(`${calendarYear}-${formattedMonth}-${formattedDay}`);
-    setCalendarPickerVisible(false);
-  };
-
-  const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
 
   return (
     <SafeAreaView className="flex-1" style={{ backgroundColor: '#F8F9FE' }} edges={['top']}>
@@ -521,7 +504,8 @@ export default function SubscriptionsScreen() {
                 <Pressable
                   onPress={() => {
                     Keyboard.dismiss();
-                    setCalendarPickerVisible(!calendarPickerVisible);
+                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                    setCalendarPickerVisible(true);
                   }}
                   className="flex-row items-center justify-between bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-3"
                 >
@@ -533,7 +517,10 @@ export default function SubscriptionsScreen() {
                   </View>
                   {nextBillingDate ? (
                     <Pressable
-                      onPress={() => setNextBillingDate('')}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        setNextBillingDate('');
+                      }}
                       className="w-5 h-5 rounded-full bg-zinc-200 items-center justify-center ml-1"
                     >
                       <X size={12} color="#3F3F46" />
@@ -561,78 +548,6 @@ export default function SubscriptionsScreen() {
                 </Pressable>
               </View>
             </View>
-
-            {/* Inline Calendar when toggled */}
-            {calendarPickerVisible && (
-              <View className="p-3 bg-zinc-50 border border-zinc-200 rounded-2xl mb-4">
-                {/* Calendar Header */}
-                <View className="flex-row justify-between items-center mb-3">
-                  <Pressable
-                    onPress={() => {
-                      if (calendarMonth === 0) {
-                        setCalendarMonth(11);
-                        setCalendarYear(calendarYear - 1);
-                      } else {
-                        setCalendarMonth(calendarMonth - 1);
-                      }
-                    }}
-                    className="p-1.5 rounded-full active:bg-zinc-200"
-                  >
-                    <ChevronLeft size={18} color="#09090B" />
-                  </Pressable>
-
-                  <Text className="text-sm font-extrabold text-zinc-900">
-                    {monthNames[calendarMonth]} {calendarYear}
-                  </Text>
-
-                  <Pressable
-                    onPress={() => {
-                      if (calendarMonth === 11) {
-                        setCalendarMonth(0);
-                        setCalendarYear(calendarYear + 1);
-                      } else {
-                        setCalendarMonth(calendarMonth + 1);
-                      }
-                    }}
-                    className="p-1.5 rounded-full active:bg-zinc-200"
-                  >
-                    <ChevronRight size={18} color="#09090B" />
-                  </Pressable>
-                </View>
-
-                {/* Days of Week Header */}
-                <View className="flex-row justify-between mb-1.5">
-                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
-                    <Text key={d} className="w-8 text-center text-[11px] font-bold text-zinc-400">{d}</Text>
-                  ))}
-                </View>
-
-                {/* Calendar Grid */}
-                <View className="flex-row flex-wrap">
-                  {Array.from({ length: firstDayOfMonth(calendarMonth, calendarYear) }).map((_, i) => (
-                    <View key={`empty-${i}`} className="w-[14.28%] h-8" />
-                  ))}
-
-                  {Array.from({ length: daysInMonth(calendarMonth, calendarYear) }).map((_, i) => {
-                    const day = i + 1;
-                    const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                    const isSelected = nextBillingDate === dateStr;
-
-                    return (
-                      <Pressable
-                        key={day}
-                        onPress={() => handleSelectDay(day)}
-                        className={`w-[14.28%] h-8 items-center justify-center rounded-lg mb-1 ${
-                          isSelected ? 'bg-indigo-600' : 'active:bg-zinc-200'
-                        }`}
-                      >
-                        <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-zinc-900'}`}>{day}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-            )}
 
             {/* Cycle */}
             <View className="flex-row bg-zinc-100 p-1 rounded-2xl mb-6">
@@ -675,6 +590,15 @@ export default function SubscriptionsScreen() {
           </View>
         )}
       </AppBottomSheet>
+
+      {/* Date Picker Modal */}
+      <DatePickerModal
+        visible={calendarPickerVisible}
+        onClose={() => setCalendarPickerVisible(false)}
+        selectedDate={nextBillingDate}
+        onSelectDate={(d) => setNextBillingDate(d)}
+        title="Select Renewal Date"
+      />
 
       {/* Time Picker Modal */}
       <TimePickerModal
