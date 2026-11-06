@@ -1,7 +1,7 @@
 import { supabase } from '../supabase';
 import { accountService } from './account.service';
 import { outboxService } from './outbox.service';
-import { generateUUID } from '../finance/core';
+import { generateUUID, getTransactionTimestamp } from '../finance/core';
 import { categoryService, matchCategoryToUserCategories } from './category.service';
 import { smsStorage } from '../sms/storage/smsStore';
 import { CATEGORY_MAP } from '../sms/parser/merchantParser';
@@ -186,6 +186,7 @@ export const transactionService = {
     }
 
     const deduplicated = deduplicateTwinTransactions(validList);
+    deduplicated.sort((a, b) => getTransactionTimestamp(b) - getTransactionTimestamp(a));
 
     return deduplicated.slice(0, limit).map((tx) => ({
       ...tx,
@@ -207,6 +208,7 @@ export const transactionService = {
     const rawList = data || [];
     const validList = rawList.filter((tx) => !isPromotionalOrSpamTransaction(tx));
     const deduplicated = deduplicateTwinTransactions(validList);
+    deduplicated.sort((a, b) => getTransactionTimestamp(b) - getTransactionTimestamp(a));
 
     return deduplicated.map((tx) => ({
       ...tx,
@@ -230,6 +232,7 @@ export const transactionService = {
     const rawList = data || [];
     const validList = rawList.filter((tx) => !isPromotionalOrSpamTransaction(tx));
     const deduplicated = deduplicateTwinTransactions(validList);
+    deduplicated.sort((a, b) => getTransactionTimestamp(b) - getTransactionTimestamp(a));
 
     return deduplicated.map((tx) => ({
       ...tx,

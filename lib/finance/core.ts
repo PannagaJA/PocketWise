@@ -40,6 +40,44 @@ export function subtractMoney(a: number, b: number): number {
   return a - b;
 }
 
+export function getTransactionTimestamp(tx: { date?: string; created_at?: string }): number {
+  const dateStr = (tx.date || '').substring(0, 10);
+  if (!dateStr) {
+    return tx.created_at ? new Date(tx.created_at).getTime() : 0;
+  }
+
+  if (!tx.created_at) {
+    const ymd = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr);
+    if (ymd) {
+      return new Date(parseInt(ymd[1], 10), parseInt(ymd[2], 10) - 1, parseInt(ymd[3], 10), 12, 0, 0).getTime();
+    }
+    return new Date(dateStr).getTime();
+  }
+
+  const cd = new Date(tx.created_at);
+  if (isNaN(cd.getTime())) {
+    return new Date(dateStr).getTime();
+  }
+
+  const cdDateStr = toLocalDateString(cd);
+  if (cdDateStr === dateStr) {
+    return cd.getTime();
+  }
+
+  // If created_at date differs from tx.date (e.g. detected today for yesterday's transaction),
+  // combine the true calendar date with created_at's hours, minutes, seconds!
+  const ymd = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr);
+  if (ymd) {
+    const year = parseInt(ymd[1], 10);
+    const month = parseInt(ymd[2], 10) - 1;
+    const day = parseInt(ymd[3], 10);
+    const combined = new Date(year, month, day, cd.getHours(), cd.getMinutes(), cd.getSeconds());
+    return isNaN(combined.getTime()) ? cd.getTime() : combined.getTime();
+  }
+
+  return cd.getTime();
+}
+
 export function toLocalDateString(dateInput?: string | Date | number): string {
   if (!dateInput) return '';
   if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput.trim())) {
