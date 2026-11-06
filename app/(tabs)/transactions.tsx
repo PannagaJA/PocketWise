@@ -112,6 +112,7 @@ export default function TransactionsScreen() {
   const [renderLimit, setRenderLimit] = useState(35);
 
   // Sticky header measurement and scroll tracking state (bypasses Android stickyHeaderIndices touch bugs)
+  const [headerHeight, setHeaderHeight] = useState(58);
   const [controlsLayoutY, setControlsLayoutY] = useState(240);
   const controlsLayoutYRef = useRef(240);
   const [isScrolledPastChart, setIsScrolledPastChart] = useState(false);
@@ -757,19 +758,138 @@ export default function TransactionsScreen() {
 
   return (
     <SafeAreaView className="flex-1" style={{ backgroundColor: '#F8F9FE' }} edges={['top']}>
-      {/* Persistent Title Header with Anchored Floating Controls */}
-      <View style={{ zIndex: 1000, elevation: 20, backgroundColor: '#F8F9FE' }}>
-        <View className="px-4 pt-2 pb-1">
+      <View style={{ flex: 1, position: 'relative', backgroundColor: '#F8F9FE' }}>
+        {/* Persistent Title Header: Always visible at the top with highest elevation */}
+        <View
+          onLayout={(e) => {
+            const h = e.nativeEvent.layout.height;
+            if (h > 0) setHeaderHeight(h);
+          }}
+          style={{ backgroundColor: '#F8F9FE', zIndex: 1000, elevation: 20 }}
+          className="px-4 pt-2 pb-1"
+        >
           <Text className="text-[22px] font-extrabold text-zinc-950 tracking-tight">Transactions</Text>
           <Text className="text-xs font-medium text-zinc-500 mt-0.5">Real-time financial activity</Text>
         </View>
 
-        {/* Floating Sticky Controls Overlay (Anchored to exactly top: '100%' directly below Title Header) */}
+        <ScrollView
+          className="flex-1"
+          style={{ backgroundColor: '#F8F9FE' }}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 140 }}
+          onScroll={(e) => {
+            const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
+            const scrollY = contentOffset.y;
+            const layoutY = controlsLayoutYRef.current;
+            const shouldBeSticky = layoutY > 0 ? scrollY >= layoutY : scrollY > 0;
+            if (shouldBeSticky !== isScrolledPastChart) {
+              setIsScrolledPastChart(shouldBeSticky);
+            }
+            if (scrollY + layoutMeasurement.height >= contentSize.height - 400) {
+              setRenderLimit((prev) => (prev < displayedTransactions.length ? prev + 30 : prev));
+            }
+          }}
+          scrollEventThrottle={16}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#09090B']} />
+          }
+        >
+          {/* Child 0: Total Spend Chart Card (at top, below Title - matches Image 1) */}
+          <View
+            style={
+              selectedCategoryFilter !== 'all'
+                ? { height: 0, overflow: 'hidden', opacity: 0 }
+                : undefined
+            }
+          >
+            <View className="px-4 pt-1 mb-2">
+              {/* Spend Graph based on Spend with Dashboard Balance */}
+              <SpendChartCard
+                accounts={accounts}
+                transactions={transactions}
+                selectedAccountId={selectedAccountFilterId}
+              />
+            </View>
+          </View>
+
+          {/* Child 1: Natural Controls Section (below the Card - matches Image 1) */}
+          <View
+            onLayout={(e) => {
+              const y = e.nativeEvent.layout.y;
+              controlsLayoutYRef.current = y;
+              setControlsLayoutY(y);
+            }}
+            style={{ opacity: isScrolledPastChart ? 0 : 1 }}
+            pointerEvents={isScrolledPastChart ? 'none' : 'auto'}
+          >
+            {renderControlsSection()}
+          </View>
+
+          {/* Child 2: Transactions Progressively Rendered List */}
+          <View className="px-4">
+            {loadingTx ? (
+              <View className="py-8">
+                <ActivityIndicator size="small" color="#09090B" />
+              </View>
+            ) : displayedTransactions.length === 0 ? (
+              <Card className="p-6 bg-white border border-zinc-200 items-center mt-2 rounded-2xl">
+                <View className="w-12 h-12 rounded-full bg-zinc-100 items-center justify-center mb-2">
+                  <Filter size={20} color="#71717A" />
+                </View>
+                <Text className="text-sm font-bold text-zinc-800">
+                  {searchQuery || isFilterActive ? 'No matching transactions' : `No ${activeFilter === 'all' ? '' : activeFilter} transactions found`}
+                </Text>
+                <Text className="text-xs text-zinc-400 mt-0.5 mb-4 text-center">
+                  {searchQuery
+                    ? `No transactions matched "${searchQuery}".`
+                    : isFilterActive
+                    ? `No transactions match the selected filter criteria.`
+                    : activeFilter === 'all'
+                    ? 'Record your first transaction to get started!'
+                    : `No transactions matched the "${activeFilter}" filter.`}
+                </Text>
+                {searchQuery || activeFilter !== 'all' || isFilterActive ? (
+                  <Button size="sm" variant="outline" onPress={() => { setSearchQuery(''); setActiveFilter('all'); setDateFilterMode('all'); setSelectedAccountFilterId('all'); setSelectedCategoryFilter('all'); setSelectedCustomMonth(''); setCustomStartDate(''); setCustomEndDate(''); }}>
+                    <Text className="text-zinc-900 font-semibold text-xs">Clear Search & Filters</Text>
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="primary" onPress={() => setModalVisible(true)}>
+                    <Text className="text-white font-semibold text-xs">Record Transaction</Text>
+                  </Button>
+                )}
+              </Card>
+            ) : (
+              displayedTransactions.slice(0, renderLimit).map((tx) => {
+                const accountName =
+                  tx.account?.name ||
+                  (Array.isArray(tx.account) && (tx.account as any)[0]?.name) ||
+                  accounts.find((a) => a.id === tx.account_id)?.name ||
+                  'Account';
+                const categoryName =
+                  tx.category?.name ||
+                  (Array.isArray(tx.category) && (tx.category as any)[0]?.name) ||
+                  categories.find((c) => c.id === tx.category_id)?.name ||
+                  'Personal';
+                return (
+                  <TransactionItem
+                    key={tx.id}
+                    tx={tx}
+                    accountName={accountName}
+                    categoryName={categoryName}
+                    onPress={() => handleOpenDetailTx(tx)}
+                  />
+                );
+              })
+            )}
+          </View>
+        </ScrollView>
+
+        {/* Floating Sticky Controls Overlay (Anchored to exact header bottom inside the relative wrapper) */}
         <View
           pointerEvents={isScrolledPastChart ? 'auto' : 'none'}
           style={{
             position: 'absolute',
-            top: '100%',
+            top: headerHeight,
             left: 0,
             right: 0,
             zIndex: isScrolledPastChart ? 999 : -1,
@@ -783,118 +903,6 @@ export default function TransactionsScreen() {
           {renderControlsSection()}
         </View>
       </View>
-
-      <ScrollView
-        className="flex-1"
-        style={{ backgroundColor: '#F8F9FE' }}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 140 }}
-        onScroll={(e) => {
-          const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
-          const scrollY = contentOffset.y;
-          const layoutY = controlsLayoutYRef.current;
-          const shouldBeSticky = layoutY > 0 ? scrollY >= layoutY : scrollY > 0;
-          if (shouldBeSticky !== isScrolledPastChart) {
-            setIsScrolledPastChart(shouldBeSticky);
-          }
-          if (scrollY + layoutMeasurement.height >= contentSize.height - 400) {
-            setRenderLimit((prev) => (prev < displayedTransactions.length ? prev + 30 : prev));
-          }
-        }}
-        scrollEventThrottle={16}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#09090B']} />
-        }
-      >
-        {/* Child 0: Total Spend Chart Card (at top, below Title - matches Image 1) */}
-        <View
-          style={
-            selectedCategoryFilter !== 'all'
-              ? { height: 0, overflow: 'hidden', opacity: 0 }
-              : undefined
-          }
-        >
-          <View className="px-4 pt-1 mb-2">
-            {/* Spend Graph based on Spend with Dashboard Balance */}
-            <SpendChartCard
-              accounts={accounts}
-              transactions={transactions}
-              selectedAccountId={selectedAccountFilterId}
-            />
-          </View>
-        </View>
-
-        {/* Child 1: Natural Controls Section (below the Card - matches Image 1) */}
-        <View
-          onLayout={(e) => {
-            const y = e.nativeEvent.layout.y;
-            controlsLayoutYRef.current = y;
-            setControlsLayoutY(y);
-          }}
-          style={{ opacity: isScrolledPastChart ? 0 : 1 }}
-          pointerEvents={isScrolledPastChart ? 'none' : 'auto'}
-        >
-          {renderControlsSection()}
-        </View>
-
-        {/* Child 2: Transactions Progressively Rendered List */}
-        <View className="px-4">
-          {loadingTx ? (
-            <View className="py-8">
-              <ActivityIndicator size="small" color="#09090B" />
-            </View>
-          ) : displayedTransactions.length === 0 ? (
-            <Card className="p-6 bg-white border border-zinc-200 items-center mt-2 rounded-2xl">
-              <View className="w-12 h-12 rounded-full bg-zinc-100 items-center justify-center mb-2">
-                <Filter size={20} color="#71717A" />
-              </View>
-              <Text className="text-sm font-bold text-zinc-800">
-                {searchQuery || isFilterActive ? 'No matching transactions' : `No ${activeFilter === 'all' ? '' : activeFilter} transactions found`}
-              </Text>
-              <Text className="text-xs text-zinc-400 mt-0.5 mb-4 text-center">
-                {searchQuery
-                  ? `No transactions matched "${searchQuery}".`
-                  : isFilterActive
-                  ? `No transactions match the selected filter criteria.`
-                  : activeFilter === 'all'
-                  ? 'Record your first transaction to get started!'
-                  : `No transactions matched the "${activeFilter}" filter.`}
-              </Text>
-              {searchQuery || activeFilter !== 'all' || isFilterActive ? (
-                <Button size="sm" variant="outline" onPress={() => { setSearchQuery(''); setActiveFilter('all'); setDateFilterMode('all'); setSelectedAccountFilterId('all'); setSelectedCategoryFilter('all'); setSelectedCustomMonth(''); setCustomStartDate(''); setCustomEndDate(''); }}>
-                  <Text className="text-zinc-900 font-semibold text-xs">Clear Search & Filters</Text>
-                </Button>
-              ) : (
-                <Button size="sm" variant="primary" onPress={() => setModalVisible(true)}>
-                  <Text className="text-white font-semibold text-xs">Record Transaction</Text>
-                </Button>
-              )}
-            </Card>
-          ) : (
-            displayedTransactions.slice(0, renderLimit).map((tx) => {
-              const accountName =
-                tx.account?.name ||
-                (Array.isArray(tx.account) && (tx.account as any)[0]?.name) ||
-                accounts.find((a) => a.id === tx.account_id)?.name ||
-                'Account';
-              const categoryName =
-                tx.category?.name ||
-                (Array.isArray(tx.category) && (tx.category as any)[0]?.name) ||
-                categories.find((c) => c.id === tx.category_id)?.name ||
-                'Personal';
-              return (
-                <TransactionItem
-                  key={tx.id}
-                  tx={tx}
-                  accountName={accountName}
-                  categoryName={categoryName}
-                  onPress={() => handleOpenDetailTx(tx)}
-                />
-              );
-            })
-          )}
-        </View>
-      </ScrollView>
 
       {/* Custom Date / Month / Bank Filter Modal */}
       <AppBottomSheet
