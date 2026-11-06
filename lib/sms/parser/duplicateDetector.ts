@@ -1,5 +1,6 @@
 import { ParsedSmsTransaction } from '../types';
 import { INDIAN_BANKS } from '../banks/bankRegistry';
+import { toLocalDateString } from '../../finance/core';
 
 export function createTransactionFingerprint(tx: {
   amountMinor: number;
@@ -44,7 +45,7 @@ export function isDuplicateTransaction(
 
   const newRef = newTx.referenceNumber?.toUpperCase().trim();
   const newUpiRef = newTx.upiReference?.toUpperCase().trim();
-  const newDateStr = newTx.transactionDate ? newTx.transactionDate.split('T')[0] : '';
+  const newDateStr = toLocalDateString(newTx.transactionDate);
   const newAmount = newTx.amountMinor;
   const newType = newTx.type || 'expense';
   const newBankId = (newTx.bankId || '').toLowerCase().trim();
@@ -73,7 +74,7 @@ export function isDuplicateTransaction(
 
     // 2. Exact amount + type + date check
     const txAmount = tx.amountMinor ?? tx.amount_minor ?? (typeof tx.amount === 'number' ? Math.round(tx.amount * 100) : 0);
-    const txDateStr = (tx.transactionDate || tx.date || '').split('T')[0];
+    const txDateStr = toLocalDateString(tx.transactionDate || tx.date || '');
     const txType = tx.type || 'expense';
 
     if (txAmount === newAmount && txType === newType && txDateStr === newDateStr) {
