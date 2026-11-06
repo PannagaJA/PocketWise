@@ -915,6 +915,8 @@ export default function LendsScreen() {
         title="Record a Lend"
         subtitle="Track money lent and schedule reminders"
         scrollable={true}
+        showsVerticalScrollIndicator={true}
+        persistentScrollbar={true}
         contentContainerStyle={{ paddingBottom: 24 }}
       >
         {createLendMutation.isPending ? (
@@ -1166,6 +1168,8 @@ export default function LendsScreen() {
         title="Reschedule Collection"
         subtitle="Select a new target return date"
         scrollable={true}
+        showsVerticalScrollIndicator={true}
+        persistentScrollbar={true}
         contentContainerStyle={{ paddingBottom: 24 }}
       >
         {rescheduleMutation.isPending ? (
@@ -1255,6 +1259,8 @@ export default function LendsScreen() {
         title="Edit Amount to Collect"
         subtitle="Update outstanding amount"
         scrollable={true}
+        showsVerticalScrollIndicator={true}
+        persistentScrollbar={true}
         contentContainerStyle={{ paddingBottom: 24 }}
       >
         {updateAmountMutation.isPending ? (
@@ -1325,6 +1331,8 @@ export default function LendsScreen() {
         title="Send Reminder"
         subtitle="Send notice via WhatsApp or SMS"
         scrollable={true}
+        showsVerticalScrollIndicator={true}
+        persistentScrollbar={true}
         contentContainerStyle={{ paddingBottom: 24 }}
       >
         {/* Borrower & Amount Snapshot */}
@@ -1456,6 +1464,8 @@ export default function LendsScreen() {
         title="Collect Payment"
         subtitle={recordToCollect ? `Record payment from ${recordToCollect.personName}` : 'Mark lend as collected'}
         scrollable={true}
+        showsVerticalScrollIndicator={true}
+        persistentScrollbar={true}
         contentContainerStyle={{ paddingBottom: 24 }}
       >
         {collectPaymentMutation.isPending ? (
