@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   View,
   Text,
   Pressable,
   StyleSheet,
   ScrollView,
+  Animated,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -25,6 +26,8 @@ export interface AppBottomSheetProps {
   contentContainerStyle?: any;
   footer?: React.ReactNode;
   scrollViewRef?: React.RefObject<ScrollView | null>;
+  showsVerticalScrollIndicator?: boolean;
+  persistentScrollbar?: boolean;
 }
 
 export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
@@ -41,6 +44,35 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
   footer,
   scrollViewRef,
 }) => {
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const [visibleHeight, setVisibleHeight] = useState(0);
+  const [contentHeight, setContentHeight] = useState(0);
+
+  useEffect(() => {
+    if (!visible) {
+      scrollY.setValue(0);
+      setVisibleHeight(0);
+      setContentHeight(0);
+    }
+  }, [visible]);
+
+  const useDriver = Platform.OS !== 'web' && typeof jest === 'undefined';
+
+  const canScroll = contentHeight > visibleHeight + 10 && visibleHeight > 0;
+  const trackHeight = Math.max(0, visibleHeight - 16);
+  const rawThumbHeight = visibleHeight > 0 && contentHeight > 0
+    ? (visibleHeight / contentHeight) * trackHeight
+    : 36;
+  const thumbHeight = Math.max(28, Math.min(rawThumbHeight, Math.max(28, trackHeight * 0.8)));
+  const maxScrollDistance = Math.max(1, contentHeight - visibleHeight);
+  const maxThumbDistance = Math.max(0, trackHeight - thumbHeight);
+
+  const thumbTranslateY = scrollY.interpolate({
+    inputRange: [0, maxScrollDistance],
+    outputRange: [0, maxThumbDistance],
+    extrapolate: 'clamp',
+  });
+
   const handleClose = () => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -81,21 +113,50 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
 
         {/* Body Content */}
         {scrollable ? (
-          <ScrollView
-            ref={scrollViewRef as any}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            nestedScrollEnabled={true}
-            bounces={true}
-            contentContainerStyle={[
-              styles.scrollContent,
-              contentContainerStyle,
-              !footer && { paddingBottom: 44 },
-            ]}
-            style={styles.scrollView}
-          >
-            {children}
-          </ScrollView>
+          <View style={styles.scrollWrapper}>
+            <Animated.ScrollView
+              ref={scrollViewRef as any}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled={true}
+              bounces={true}
+              scrollEventThrottle={16}
+              onLayout={(e) => {
+                const h = e.nativeEvent.layout.height;
+                if (h > 0) setVisibleHeight(h);
+              }}
+              onContentSizeChange={(_, h) => {
+                if (h > 0) setContentHeight(h);
+              }}
+              onScroll={Animated.event(
+                [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+                { useNativeDriver: useDriver }
+              )}
+              contentContainerStyle={[
+                styles.scrollContent,
+                contentContainerStyle,
+                !footer && { paddingBottom: 44 },
+              ]}
+              style={styles.scrollView}
+            >
+              {children}
+            </Animated.ScrollView>
+
+            {/* Custom Thin Always-Visible Scrollbar */}
+            {canScroll && (
+              <View pointerEvents="none" style={styles.customScrollTrack}>
+                <Animated.View
+                  style={[
+                    styles.customScrollThumb,
+                    {
+                      height: thumbHeight,
+                      transform: [{ translateY: thumbTranslateY }],
+                    },
+                  ]}
+                />
+              </View>
+            )}
+          </View>
         ) : (
           <View
             style={[
@@ -185,5 +246,25 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#F4F4F5',
     backgroundColor: '#FFFFFF',
+  },
+  scrollWrapper: {
+    width: '100%',
+    flexShrink: 1,
+    position: 'relative',
+  },
+  customScrollTrack: {
+    position: 'absolute',
+    right: 3,
+    top: 8,
+    bottom: 8,
+    width: 3.5,
+    borderRadius: 2,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    zIndex: 20,
+  },
+  customScrollThumb: {
+    width: 3.5,
+    borderRadius: 2,
+    backgroundColor: '#71717A',
   },
 });
