@@ -1,6 +1,6 @@
 {
   "name": "pocketwise",
-  "version": "1.0.19",
+  "version": "1.0.20",
   "description": "Privacy-first, offline-first personal wealth & expense tracker for Android & iOS built with React Native (Expo SDK 57), Supabase, on-device SMS parsing & biometric lock.",
   "main": "index.ts",
   "repository": {
