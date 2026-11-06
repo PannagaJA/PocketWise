@@ -167,6 +167,32 @@ export default function TransactionsScreen() {
     enabled: !!user?.id,
   });
 
+  // Unique sorted categories for the Category dropdown filter
+  const categoryFilterOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const uniqueCats: { label: string; value: string; color?: string }[] = [];
+
+    for (const cat of categories) {
+      const name = cat.name.trim();
+      const lower = name.toLowerCase();
+      if (!seen.has(lower)) {
+        seen.add(lower);
+        uniqueCats.push({
+          label: name,
+          value: name,
+          color: cat.color,
+        });
+      }
+    }
+
+    uniqueCats.sort((a, b) => a.label.localeCompare(b.label));
+
+    return [
+      { label: 'All Categories', value: 'all' },
+      ...uniqueCats,
+    ];
+  }, [categories]);
+
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
     setRefreshing(true);
@@ -1028,45 +1054,21 @@ export default function TransactionsScreen() {
             })}
           </View>
 
-          {/* Category Filter Section */}
-          <Text className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2.5">Category</Text>
-          <View className="flex-row flex-wrap gap-2 mb-4">
-            <Pressable
-              onPress={() => {
-                try { Haptics.selectionAsync(); } catch {}
-                setSelectedCategoryFilter('all');
+          {/* Category Filter Dropdown */}
+          <View className="mb-2">
+            <AppSelectField
+              label="Category"
+              title="Filter by Category"
+              subtitle="Select a category to filter transactions"
+              value={selectedCategoryFilter}
+              placeholder="All Categories"
+              searchable={true}
+              searchPlaceholder="Search category..."
+              options={categoryFilterOptions}
+              onSelect={(val) => {
+                setSelectedCategoryFilter(val || 'all');
               }}
-              className={`px-4 py-2.5 rounded-xl border ${
-                selectedCategoryFilter === 'all'
-                  ? 'bg-zinc-900 border-zinc-900'
-                  : 'bg-zinc-50 border-zinc-200 active:bg-zinc-100'
-              }`}
-            >
-              <Text className={`text-xs font-bold ${selectedCategoryFilter === 'all' ? 'text-white' : 'text-zinc-800'}`}>
-                All Categories
-              </Text>
-            </Pressable>
-            {categories.map((cat) => {
-              const isSelected = selectedCategoryFilter.toLowerCase() === cat.name.toLowerCase();
-              return (
-                <Pressable
-                  key={cat.id}
-                  onPress={() => {
-                    try { Haptics.selectionAsync(); } catch {}
-                    setSelectedCategoryFilter(isSelected ? 'all' : cat.name);
-                  }}
-                  className={`px-4 py-2.5 rounded-xl border ${
-                    isSelected
-                      ? 'bg-zinc-900 border-zinc-900'
-                      : 'bg-zinc-50 border-zinc-200 active:bg-zinc-100'
-                  }`}
-                >
-                  <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-zinc-800'}`}>
-                    {cat.name}
-                  </Text>
-                </Pressable>
-              );
-            })}
+            />
           </View>
 
           {/* Modal Actions */}
