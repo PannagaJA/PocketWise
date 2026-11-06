@@ -1,4 +1,4 @@
-import { formatMoney, parseMoneyToMinor, addMoney, subtractMoney } from '../lib/finance/core';
+import { formatMoney, parseMoneyToMinor, addMoney, subtractMoney, getTransactionTimestamp } from '../lib/finance/core';
 
 describe('Finance Core Unit Tests', () => {
   test('minor currency formatting for INR', () => {
@@ -15,5 +15,32 @@ describe('Finance Core Unit Tests', () => {
   test('money addition and subtraction', () => {
     expect(addMoney(10000, 5000)).toBe(15000);
     expect(subtractMoney(15000, 5000)).toBe(10000);
+  });
+
+  test('getTransactionTimestamp correctly combines date with created_at time when dates mismatch', () => {
+    // Yesterday's transaction detected today
+    const bmtc = {
+      date: '2026-11-05',
+      created_at: '2026-11-06T05:34:00.000Z', // 11:04 AM local time
+    };
+    const poojary = {
+      date: '2026-11-05',
+      created_at: '2026-11-05T16:31:00.000Z', // 10:01 PM local time
+    };
+    const bakery = {
+      date: '2026-11-05',
+      created_at: '2026-11-05T04:51:00.000Z', // 10:21 AM local time
+    };
+
+    const bmtcTime = getTransactionTimestamp(bmtc);
+    const poojaryTime = getTransactionTimestamp(poojary);
+    const bakeryTime = getTransactionTimestamp(bakery);
+
+    // Poojary (10:01 PM) > Bmtc (11:04 AM) > Bakery (10:21 AM)
+    expect(poojaryTime).toBeGreaterThan(bmtcTime);
+    expect(bmtcTime).toBeGreaterThan(bakeryTime);
+
+    const sorted = [bakery, bmtc, poojary].sort((a, b) => getTransactionTimestamp(b) - getTransactionTimestamp(a));
+    expect(sorted).toEqual([poojary, bmtc, bakery]);
   });
 });
