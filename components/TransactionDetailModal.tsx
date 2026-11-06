@@ -252,7 +252,7 @@ export function TransactionDetailModal({
                   </View>
                   <View className="flex-1">
                     <Text className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
-                      Recorded at
+                      Transaction Time
                     </Text>
                     <Text className="text-sm font-semibold text-zinc-800 mt-0.5">
                       {exactTimeString}
