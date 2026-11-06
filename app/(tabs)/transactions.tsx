@@ -84,6 +84,8 @@ export default function TransactionsScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [accModalVisible, setAccModalVisible] = useState(false);
   const [dateFilterModalVisible, setDateFilterModalVisible] = useState(false);
+  const filterScrollRef = useRef<ScrollView>(null);
+  const categoryFilterY = useRef(0);
 
   useEffect(() => {
     if (params?.add === 'true') {
@@ -952,7 +954,39 @@ export default function TransactionsScreen() {
         title="Filter Transactions"
         subtitle="Filter by presets, dates, or accounts"
         scrollable={true}
-        contentContainerStyle={{ paddingBottom: 24 }}
+        scrollViewRef={filterScrollRef}
+        contentContainerStyle={{ paddingBottom: 20 }}
+        footer={
+          <View className="flex-row gap-3">
+            <Button
+              variant="outline"
+              size="md"
+              className="flex-1 border-zinc-200"
+              onPress={() => {
+                setDateFilterMode('all');
+                setSelectedCustomMonth('');
+                setCustomStartDate('');
+                setCustomEndDate('');
+                setSelectedAccountFilterId('all');
+                setSelectedCategoryFilter('all');
+                setDateFilterModalVisible(false);
+              }}
+            >
+              <Text className="text-zinc-800 font-bold text-xs">Reset All</Text>
+            </Button>
+
+            <Button
+              variant="primary"
+              size="md"
+              className="flex-1"
+              onPress={() => {
+                setDateFilterModalVisible(false);
+              }}
+            >
+              <Text className="text-white font-bold text-xs">Apply Filter</Text>
+            </Button>
+          </View>
+        }
       >
         <View>
           {/* Presets Section */}
@@ -1055,7 +1089,12 @@ export default function TransactionsScreen() {
           </View>
 
           {/* Category Filter Dropdown */}
-          <View className="mb-2">
+          <View
+            onLayout={(e) => {
+              categoryFilterY.current = e.nativeEvent.layout.y;
+            }}
+            className="mb-2"
+          >
             <AppSelectField
               label="Category"
               title="Filter by Category"
@@ -1065,41 +1104,18 @@ export default function TransactionsScreen() {
               searchable={true}
               searchPlaceholder="Search category..."
               options={categoryFilterOptions}
+              onOpen={() => {
+                setTimeout(() => {
+                  filterScrollRef.current?.scrollTo({
+                    y: Math.max(0, categoryFilterY.current - 8),
+                    animated: true,
+                  });
+                }, 80);
+              }}
               onSelect={(val) => {
                 setSelectedCategoryFilter(val || 'all');
               }}
             />
-          </View>
-
-          {/* Modal Actions */}
-          <View className="flex-row gap-3 mt-3">
-            <Button
-              variant="outline"
-              size="md"
-              className="flex-1 border-zinc-200"
-              onPress={() => {
-                setDateFilterMode('all');
-                setSelectedCustomMonth('');
-                setCustomStartDate('');
-                setCustomEndDate('');
-                setSelectedAccountFilterId('all');
-                setSelectedCategoryFilter('all');
-                setDateFilterModalVisible(false);
-              }}
-            >
-              <Text className="text-zinc-800 font-bold text-xs">Reset All</Text>
-            </Button>
-
-            <Button
-              variant="primary"
-              size="md"
-              className="flex-1"
-              onPress={() => {
-                setDateFilterModalVisible(false);
-              }}
-            >
-              <Text className="text-white font-bold text-xs">Apply Filter</Text>
-            </Button>
           </View>
         </View>
       </AppBottomSheet>

@@ -220,6 +220,8 @@ export interface AppSelectFieldProps<T = string> {
   clearLabel?: string;
   disabled?: boolean;
   containerClassName?: string;
+  onOpen?: () => void;
+  onToggle?: (isOpen: boolean) => void;
 }
 
 export function AppSelectField<T = string>({
@@ -236,6 +238,8 @@ export function AppSelectField<T = string>({
   clearLabel = 'None / Clear',
   disabled = false,
   containerClassName,
+  onOpen,
+  onToggle,
 }: AppSelectFieldProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -259,8 +263,13 @@ export function AppSelectField<T = string>({
     try {
       Haptics.selectionAsync();
     } catch {}
-    setIsOpen((prev) => !prev);
+    const nextState = !isOpen;
+    setIsOpen(nextState);
     setSearchQuery('');
+    onToggle?.(nextState);
+    if (nextState) {
+      onOpen?.();
+    }
   };
 
   const handleSelect = (val: T) => {

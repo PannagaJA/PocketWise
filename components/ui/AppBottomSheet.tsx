@@ -24,6 +24,7 @@ export interface AppBottomSheetProps {
   scrollable?: boolean;
   contentContainerStyle?: any;
   footer?: React.ReactNode;
+  scrollViewRef?: React.RefObject<ScrollView | null>;
 }
 
 export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
@@ -38,6 +39,7 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
   scrollable = false,
   contentContainerStyle,
   footer,
+  scrollViewRef,
 }) => {
   const handleClose = () => {
     try {
@@ -80,6 +82,7 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
         {/* Body Content */}
         {scrollable ? (
           <ScrollView
+            ref={scrollViewRef as any}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             nestedScrollEnabled={true}
