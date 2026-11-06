@@ -17,7 +17,7 @@ import { billService } from '../../lib/services/bill.service';
 import { goalService } from '../../lib/services/goal.service';
 import { reminderService, Reminder } from '../../lib/services/reminder.service';
 import { financialAnalyticsEngine } from '../../lib/finance/analyticsEngine';
-import { formatMoney, formatDate, formatDateTime, parseSignedMoneyToMinor } from '../../lib/finance/core';
+import { formatMoney, formatDate, formatDateTime, formatRelativeDateTime, parseSignedMoneyToMinor } from '../../lib/finance/core';
 import { ArrowUpRight, ArrowDownLeft, Bell, Wallet, Calendar, Target, ChevronRight, ChevronDown, Check, Building2, ShieldCheck, TrendingUp, TrendingDown, ArrowRightLeft, X, Clock, Trash2, LogOut, Pencil, RotateCcw, Plus } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTabStore } from '../../lib/stores/tabStore';
@@ -650,7 +650,7 @@ export default function DashboardScreen() {
                   subtitle={`${categoryName} • ${accountName}`}
                   amount={formattedAmount}
                   isCredit={tx.type === 'income'}
-                  date={formatDate(tx.date)}
+                  date={formatRelativeDateTime(tx.date, tx.created_at)}
                   onPress={() => handleOpenDetailTx(tx)}
                   showDivider={!isLast}
                 />

@@ -18,7 +18,7 @@ import { accountService } from '../../lib/services/account.service';
 import { categoryService } from '../../lib/services/category.service';
 import { smsStorage } from '../../lib/sms/storage/smsStore';
 import { useTabStore } from '../../lib/stores/tabStore';
-import { formatMoney, formatDate, formatRelativeDateTime, parseMoneyToMinor } from '../../lib/finance/core';
+import { formatMoney, formatDate, formatRelativeDateTime, getTransactionTimestamp, parseMoneyToMinor } from '../../lib/finance/core';
 import { DatePickerButton } from '../../components/ui/DatePickerModal';
 import { TransactionDetailModal } from '../../components/TransactionDetailModal';
 import { SpendChartCard } from '../../components/NetBalanceChartCard';
@@ -243,16 +243,7 @@ export default function TransactionsScreen() {
       const matchesAmount = rupeesAmount.includes(q) || formattedMoneyStr.includes(q);
 
       return matchesFilter && matchesDate && matchesAccountFilter && (matchesDesc || matchesCat || matchesAcc || matchesAmount);
-    }).sort((a, b) => {
-      const dateA = (a.date || '').substring(0, 10);
-      const dateB = (b.date || '').substring(0, 10);
-      if (dateA !== dateB) {
-        return dateB.localeCompare(dateA);
-      }
-      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
-      return timeB - timeA;
-    });
+    }).sort((a, b) => getTransactionTimestamp(b) - getTransactionTimestamp(a));
   }, [transactions, activeFilter, selectedAccountFilterId, selectedCategoryFilter, dateFilterMode, selectedCustomMonth, customStartDate, customEndDate, searchQuery, accounts, categories]);
 
   const filteredCategories = useMemo(
