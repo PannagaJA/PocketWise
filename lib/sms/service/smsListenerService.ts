@@ -249,6 +249,7 @@ class SmsListenerService {
       const userCategories = await categoryService.getCategories(activeUserId);
 
       let upgradedCount = 0;
+      const alreadyMatchedIds = new Set<string>();
 
       for (const msg of messages) {
         if (!msg.body) continue;
@@ -260,14 +261,16 @@ class SmsListenerService {
 
         const match = recentTxs.find(
           (t) =>
-            (parsed.referenceNumber && t.notes?.includes(parsed.referenceNumber)) ||
+            !alreadyMatchedIds.has(t.id) &&
+            ((parsed.referenceNumber && t.notes?.includes(parsed.referenceNumber)) ||
             (parsed.upiReference && t.notes?.includes(parsed.upiReference)) ||
             (t.amount_minor === parsed.amountMinor &&
               (t.date || '').substring(0, 10) === parsedDateStr &&
-              t.type === (parsed.type === 'income' ? 'income' : 'expense'))
+              t.type === (parsed.type === 'income' ? 'income' : 'expense')))
         );
 
         if (match) {
+          alreadyMatchedIds.add(match.id);
           const matchedCat = matchCategoryToUserCategories(
             parsed.category,
             userCategories,

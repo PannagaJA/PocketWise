@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { cleanTransactionDescription } from '../lib/services/transaction.service';
+import { getTransactionTimestamp } from '../lib/finance/core';
 
 export interface Profile {
   id: string;
@@ -120,14 +121,7 @@ export const useAppStore = create<AppStore>((set) => ({
         },
         ...state.transactions,
       ];
-      updated.sort((a, b) => {
-        const dateA = (a.date || '').substring(0, 10);
-        const dateB = (b.date || '').substring(0, 10);
-        if (dateA !== dateB) return dateB.localeCompare(dateA);
-        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
-        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
-        return timeB - timeA;
-      });
+      updated.sort((a, b) => getTransactionTimestamp(b) - getTransactionTimestamp(a));
       return { transactions: updated };
     }),
   addSubscription: (sub) => set((state) => ({ subscriptions: [...state.subscriptions, sub] })),
