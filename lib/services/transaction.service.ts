@@ -123,6 +123,13 @@ function deduplicateTwinTransactions(list: Transaction[]): Transaction[] {
         !current.transfer_group_id &&
         !prev.transfer_group_id
       ) {
+        // If both have explicit reference numbers and they are different, they are definitely distinct transactions
+        const ref1 = (current.notes || '').replace(/^(Ref|UPI Ref):\s*/i, '').trim();
+        const ref2 = (prev.notes || '').replace(/^(Ref|UPI Ref):\s*/i, '').trim();
+        if (ref1 && ref2 && ref1 !== ref2) {
+          continue;
+        }
+
         const t1 = current.created_at ? new Date(current.created_at).getTime() : NaN;
         const t2 = prev.created_at ? new Date(prev.created_at).getTime() : NaN;
         if (!isNaN(t1) && !isNaN(t2) && Math.abs(t1 - t2) <= 120000) {
@@ -277,11 +284,14 @@ export const transactionService = {
         return sourceTx;
       } else {
         // Normal Income or Expense - trigger atomically syncs balance
+        const now = new Date().toISOString();
         const { data, error } = await supabase
           .from('transactions')
           .insert({
             ...tx,
             id: sourceId,
+            created_at: tx.created_at || now,
+            updated_at: tx.updated_at || now,
           })
           .select()
           .single();
