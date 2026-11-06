@@ -12,7 +12,7 @@ import { useAuth } from '../../context/AuthContext';
 import { appLockService } from '../../lib/security/app-lock.service';
 import { useUpdateStore } from '../../lib/stores/updateStore';
 import { updateService } from '../../lib/services/update.service';
-import { Fingerprint, Bell, Database, LogOut, ChevronRight, Calendar, Target, Lock, PieChart, X, Smartphone, Zap, HandCoins, Clock, CloudDownload, CheckCircle2 } from 'lucide-react-native';
+import { Fingerprint, Bell, Database, LogOut, ChevronRight, Calendar, Target, Lock, PieChart, X, Smartphone, Zap, HandCoins, Clock, CloudDownload, CheckCircle2, BellRing } from 'lucide-react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as Haptics from 'expo-haptics';
 
@@ -224,6 +224,19 @@ export default function MoreScreen() {
               <View className="flex-1">
                 <Text className="text-[15px] font-bold text-zinc-950">Money Lends</Text>
                 <Text className="text-xs font-medium text-zinc-500 mt-0.5">Track lent money & get reminded to collect</Text>
+              </View>
+            </View>
+            <ChevronRight size={18} color="#A1A1AA" />
+          </Pressable>
+
+          <Pressable onPress={() => router.push({ pathname: '/reminders', params: { from: 'more' } } as any)} className="p-4 flex-row items-center justify-between active:bg-zinc-50">
+            <View className="flex-row items-center flex-1 pr-2">
+              <View className="w-10 h-10 rounded-2xl bg-orange-50 items-center justify-center mr-3.5">
+                <BellRing size={20} color="#EA580C" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-[15px] font-bold text-zinc-950">Reminders & Alerts</Text>
+                <Text className="text-xs font-medium text-zinc-500 mt-0.5">Custom reminders, bill alerts & schedules</Text>
               </View>
             </View>
             <ChevronRight size={18} color="#A1A1AA" />

@@ -74,6 +74,18 @@ export const reminderService = {
     await notificationService.cancelScheduledNotification(reminderId);
   },
 
+  async completeReminder(reminderId: string): Promise<void> {
+    const { error } = await supabase
+      .from('reminders')
+      .update({ status: 'sent', sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq('id', reminderId);
+
+    if (error) throw error;
+
+    // Cancel local OS notification since user already acted on it
+    await notificationService.cancelScheduledNotification(reminderId);
+  },
+
   async cancelRemindersByReference(referenceId: string): Promise<void> {
     const { data: matchingReminders } = await supabase
       .from('reminders')

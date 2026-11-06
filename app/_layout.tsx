@@ -276,6 +276,7 @@ export default function RootLayout() {
                     <Stack.Screen name="goals" />
                     <Stack.Screen name="reports" />
                     <Stack.Screen name="lends" />
+                    <Stack.Screen name="reminders" />
                   </Stack>
                   {/* QuickExpenseModal is a screen-agnostic overlay — rendered after Stack so it floats above all screens */}
                   <QuickExpenseModal />
