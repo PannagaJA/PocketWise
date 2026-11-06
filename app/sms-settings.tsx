@@ -67,7 +67,7 @@ export default function SmsSettingsScreen() {
     if (isScanning) return;
     setIsScanning(true);
     try {
-      const result = await smsListenerService.syncRecentInboxSms();
+      const result = await smsListenerService.syncRecentInboxSms(true);
       await loadSmsSettings();
       if (!silent) {
         if (result.detected > 0) {
@@ -185,7 +185,7 @@ export default function SmsSettingsScreen() {
               </View>
             </Button>
             <Text className="text-[11px] text-zinc-400 mt-2 text-center">
-              Scans your last 50 SMS messages for recent bank debits/credits.
+              Scans your recent SMS inbox messages for bank debits and credits.
             </Text>
           </View>
         </Card>
