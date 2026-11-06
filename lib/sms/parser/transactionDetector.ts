@@ -92,9 +92,21 @@ export function isFinancialSms(sender: string, body: string): boolean {
     'payment due',
   ];
 
+  const allowableWithPostedAction = new Set([
+    'due on',
+    'payment due',
+    'click here',
+    'reward points',
+    'terms and conditions',
+    't&c apply',
+    'tnc apply',
+    'never share',
+    'do not share',
+  ]);
+
   for (const pattern of marketingAndFalsePositivePatterns) {
-    if (pattern === 'due on' || pattern === 'payment due') {
-      if (hasPostedAction) continue;
+    if (hasPostedAction && allowableWithPostedAction.has(pattern)) {
+      continue;
     }
     if (normalizedBody.includes(pattern)) {
       return false;
