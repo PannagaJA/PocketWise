@@ -299,7 +299,7 @@ class PocketWiseSmsModule(private val reactContext: ReactApplicationContext) :
                 arrayOf("_id", "address", "body", "date"),
                 null,
                 null,
-                "date DESC LIMIT 30"
+                "date DESC LIMIT 150"
             )
 
             val array = WritableNativeArray()
@@ -599,7 +599,15 @@ class PocketWiseNotificationListenerService : NotificationListenerService() {
         private val SUPPORTED_PACKAGES = setOf(
             "com.google.android.apps.messaging",
             "com.samsung.android.messaging",
-            "com.oneplus.mms"
+            "com.oneplus.mms",
+            "com.android.mms",
+            "com.coloros.mms",
+            "com.heytap.mms",
+            "com.oppo.mms",
+            "com.vivo.mms",
+            "com.miui.mms",
+            "com.motorola.mms",
+            "com.truecaller"
         )
     }
 }
