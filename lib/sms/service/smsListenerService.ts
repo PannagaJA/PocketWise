@@ -11,6 +11,7 @@ import { accountService } from '../../services/account.service';
 import { categoryService, matchCategoryToUserCategories } from '../../services/category.service';
 import { notificationEngine } from '../../notifications/notification.engine';
 import { financialAnalyticsEngine } from '../../finance/analyticsEngine';
+import { toLocalDateString } from '../../finance/core';
 
 const { PocketWiseSmsModule } = NativeModules;
 
@@ -237,9 +238,8 @@ class SmsListenerService {
 
       if (!activeUserId) return 0;
 
-      const recentTxs = await transactionService.getTransactions(activeUserId, 100);
-      const genericTxs = recentTxs.filter((t) => isGenericDescription(t.description));
-      if (genericTxs.length === 0) return 0;
+      const recentTxs = await transactionService.getTransactions(activeUserId, 150);
+      if (recentTxs.length === 0) return 0;
 
       const messages: RawSMS[] = await PocketWiseSmsModule.readRecentInboxSms();
       if (!Array.isArray(messages) || messages.length === 0) return 0;
@@ -256,14 +256,14 @@ class SmsListenerService {
         if (!parsed || !parsed.merchant) continue;
 
         const cleanPayee = (parsed.merchant || '').replace(/@.*$/, '').trim();
-        if (!cleanPayee || cleanPayee === 'Bank Transaction' || cleanPayee === 'Bank Payment') continue;
+        const parsedDateStr = toLocalDateString(parsed.transactionDate);
 
-        const match = genericTxs.find(
+        const match = recentTxs.find(
           (t) =>
             (parsed.referenceNumber && t.notes?.includes(parsed.referenceNumber)) ||
             (parsed.upiReference && t.notes?.includes(parsed.upiReference)) ||
             (t.amount_minor === parsed.amountMinor &&
-              (t.date || '').substring(0, 10) === parsed.transactionDate.split('T')[0] &&
+              (t.date || '').substring(0, 10) === parsedDateStr &&
               t.type === (parsed.type === 'income' ? 'income' : 'expense'))
         );
 
@@ -275,15 +275,21 @@ class SmsListenerService {
           );
 
           const updates: any = {};
-          if (match.description !== cleanPayee) {
+          if (cleanPayee && cleanPayee !== 'Bank Transaction' && cleanPayee !== 'Bank Payment' && isGenericDescription(match.description) && match.description !== cleanPayee) {
             updates.description = cleanPayee;
           }
           if (!match.category_id && matchedCat?.id) {
             updates.category_id = matchedCat.id;
           }
+          if (parsedDateStr && match.date !== parsedDateStr) {
+            updates.date = parsedDateStr;
+          }
+          if (parsed.transactionDate && (!match.created_at || Math.abs(new Date(match.created_at).getTime() - new Date(parsed.transactionDate).getTime()) > 300000)) {
+            updates.created_at = parsed.transactionDate;
+          }
 
           if (Object.keys(updates).length > 0) {
-            console.log(`[Retroactive Upgrade] Upgraded transaction ${match.id}:`, updates);
+            console.log(`[Retroactive Upgrade] Upgraded/healed transaction ${match.id}:`, updates);
             await transactionService.updateTransaction(match.id, updates);
             upgradedCount++;
           }
@@ -452,7 +458,7 @@ class SmsListenerService {
     const isNumericOrVpa = /^\d+$/.test(merchantLabel) || (parsedTx.originalMerchant && parsedTx.originalMerchant.includes('@'));
     const paymentTag = parsedTx.paymentMethod && parsedTx.paymentMethod !== 'Unknown' && !isNumericOrVpa ? ` (${parsedTx.paymentMethod})` : '';
     const cleanDescription = `${merchantLabel}${paymentTag}`;
-    const txDateStr = parsedTx.transactionDate.split('T')[0];
+    const txDateStr = toLocalDateString(parsedTx.transactionDate);
 
     // 1. Resolve or Auto-Add Account in Zustand store (in-memory)
     const store = useAppStore.getState();
@@ -501,6 +507,7 @@ class SmsListenerService {
         category_color: parsedTx.type === 'income' ? '#10B981' : '#EF4444',
         description: cleanDescription,
         date: txDateStr,
+        created_at: parsedTx.transactionDate,
       });
     }
 
@@ -592,6 +599,7 @@ class SmsListenerService {
           currency: parsedTx.currency,
           description: cleanDescription,
           date: txDateStr,
+          created_at: parsedTx.transactionDate,
           notes: parsedTx.referenceNumber ? `Ref: ${parsedTx.referenceNumber}` : (parsedTx.upiReference ? `UPI Ref: ${parsedTx.upiReference}` : undefined),
         });
 
