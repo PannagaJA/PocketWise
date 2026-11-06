@@ -37,6 +37,7 @@ export default function SubscriptionsScreen() {
   const [editAmount, setEditAmount] = useState('');
   const [editCycle, setEditCycle] = useState<BillingCycle>('monthly');
   const [editNextBillingDate, setEditNextBillingDate] = useState('');
+  const [editDatePickerVisible, setEditDatePickerVisible] = useState(false);
 
   // Delete Confirmation Modal state
   const [subToDelete, setSubToDelete] = useState<Subscription | null>(null);
@@ -420,12 +421,36 @@ export default function SubscriptionsScreen() {
               </View>
             </View>
 
-            <Input
-              label="Next Billing Date (YYYY-MM-DD)"
-              placeholder="YYYY-MM-DD"
-              value={editNextBillingDate}
-              onChangeText={setEditNextBillingDate}
-            />
+            {/* Next Billing Date Picker Button */}
+            <View className="mb-4">
+              <Text className="text-xs font-semibold text-zinc-700 mb-1.5 uppercase tracking-wide">Next Billing Date</Text>
+              <Pressable
+                onPress={() => {
+                  Keyboard.dismiss();
+                  try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                  setEditDatePickerVisible(true);
+                }}
+                className="flex-row items-center justify-between bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 active:bg-zinc-100"
+              >
+                <View className="flex-row items-center gap-2.5 flex-1 pr-1">
+                  <CalendarIcon size={18} color="#6366F1" />
+                  <Text className={`text-sm ${editNextBillingDate ? 'text-zinc-900 font-bold' : 'text-zinc-400 font-medium'}`} numberOfLines={1}>
+                    {editNextBillingDate ? formatDate(editNextBillingDate) : 'Select billing date'}
+                  </Text>
+                </View>
+                {editNextBillingDate ? (
+                  <Pressable
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      setEditNextBillingDate('');
+                    }}
+                    className="w-5 h-5 rounded-full bg-zinc-200 items-center justify-center ml-1"
+                  >
+                    <X size={12} color="#3F3F46" />
+                  </Pressable>
+                ) : null}
+              </Pressable>
+            </View>
 
             {/* Action Buttons */}
             <View className="flex-row gap-3 mt-4">
@@ -591,13 +616,22 @@ export default function SubscriptionsScreen() {
         )}
       </AppBottomSheet>
 
-      {/* Date Picker Modal */}
+      {/* Date Picker Modal (Add Subscription) */}
       <DatePickerModal
         visible={calendarPickerVisible}
         onClose={() => setCalendarPickerVisible(false)}
         selectedDate={nextBillingDate}
         onSelectDate={(d) => setNextBillingDate(d)}
         title="Select Renewal Date"
+      />
+
+      {/* Date Picker Modal (Edit Subscription) */}
+      <DatePickerModal
+        visible={editDatePickerVisible}
+        onClose={() => setEditDatePickerVisible(false)}
+        selectedDate={editNextBillingDate}
+        onSelectDate={(d) => setEditNextBillingDate(d)}
+        title="Select Next Billing Date"
       />
 
       {/* Time Picker Modal */}
