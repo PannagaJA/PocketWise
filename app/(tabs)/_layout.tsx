@@ -49,6 +49,14 @@ export default function TabLayout() {
     });
   }, []);
 
+  // Pre-mount Transactions tab (index 1) shortly after initial boot so switching is instantaneous
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      markTabMounted(1);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [markTabMounted]);
+
   const translateX = useSharedValue(-initialIndex * screenWidth);
   const startX = useSharedValue(0);
   const activeIndexShared = useSharedValue(initialIndex);
