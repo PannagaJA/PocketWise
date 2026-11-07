@@ -143,4 +143,40 @@ describe('Magpie Modal System — Unit Tests', () => {
     onLockStateChange(true);
     expect(exitModalVisible).toBe(false);
   });
+
+  test('AppAlert store opens and closes custom alert with correct variant deduction', () => {
+    const { useAlertStore, AppAlert } = require('../lib/stores/alertStore');
+
+    // 1. Error alert
+    AppAlert.error('Export Error', 'Failed to generate PDF statement.');
+    let state = useAlertStore.getState();
+    expect(state.visible).toBe(true);
+    expect(state.title).toBe('Export Error');
+    expect(state.message).toBe('Failed to generate PDF statement.');
+    expect(state.variant).toBe('destructive');
+    expect(state.buttons?.length).toBe(1);
+
+    // 2. Success alert
+    AppAlert.success('Saved to History! 🎉', 'Goal archived.');
+    state = useAlertStore.getState();
+    expect(state.visible).toBe(true);
+    expect(state.title).toBe('Saved to History! 🎉');
+    expect(state.variant).toBe('success');
+
+    // 3. Confirm alert
+    let confirmed = false;
+    let cancelled = false;
+    AppAlert.confirm('Delete Bill', 'Are you sure?', () => { confirmed = true; }, () => { cancelled = true; }, { destructive: true });
+    state = useAlertStore.getState();
+    expect(state.visible).toBe(true);
+    expect(state.variant).toBe('destructive');
+    expect(state.buttons?.length).toBe(2);
+    expect(state.buttons?.[0].text).toBe('Cancel');
+    expect(state.buttons?.[1].text).toBe('Confirm');
+
+    // Dismiss
+    AppAlert.dismiss();
+    state = useAlertStore.getState();
+    expect(state.visible).toBe(false);
+  });
 });

@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, Platform, Linking } from 'react-native';
+import { View, StyleSheet, Platform, Linking, Alert } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
@@ -15,12 +15,21 @@ import { financialAnalyticsEngine } from '../lib/finance/analyticsEngine';
 import { smsListenerService } from '../lib/sms/service/smsListenerService';
 import { QuickExpenseModal } from '../components/QuickExpenseModal';
 import { AppUpdateModal } from '../components/AppUpdateModal';
+import { AppAlertModal } from '../components/ui/AppAlertModal';
+import { AppAlert } from '../lib/stores/alertStore';
 import { useUpdateStore } from '../lib/stores/updateStore';
 import { supabase } from '../lib/supabase';
 import { queryClient } from '../lib/queryClient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import '../global.css';
+
+// Universally replace React Native default system alerts with PocketWise styled custom modals
+if (Alert && typeof Alert.alert === 'function') {
+  Alert.alert = (title: string, message?: string, buttons?: any[], options?: any) => {
+    AppAlert.alert(title, message, buttons, options);
+  };
+}
 
 const asyncStoragePersister = createAsyncStoragePersister({
   storage: AsyncStorage,
@@ -284,6 +293,9 @@ export default function RootLayout() {
                   {/* In-App APK Live Update Modal */}
                   <AppUpdateModal />
                 </AppLockGate>
+
+                {/* Universal PocketWise Custom Modal Dialog (renders everywhere including lock screen & auth) */}
+                <AppAlertModal />
 
                 {/* Seamless Animated Splash Screen Overlay: mounts immediately, covers route loading */}
                 <RootSplashOverlay />

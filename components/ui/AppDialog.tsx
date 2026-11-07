@@ -13,8 +13,8 @@ export interface AppDialogProps {
   confirmLabel?: string;
   confirmVariant?: 'primary' | 'destructive';
   destructive?: boolean;
-  cancelLabel?: string;
-  onConfirm: () => void;
+  cancelLabel?: string | null | false;
+  onConfirm?: () => void;
   isLoading?: boolean;
   loadingMessage?: string;
 }
@@ -34,6 +34,8 @@ export const AppDialog: React.FC<AppDialogProps> = ({
   loadingMessage,
 }) => {
   const isDestructive = destructive || confirmVariant === 'destructive';
+  const showCancel = cancelLabel !== null && cancelLabel !== false && cancelLabel !== '';
+  const resolvedCancelLabel = typeof cancelLabel === 'string' && cancelLabel.length > 0 ? cancelLabel : 'Cancel';
 
   const handleConfirm = () => {
     try {
@@ -43,7 +45,11 @@ export const AppDialog: React.FC<AppDialogProps> = ({
           : Haptics.ImpactFeedbackStyle.Light
       );
     } catch {}
-    onConfirm();
+    if (onConfirm) {
+      onConfirm();
+    } else {
+      onClose();
+    }
   };
 
   const handleCancel = () => {
@@ -79,14 +85,16 @@ export const AppDialog: React.FC<AppDialogProps> = ({
 
             {/* Actions */}
             <View style={styles.actionsRow}>
-              <Pressable
-                onPress={handleCancel}
-                style={[styles.button, styles.cancelButton]}
-                accessibilityRole="button"
-                accessibilityLabel={cancelLabel}
-              >
-                <Text style={styles.cancelText}>{cancelLabel}</Text>
-              </Pressable>
+              {showCancel && (
+                <Pressable
+                  onPress={handleCancel}
+                  style={[styles.button, styles.cancelButton]}
+                  accessibilityRole="button"
+                  accessibilityLabel={resolvedCancelLabel}
+                >
+                  <Text style={styles.cancelText}>{resolvedCancelLabel}</Text>
+                </Pressable>
+              )}
 
               <Pressable
                 onPress={handleConfirm}
