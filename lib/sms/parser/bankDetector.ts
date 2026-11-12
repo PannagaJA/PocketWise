@@ -68,10 +68,36 @@ export function identifyBank(
   }
 
   // 3. Explicit Bank Name / Keywords in Message Body (e.g., "From HDFC Bank A/C", "in your SBI account")
+  // Strip UPI VPA handles (e.g., "@okhdfcbank") so a counterparty's VPA handle never overrides sender bank detection,
+  // and pick the earliest bank mention in the body when both sender and receiver bank names appear.
+  const bodyWithoutVpa = normBody.replace(/[a-z0-9.\-_]+@[a-z0-9.\-_]+/gi, ' ');
+  let earliestExplicitMatch: { bank: BankDefinition; index: number } | null = null;
   for (const bank of INDIAN_BANKS) {
     for (const pattern of bank.messagePatterns) {
-      if (pattern.test(normBody)) {
-        return { bank, confidence: 90, method: 'body_explicit' };
+      const m = pattern.exec(bodyWithoutVpa);
+      if (m && (earliestExplicitMatch === null || m.index < earliestExplicitMatch.index)) {
+        earliestExplicitMatch = { bank, index: m.index };
+      }
+    }
+  }
+  if (earliestExplicitMatch) {
+    return { bank: earliestExplicitMatch.bank, confidence: 90, method: 'body_explicit' };
+  }
+
+  // Extract TRAI sender token once so registered-bank tokens beat counterparty VPA handles in step 4
+  const senderMatch =
+    /^[A-Z]{2}-([A-Z0-9]+?)(?:-[A-Z0-9]+)?$/i.exec(normSender) ||
+    /^([A-Z0-9]{3,8})(?:-[A-Z0-9]+)?$/i.exec(normSender);
+  const rawBankCode = senderMatch && senderMatch[1] ? senderMatch[1].toUpperCase() : '';
+
+  if (rawBankCode) {
+    for (const bank of INDIAN_BANKS) {
+      if (
+        rawBankCode.includes(bank.shortName.toUpperCase()) ||
+        rawBankCode.includes(bank.id.toUpperCase()) ||
+        bank.senderPatterns.some((p) => p.test(rawBankCode))
+      ) {
+        return { bank, confidence: 85, method: 'sender_token_match' };
       }
     }
   }
@@ -120,24 +146,8 @@ export function identifyBank(
     }
   }
 
-  // 6. Sender ID Token Parsing with Indian TRAI prefixes/suffixes (e.g. VM-HDFCBK-T, AD-SBINB-S, VK-BOBTXN, AD-CANBNK, BZ-CANARA)
-  const senderMatch =
-    /^[A-Z]{2}-([A-Z0-9]+?)(?:-[A-Z0-9]+)?$/i.exec(normSender) ||
-    /^([A-Z0-9]{3,8})(?:-[A-Z0-9]+)?$/i.exec(normSender);
-  if (senderMatch && senderMatch[1]) {
-    const rawBankCode = senderMatch[1].toUpperCase();
-
-    // Check if rawBankCode matches any registered bank keywords
-    for (const bank of INDIAN_BANKS) {
-      if (
-        rawBankCode.includes(bank.shortName.toUpperCase()) ||
-        rawBankCode.includes(bank.id.toUpperCase()) ||
-        bank.senderPatterns.some((p) => p.test(rawBankCode))
-      ) {
-        return { bank, confidence: 85, method: 'sender_token_match' };
-      }
-    }
-
+  // 6. Unlisted Bank Code from TRAI sender ID (e.g. VM-ALERT, BZ-UNKNOWN)
+  if (rawBankCode) {
     // Unlisted Bank code from sender
     const cleanName = rawBankCode.replace(/(BK|BNK|SMS|TXN|ALT|TP)$/i, '').trim();
     const titleName = toTitleCase(cleanName || rawBankCode);
