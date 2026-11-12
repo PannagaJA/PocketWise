@@ -13,15 +13,19 @@ export function createTransactionFingerprint(tx: {
   merchant?: string;
   sourceMessageId?: string;
 }): string {
+  // Scope reference/UTR fingerprints by direction & bank so a debit SMS from BOB/SBI
+  // and a credit SMS from HDFC sharing the same UPI RRN/UTR both remain distinct legs.
+  const cleanBank = (tx.bankId || 'any').toLowerCase().trim() || 'any';
+  const dir = tx.type === 'income' || tx.type === 'refund' ? 'in' : 'out';
+
   if (tx.referenceNumber && tx.referenceNumber.trim().length >= 6) {
-    return `ref_${tx.referenceNumber.toUpperCase().trim()}`;
+    return `ref_${tx.referenceNumber.toUpperCase().trim()}_${dir}_${cleanBank}`;
   }
   if (tx.upiReference && tx.upiReference.trim().length >= 6) {
-    return `upi_${tx.upiReference.toUpperCase().trim()}`;
+    return `upi_${tx.upiReference.toUpperCase().trim()}_${dir}_${cleanBank}`;
   }
 
   // Include merchant and unique message ID / time so multiple legitimate payments of same amount are NOT treated as identical
-  const cleanBank = (tx.bankId || 'any').toLowerCase().trim();
   const cleanAcc = (tx.maskedAccount || 'any').replace(/\D/g, '').slice(-4);
   const cleanMerchant = (tx.merchant || 'any').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20);
   const dateOrTimeStr = tx.transactionDate || 'nodate';
@@ -30,6 +34,62 @@ export function createTransactionFingerprint(tx: {
     : '';
 
   return `fp_${cleanBank}_${cleanAcc}_${cleanMerchant}_${tx.amountMinor}_${tx.type}_${dateOrTimeStr}${msgId}`;
+}
+
+/**
+ * Checks whether an existing transaction belongs to the same cashflow direction and bank/account
+ * when comparing two candidates (used so self-transfers sharing one UTR do not deduplicate each other).
+ */
+function isSameDirectionAndAccount(
+  newTx: ParsedSmsTransaction,
+  tx: any,
+  newBankId: string,
+  newBankName: string,
+  newMasked: string,
+  allowGenericAccountName: boolean
+): boolean {
+  const newIsIncome = newTx.type === 'income' || newTx.type === 'refund';
+  const txTypeRaw = (tx.type || 'expense').toLowerCase();
+  const txIsIncome = txTypeRaw === 'income' || txTypeRaw === 'refund';
+
+  if (newIsIncome !== txIsIncome) {
+    return false;
+  }
+
+  const txAccountName = (tx.account?.name || tx.account_name || '').toLowerCase();
+  const txBankId = (tx.bankId || tx.bank_id || '').toLowerCase();
+
+  const regBank = newBankId ? INDIAN_BANKS.find((b) => b.id === newBankId) : null;
+  const bankNames = [
+    newBankId,
+    newBankName,
+    regBank?.name.toLowerCase(),
+    regBank?.shortName.toLowerCase(),
+  ].filter(Boolean) as string[];
+
+  const matchesExplicitBank =
+    !newBankId ||
+    newBankId === 'unknown' ||
+    !txAccountName ||
+    bankNames.some((bn) => txAccountName.includes(bn)) ||
+    (txBankId && (txBankId === newBankId || txBankId.includes(newBankId) || newBankId.includes(txBankId)));
+
+  let bankOrAccountMatches = Boolean(matchesExplicitBank);
+  if (!bankOrAccountMatches && allowGenericAccountName && !txBankId && txAccountName) {
+    // Allow custom/generic user account names (e.g. "Main Savings") as long as they don't name another bank
+    const mentionsDifferentBank = INDIAN_BANKS.some(
+      (b) =>
+        b.id !== newBankId &&
+        (txAccountName.includes(b.name.toLowerCase()) ||
+          new RegExp(`\\b${b.shortName}\\b`, 'i').test(txAccountName))
+    );
+    bankOrAccountMatches = !mentionsDifferentBank;
+  }
+
+  const txMasked = (tx.account?.account_number || tx.maskedAccount || '').replace(/\D/g, '').slice(-4);
+  const maskedMatches = !newMasked || !txMasked || newMasked === txMasked;
+
+  return Boolean(bankOrAccountMatches && maskedMatches);
 }
 
 /**
@@ -59,17 +119,14 @@ export function isDuplicateTransaction(
     const txNotesRef = (txNotes.match(/(?:ref|rrn|utr|upi\s*ref)(?:\s*:|\s+no\.?|\s+)?\s*([a-zA-Z0-9]{8,18})/i) || [])[1]?.toUpperCase().trim();
     const effectiveTxRef = txRef || txUpi || txNotesRef;
 
-    // 1. Explicit Reference / UTR check
-    if (newRef) {
-      if (txRef === newRef || (txNotes && txNotes.includes(newRef))) {
-        return true;
-      }
-    }
-
-    if (newUpiRef) {
-      if (txUpi === newUpiRef || (txNotes && txNotes.includes(newUpiRef))) {
-        return true;
-      }
+    // 1. Explicit Reference / UTR check (only treat as duplicate if same direction & bank/account,
+    // so both legs of a self-transfer e.g. BOB/SBI debit + HDFC credit are preserved)
+    const refMatched = Boolean(
+      (newRef && (txRef === newRef || (txNotes && txNotes.includes(newRef)))) ||
+      (newUpiRef && (txUpi === newUpiRef || (txNotes && txNotes.includes(newUpiRef))))
+    );
+    if (refMatched && isSameDirectionAndAccount(newTx, tx, newBankId, newBankName, newMasked, true)) {
+      return true;
     }
 
     // 2. Exact amount + type + date check
@@ -118,30 +175,7 @@ export function isDuplicateTransaction(
         }
       }
 
-      const txAccountName = (tx.account?.name || tx.account_name || '').toLowerCase();
-      const txBankId = (tx.bankId || tx.bank_id || '').toLowerCase();
-
-      const regBank = newBankId ? INDIAN_BANKS.find((b) => b.id === newBankId) : null;
-      const bankNames = [
-        newBankId,
-        newBankName,
-        regBank?.name.toLowerCase(),
-        regBank?.shortName.toLowerCase(),
-      ].filter(Boolean) as string[];
-
-      // Check if both reference the same bank or account if known
-      const bankOrAccountMatches =
-        !newBankId ||
-        newBankId === 'unknown' ||
-        !txAccountName ||
-        bankNames.some((bn) => txAccountName.includes(bn)) ||
-        (txBankId && (txBankId === newBankId || txBankId.includes(newBankId) || newBankId.includes(txBankId)));
-
-      // If masked account is present in both, ensure it matches
-      const txMasked = (tx.account?.account_number || tx.maskedAccount || '').replace(/\D/g, '').slice(-4);
-      const maskedMatches = !newMasked || !txMasked || newMasked === txMasked;
-
-      if (bankOrAccountMatches && maskedMatches) {
+      if (isSameDirectionAndAccount(newTx, tx, newBankId, newBankName, newMasked, false)) {
         return true;
       }
     }
