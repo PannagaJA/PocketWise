@@ -33,7 +33,7 @@ import { parseBankSms } from '../lib/sms/parser';
 import { extractAmount } from '../lib/sms/parser/amountParser';
 import { identifyBank } from '../lib/sms/parser/bankDetector';
 import { classifyTransaction } from '../lib/sms/parser/transactionClassifier';
-import { isDuplicateTransaction } from '../lib/sms/parser/duplicateDetector';
+import { isDuplicateTransaction, createTransactionFingerprint } from '../lib/sms/parser/duplicateDetector';
 import { RawSMS, ParsedSmsTransaction } from '../lib/sms/types';
 
 describe('Android Bank SMS Transaction Auto-Detection Parser Pipeline', () => {
@@ -827,6 +827,123 @@ describe('Android Bank SMS Transaction Auto-Detection Parser Pipeline', () => {
     expect(parsedBob2?.amount).toBe(500);
     expect(toLocalDateString(parsedBob2?.transactionDate)).toBe('2026-11-06');
     expect(parsedBob2?.referenceNumber).toBe('104418234186');
+  });
+
+  test('33. Self-transfer BOB -> HDFC and SBI -> HDFC keep both debit and credit legs when sharing the same UTR', () => {
+    const sharedUtr = '431712345678';
+    const ts = new Date('2026-11-12T10:15:00').getTime();
+
+    const hdfcCredit = parseBankSms({
+      sender: 'VK-HDFCBK-S',
+      body: `HDFC Bank: Rs 500.00 credited to a/c XX9876 on 12-11-26 by a/c linked to VPA user@okicici (UPI Ref No ${sharedUtr}).`,
+      timestamp: ts,
+    });
+    const bobDebit = parseBankSms({
+      sender: 'AD-BARODA-S',
+      body: `Rs.500.00 Dr. from A/C XXXXXX0572 and Cr. to user@okhdfcbank. Ref:${sharedUtr}. AvlBal:Rs10000.00`,
+      timestamp: ts,
+    });
+    const sbiDebit = parseBankSms({
+      sender: 'AD-ATMSBI-S',
+      body: `Dear UPI user A/C X1234 debited by 500.0 on date 12Nov26 trf to user@okhdfcbank Refno ${sharedUtr} Avl Bal Rs 20000 -SBI`,
+      timestamp: ts,
+    });
+
+    expect(hdfcCredit).not.toBeNull();
+    expect(bobDebit).not.toBeNull();
+    expect(sbiDebit).not.toBeNull();
+
+    expect(hdfcCredit?.type).toBe('income');
+    expect(bobDebit?.type).toBe('expense');
+    expect(sbiDebit?.type).toBe('expense');
+
+    // Direction+bank scoped fingerprints differ across the two transfer legs
+    expect(createTransactionFingerprint(bobDebit!)).not.toBe(createTransactionFingerprint(hdfcCredit!));
+    expect(createTransactionFingerprint(sbiDebit!)).not.toBe(createTransactionFingerprint(hdfcCredit!));
+
+    // When HDFC credit is already stored in DB, BOB and SBI debits sharing the same UTR must NOT be flagged as duplicates
+    const existingHdfcRow = {
+      type: 'income',
+      amount_minor: 50000,
+      date: '2026-11-12',
+      description: 'user',
+      notes: `UPI Ref: ${sharedUtr} | Bank: HDFC Bank`,
+      account: { name: 'HDFC Bank (XX9876)', account_number: 'XX9876' },
+    };
+    expect(isDuplicateTransaction(bobDebit!, [existingHdfcRow])).toBe(false);
+    expect(isDuplicateTransaction(sbiDebit!, [existingHdfcRow])).toBe(false);
+
+    // Reverse order: BOB debit stored first -> HDFC credit is NOT a duplicate
+    const existingBobRow = {
+      type: 'expense',
+      amount_minor: 50000,
+      date: '2026-11-12',
+      description: 'user',
+      notes: `UPI Ref: ${sharedUtr} | Bank: Bank of Baroda`,
+      account: { name: 'Bank of Baroda (XXXXXX0572)', account_number: 'XXXXXX0572' },
+    };
+    expect(isDuplicateTransaction(hdfcCredit!, [existingBobRow])).toBe(false);
+
+    // Exact double-trigger of the same BOB debit SMS IS still deduplicated
+    expect(isDuplicateTransaction(bobDebit!, [existingBobRow])).toBe(true);
+  });
+
+  test('34. Parses SBI UPI debit alerts without Rs. prefix, Refno format, TRAI headers, and payee @okhdfcbank VPA', () => {
+    const sbiUpi: RawSMS = {
+      sender: 'AD-ATMSBI-S',
+      body: 'Dear UPI user A/C X1234 debited by 500.0 on date 12Nov26 trf to RAHUL@okhdfcbank Refno 431712345678 Avl Bal Rs 20000',
+      timestamp: new Date('2026-11-12T09:00:00').getTime(),
+    };
+    const parsedSbi = parseBankSms(sbiUpi);
+    expect(parsedSbi).not.toBeNull();
+    expect(parsedSbi?.bankId).toBe('sbi');
+    expect(parsedSbi?.type).toBe('expense');
+    expect(parsedSbi?.amount).toBe(500);
+    expect(parsedSbi?.referenceNumber).toBe('431712345678');
+
+    // Additional SBI TRAI header variants + payee @okhdfcbank
+    const sbiCbs = parseBankSms({
+      sender: 'VM-CBSSBI-S',
+      body: 'Your A/C X1234 is debited by Rs.1250.00 trf to friend@okhdfcbank Refno 667788990011',
+      timestamp: new Date('2026-11-12T09:05:00').getTime(),
+    });
+    expect(sbiCbs?.bankId).toBe('sbi');
+    expect(sbiCbs?.type).toBe('expense');
+    expect(sbiCbs?.amount).toBe(1250);
+
+    // Generic sender with explicit SBI mention in body and @okhdfcbank payee VPA must detect SBI, not HDFC
+    const genericSenderSbi = parseBankSms({
+      sender: 'VM-ALERT',
+      body: 'Your SBI A/C X1234 debited by 750.00 on date 12Nov26 trf to RAHUL@okhdfcbank Refno 431712349999',
+      timestamp: new Date('2026-11-12T09:10:00').getTime(),
+    });
+    expect(genericSenderSbi?.bankId).toBe('sbi');
+    expect(genericSenderSbi?.type).toBe('expense');
+    expect(genericSenderSbi?.amount).toBe(750);
+  });
+
+  test('35. Parses BOB debit variants with Never share footer and debited-and-credited phrasing as expense', () => {
+    const bobWithFooter = parseBankSms({
+      sender: 'AD-BARODA-S',
+      body: 'Rs.250.00 Dr. from A/C XXXXXX0572 and Cr. to self@okhdfcbank. Ref:667811223344. Never share OTP/PIN with anyone.',
+      timestamp: new Date('2026-11-12T11:00:00').getTime(),
+    });
+    expect(bobWithFooter).not.toBeNull();
+    expect(bobWithFooter?.bankId).toBe('bob');
+    expect(bobWithFooter?.type).toBe('expense');
+    expect(bobWithFooter?.amount).toBe(250);
+    expect(bobWithFooter?.referenceNumber).toBe('667811223344');
+
+    const bobDebitedCreditedTo = parseBankSms({
+      sender: 'VM-BOBTXN-S',
+      body: 'Your a/c XXXXXX0572 is debited for Rs.1500.00 on 12-11-26 and credited to a/c XX9876. Ref:667899887766',
+      timestamp: new Date('2026-11-12T11:15:00').getTime(),
+    });
+    expect(bobDebitedCreditedTo).not.toBeNull();
+    expect(bobDebitedCreditedTo?.bankId).toBe('bob');
+    expect(bobDebitedCreditedTo?.type).toBe('expense');
+    expect(bobDebitedCreditedTo?.amount).toBe(1500);
+    expect(bobDebitedCreditedTo?.referenceNumber).toBe('667899887766');
   });
 });
 
