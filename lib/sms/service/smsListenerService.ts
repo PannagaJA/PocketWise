@@ -1,6 +1,7 @@
 import { Platform, PermissionsAndroid, Alert, NativeModules, DeviceEventEmitter } from 'react-native';
 import { RawSMS, ParsedSmsTransaction } from '../types';
 import { parseBankSms } from '../parser';
+import { INDIAN_BANKS } from '../banks/bankRegistry';
 import { isDuplicateTransaction, createTransactionFingerprint } from '../parser/duplicateDetector';
 import { smsStorage } from '../storage/smsStore';
 import { useAppStore } from '../../../store/useAppStore';
@@ -22,6 +23,36 @@ function runSmsProcessWithLock<T>(fn: () => Promise<T>): Promise<T> {
   const next = smsProcessLock.then(fn, fn);
   smsProcessLock = next;
   return next;
+}
+
+/**
+ * Matches a parsed SMS bank/account against user accounts by last digits first,
+ * then by bank display name or shortName (e.g. "BOB", "SBI") when account digits don't conflict.
+ */
+function findMatchingAccount<T extends { name: string }>(
+  accounts: T[],
+  bankDisplayName: string,
+  bankId: string | undefined,
+  cleanLastDigits: string
+): T | undefined {
+  if (cleanLastDigits.length >= 3) {
+    const byDigits = accounts.find((acc) => acc.name.includes(cleanLastDigits));
+    if (byDigits) return byDigits;
+  }
+
+  const accountLookupName = bankDisplayName.toLowerCase();
+  const regBank = bankId ? INDIAN_BANKS.find((b) => b.id === bankId) : undefined;
+  const shortPattern = regBank?.shortName ? new RegExp(`\\b${regBank.shortName}\\b`, 'i') : null;
+
+  return accounts.find((acc) => {
+    const accDigits = acc.name.replace(/\D/g, '');
+    if (cleanLastDigits.length >= 3 && accDigits.length >= 3 && !accDigits.endsWith(cleanLastDigits)) {
+      return false;
+    }
+    const matchesFullName = bankDisplayName !== 'Bank Account' && acc.name.toLowerCase().includes(accountLookupName);
+    const matchesShortName = shortPattern ? shortPattern.test(acc.name) : false;
+    return matchesFullName || matchesShortName;
+  });
 }
 
 export function isGenericDescription(desc?: string): boolean {
@@ -362,15 +393,31 @@ class SmsListenerService {
       const parsedTx = parseBankSms(rawSms, accountMappings, learnedCategories);
       if (!parsedTx) return null;
 
-      // 2. Persistent Reference / UTR & Fingerprint deduplication check
+      // 2. Persistent Reference / UTR & Fingerprint deduplication check (scoped by direction + bank so
+      // debit & credit legs of a self-transfer sharing one UTR do not block each other)
       const txFingerprint = createTransactionFingerprint(parsedTx);
+      const dirKey = parsedTx.type === 'income' || parsedTx.type === 'refund' ? 'in' : 'out';
+      const bankKey = (parsedTx.bankId || 'any').toLowerCase().trim() || 'any';
+      const scopedRefKey = parsedTx.referenceNumber
+        ? `ref_${parsedTx.referenceNumber.toUpperCase().trim()}_${dirKey}_${bankKey}`
+        : null;
+      const scopedUpiKey = parsedTx.upiReference
+        ? `upi_${parsedTx.upiReference.toUpperCase().trim()}_${dirKey}_${bankKey}`
+        : null;
+
+      const markProcessedKeys = async () => {
+        if (scopedRefKey) await smsStorage.markRefIdProcessed(scopedRefKey);
+        if (scopedUpiKey) await smsStorage.markRefIdProcessed(scopedUpiKey);
+        if (txFingerprint) await smsStorage.markRefIdProcessed(txFingerprint);
+      };
+
       if (!isManualScan) {
-        if (parsedTx.referenceNumber && (await smsStorage.isRefIdProcessed(parsedTx.referenceNumber))) {
-          console.log('[SMS Parser] Duplicate referenceNumber ignored:', parsedTx.referenceNumber);
+        if (scopedRefKey && (await smsStorage.isRefIdProcessed(scopedRefKey))) {
+          console.log('[SMS Parser] Duplicate scoped referenceNumber ignored:', scopedRefKey);
           return null;
         }
-        if (parsedTx.upiReference && (await smsStorage.isRefIdProcessed(parsedTx.upiReference))) {
-          console.log('[SMS Parser] Duplicate upiReference ignored:', parsedTx.upiReference);
+        if (scopedUpiKey && (await smsStorage.isRefIdProcessed(scopedUpiKey))) {
+          console.log('[SMS Parser] Duplicate scoped upiReference ignored:', scopedUpiKey);
           return null;
         }
         if (txFingerprint && (await smsStorage.isRefIdProcessed(txFingerprint))) {
@@ -395,9 +442,7 @@ class SmsListenerService {
           const recentTxs = await transactionService.getTransactions(userId, 100);
           if (isDuplicateTransaction(parsedTx, recentTxs)) {
             console.log('[SMS Parser] Duplicate Supabase transaction ignored:', parsedTx.referenceNumber || parsedTx.amount);
-            if (parsedTx.referenceNumber) await smsStorage.markRefIdProcessed(parsedTx.referenceNumber);
-            if (parsedTx.upiReference) await smsStorage.markRefIdProcessed(parsedTx.upiReference);
-            if (txFingerprint) await smsStorage.markRefIdProcessed(txFingerprint);
+            await markProcessedKeys();
             return null;
           }
         }
@@ -405,10 +450,8 @@ class SmsListenerService {
         console.warn('[SMS Parser] Non-fatal DB duplicate check error:', e);
       }
 
-      // Mark reference ID and fingerprint as processed
-      if (parsedTx.referenceNumber) await smsStorage.markRefIdProcessed(parsedTx.referenceNumber);
-      if (parsedTx.upiReference) await smsStorage.markRefIdProcessed(parsedTx.upiReference);
-      if (txFingerprint) await smsStorage.markRefIdProcessed(txFingerprint);
+      // Mark direction+bank-scoped reference ID and fingerprint as processed
+      await markProcessedKeys();
 
       // Update statistics count
       await smsStorage.incrementDetectedCount();
@@ -443,7 +486,6 @@ class SmsListenerService {
 
     const bankColor = parsedTx.type === 'income' ? '#10B981' : '#3B82F6';
     const deltaAmount = parsedTx.type === 'income' ? parsedTx.amountMinor : -parsedTx.amountMinor;
-    const accountLookupName = bankDisplayName.toLowerCase();
     const cleanLastDigits = parsedTx.maskedAccount ? parsedTx.maskedAccount.replace(/\D/g, '') : '';
 
     // Clean merchant/payee formatting: Avoid 'Bank Transaction (Unknown)' label
@@ -468,11 +510,7 @@ class SmsListenerService {
 
     // 1. Resolve or Auto-Add Account in Zustand store (in-memory)
     const store = useAppStore.getState();
-    let localAccount = store.accounts.find(
-      (acc) =>
-        (bankDisplayName !== 'Bank Account' && acc.name.toLowerCase().includes(accountLookupName)) ||
-        (cleanLastDigits.length >= 3 && acc.name.includes(cleanLastDigits))
-    );
+    let localAccount = findMatchingAccount(store.accounts, bankDisplayName, parsedTx.bankId, cleanLastDigits);
 
     const existingLocalTx = localAccount
       ? store.transactions.find(
@@ -534,11 +572,7 @@ class SmsListenerService {
 
       if (userId) {
         const userAccounts = await accountService.getAccounts(userId);
-        let targetAccount = userAccounts.find(
-          (acc) =>
-            (bankDisplayName !== 'Bank Account' && acc.name.toLowerCase().includes(accountLookupName)) ||
-            (cleanLastDigits.length >= 3 && acc.name.includes(cleanLastDigits))
-        );
+        let targetAccount = findMatchingAccount(userAccounts, bankDisplayName, parsedTx.bankId, cleanLastDigits);
 
         if (!targetAccount) {
           targetAccount = await accountService.createAccount({
