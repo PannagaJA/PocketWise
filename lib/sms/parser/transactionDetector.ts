@@ -23,7 +23,7 @@ export function isFinancialSms(sender: string, body: string): boolean {
   }
 
   // Pre-check for past-tense transaction actions
-  const hasPostedAction = /\b(?:debited|spent|withdrawn|paid|transferred|sent|credited|deposited|refunded)\b/i.test(body);
+  const hasPostedAction = /\b(?:debited|dr\.?\s+(?:from|by)|spent|withdrawn|paid|transferred|sent|credited|cr\.?\s+(?:to|by)|deposited|refunded)\b/i.test(body);
 
   // 2. Explicit False Positive / Marketing / Promotional Keyword Filters
   const marketingAndFalsePositivePatterns = [
@@ -104,8 +104,13 @@ export function isFinancialSms(sender: string, body: string): boolean {
     'do not share',
   ]);
 
+  const hasSecurityDisclaimerFooter = /(?:never|do not|don't)\s+share/i.test(normalizedBody);
+
   for (const pattern of marketingAndFalsePositivePatterns) {
-    if (hasPostedAction && allowableWithPostedAction.has(pattern)) {
+    if (
+      hasPostedAction &&
+      (allowableWithPostedAction.has(pattern) || (pattern === 'otp' && hasSecurityDisclaimerFooter))
+    ) {
       continue;
     }
     if (normalizedBody.includes(pattern)) {
