@@ -24,24 +24,28 @@ try {
 
     const channelId = isUpdate ? 'pocketwise-updates' : 'pocketwise-reminders';
 
-    try {
-      const Notifications = require('expo-notifications');
-      await Notifications.scheduleNotificationAsync({
-        identifier: `fcm_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        content: {
-          title,
-          body: body || (isUpdate ? 'A new update is available. Tap to install.' : 'New update in PocketWise.'),
-          sound: true,
-          channelId,
-          data: {
-            ...data,
-            type: isUpdate ? 'app_update' : (data.type || 'fcm_message'),
+    // If the FCM message already contains a native notification block, Android system tray
+    // displays it automatically when in background/killed. Only schedule locally if it was a data-only push!
+    if (!notification) {
+      try {
+        const Notifications = require('expo-notifications');
+        await Notifications.scheduleNotificationAsync({
+          identifier: `fcm_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          content: {
+            title,
+            body: body || (isUpdate ? 'A new update is available. Tap to install.' : 'New reminder in PocketWise.'),
+            sound: true,
+            channelId,
+            data: {
+              ...data,
+              type: isUpdate ? 'app_update' : (data.type || 'fcm_message'),
+            },
           },
-        },
-        trigger: null,
-      });
-    } catch (e) {
-      console.warn('[FCM Headless] Failed to present notification in system tray:', e);
+          trigger: null,
+        });
+      } catch (e) {
+        console.warn('[FCM Headless] Failed to present notification in system tray:', e);
+      }
     }
   });
 } catch {
