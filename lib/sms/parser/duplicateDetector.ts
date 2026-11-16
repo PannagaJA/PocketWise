@@ -129,12 +129,16 @@ export function isDuplicateTransaction(
       return true;
     }
 
-    // 2. Exact amount + type + date check
+    // 2. Exact amount + directional flow + date check
     const txAmount = tx.amountMinor ?? tx.amount_minor ?? (typeof tx.amount === 'number' ? Math.round(tx.amount * 100) : 0);
     const txDateStr = toLocalDateString(tx.transactionDate || tx.date || '');
     const txType = tx.type || 'expense';
 
-    if (txAmount === newAmount && txType === newType && txDateStr === newDateStr) {
+    // Normalize directional cash flow (income/refund vs expense/transfer) so frontend and DB types match
+    const newFlow = newType === 'income' || newType === 'refund' ? 'inflow' : 'outflow';
+    const txFlow = txType === 'income' || txType === 'refund' ? 'inflow' : 'outflow';
+
+    if (txAmount === newAmount && txFlow === newFlow && txDateStr === newDateStr) {
       // If both have explicit different reference numbers, they are definitely NOT duplicates
       if (newRef && effectiveTxRef && newRef !== effectiveTxRef) {
         continue;
