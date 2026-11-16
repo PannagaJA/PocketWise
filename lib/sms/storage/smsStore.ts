@@ -61,9 +61,29 @@ export const smsStorage = {
   },
 
   async saveLearnedCategory(merchantKey: string, categoryName: string): Promise<void> {
+    if (!merchantKey || !categoryName) return;
     const current = await this.getLearnedCategories();
-    const upperKey = merchantKey.toUpperCase();
-    const filtered = current.filter((lc) => lc.merchantKey !== upperKey);
+    const cleanKey = merchantKey
+      .replace(/\s*\(?(?:UPI|CARD|NETBANKING|IMPS|NEFT|RTGS|CASH|WALLET)\)?\s*$/i, '')
+      .replace(/@.*$/, '')
+      .trim()
+      .toUpperCase();
+    const upperKey = cleanKey || merchantKey.toUpperCase().trim();
+
+    // Filter out duplicates and legacy unnormalized entries for this payee
+    const filtered = current.filter((lc) => {
+      const existingKey = (lc.merchantKey || '').trim().toUpperCase();
+      const existingClean = existingKey
+        .replace(/\s*\(?(?:UPI|CARD|NETBANKING|IMPS|NEFT|RTGS|CASH|WALLET)\)?\s*$/i, '')
+        .replace(/@.*$/, '')
+        .trim();
+      return (
+        existingKey !== upperKey &&
+        existingClean !== upperKey &&
+        existingKey !== merchantKey.toUpperCase().trim()
+      );
+    });
+
     filtered.push({
       merchantKey: upperKey,
       categoryName,
