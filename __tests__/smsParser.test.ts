@@ -1028,6 +1028,69 @@ describe('Android Bank SMS Transaction Auto-Detection Parser Pipeline', () => {
     // Color should be green for credit
     expect(createdTx?.category_color).toBe('#10B981');
   });
+
+  // Test: Learned category with payment tag suffix (e.g. "test(upi)" or "test (UPI)")
+  test('Learned category with payment suffix matches incoming clean merchant SMS', () => {
+    const learnedMappings = [
+      {
+        merchantKey: 'TEST(UPI)',
+        categoryName: 'Custom Entertainment',
+        updatedAt: new Date().toISOString(),
+      },
+    ];
+
+    const sms: RawSMS = {
+      sender: 'HDFCBK',
+      body: 'Sent Rs.150.00 from HDFC Bank A/C XX1234 to test on 16-11-26 via UPI Ref 99887766.',
+      timestamp: Date.now(),
+    };
+
+    const parsed = parseBankSms(sms, [], learnedMappings);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.merchant).toBe('Test');
+    expect(parsed?.category).toBe('Custom Entertainment');
+  });
+
+  test('Learned category with spaced payment suffix "test (UPI)" matches incoming clean merchant SMS', () => {
+    const learnedMappings = [
+      {
+        merchantKey: 'TEST (UPI)',
+        categoryName: 'Groceries',
+        updatedAt: new Date().toISOString(),
+      },
+    ];
+
+    const sms: RawSMS = {
+      sender: 'SBISMS',
+      body: 'Your A/C XX5678 debited by Rs 250.00 on 16Nov26 transfer to test Ref No 123456.',
+      timestamp: Date.now(),
+    };
+
+    const parsed = parseBankSms(sms, [], learnedMappings);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.merchant).toBe('Test');
+    expect(parsed?.category).toBe('Groceries');
+  });
+
+  test('Clean learned category "TEST" matches incoming SMS when description has payment tag', () => {
+    const learnedMappings = [
+      {
+        merchantKey: 'TEST',
+        categoryName: 'Shopping',
+        updatedAt: new Date().toISOString(),
+      },
+    ];
+
+    const sms: RawSMS = {
+      sender: 'HDFCBK',
+      body: 'Paid Rs 300 to test (UPI) on 16-11-26 from HDFC Bank A/C XX1234.',
+      timestamp: Date.now(),
+    };
+
+    const parsed = parseBankSms(sms, [], learnedMappings);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.category).toBe('Shopping');
+  });
 });
 
 
