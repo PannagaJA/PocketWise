@@ -391,17 +391,42 @@ export const transactionService = {
     if (!userId || !payeeDescription || !newCategoryId) return 0;
     try {
       const cleanPayee = payeeDescription.trim();
-      const { data, error } = await supabase
+      const basePayee = cleanPayee
+        .replace(/\s*\(?(?:UPI|CARD|NETBANKING|IMPS|NEFT|RTGS|CASH|WALLET)\)?\s*$/i, '')
+        .trim();
+
+      // Update past transactions matching exact payee or base payee (with or without payment tags)
+      let query = supabase
         .from('transactions')
         .update({
           category_id: newCategoryId,
           updated_at: new Date().toISOString(),
         })
-        .eq('user_id', userId)
-        .eq('description', cleanPayee)
-        .select('id');
+        .eq('user_id', userId);
 
-      if (error) throw error;
+      if (basePayee && basePayee !== cleanPayee) {
+        query = query.or(`description.eq."${cleanPayee}",description.ilike."${basePayee}",description.ilike."${basePayee} (%)"`);
+      } else if (basePayee) {
+        query = query.or(`description.eq."${cleanPayee}",description.ilike."${basePayee} (%)"`);
+      } else {
+        query = query.eq('description', cleanPayee);
+      }
+
+      const { data, error } = await query.select('id');
+
+      if (error) {
+        // Fallback to simpler ilike match
+        const fallback = await supabase
+          .from('transactions')
+          .update({
+            category_id: newCategoryId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('user_id', userId)
+          .ilike('description', `${basePayee || cleanPayee}%`)
+          .select('id');
+        return fallback.data?.length || 0;
+      }
       return data?.length || 0;
     } catch (err) {
       console.warn('[TransactionService] batchUpdateCategoryForPayee error:', err);
@@ -425,12 +450,24 @@ export const transactionService = {
       let categorizedCount = 0;
       for (const tx of uncategorized) {
         const descUpper = (tx.description || '').toUpperCase();
+        const normDescUpper = descUpper
+          .replace(/\s*\(?(?:UPI|CARD|NETBANKING|IMPS|NEFT|RTGS|CASH|WALLET)\)?\s*$/i, '')
+          .trim();
 
         // 1. Check user learned mappings (e.g. user previously taught 8050027432 -> Food & Dining)
         let targetCategoryName: string | undefined = undefined;
         const learned = learnedCategories.find((lc) => {
-          const mk = (lc.merchantKey || '').trim().toUpperCase();
-          return mk && (descUpper === mk || descUpper.includes(mk));
+          const rawMk = (lc.merchantKey || '').trim().toUpperCase();
+          if (!rawMk) return false;
+          const normMk = rawMk
+            .replace(/\s*\(?(?:UPI|CARD|NETBANKING|IMPS|NEFT|RTGS|CASH|WALLET)\)?\s*$/i, '')
+            .trim();
+          if (!normMk) return false;
+          if (normDescUpper === normMk || descUpper === rawMk || normDescUpper === rawMk || descUpper === normMk) return true;
+          if (normMk.length >= 3 && normDescUpper.length >= 3) {
+            return normDescUpper.includes(normMk) || normMk.includes(normDescUpper);
+          }
+          return false;
         });
         if (learned) {
           targetCategoryName = learned.categoryName;
