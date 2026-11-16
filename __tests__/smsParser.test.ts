@@ -35,6 +35,8 @@ import { identifyBank } from '../lib/sms/parser/bankDetector';
 import { classifyTransaction } from '../lib/sms/parser/transactionClassifier';
 import { isDuplicateTransaction, createTransactionFingerprint } from '../lib/sms/parser/duplicateDetector';
 import { RawSMS, ParsedSmsTransaction } from '../lib/sms/types';
+import { useAppStore } from '../store/useAppStore';
+import { smsListenerService } from '../lib/sms/service/smsListenerService';
 
 describe('Android Bank SMS Transaction Auto-Detection Parser Pipeline', () => {
   // Test 1: HDFC Bank Debit SMS
@@ -944,6 +946,87 @@ describe('Android Bank SMS Transaction Auto-Detection Parser Pipeline', () => {
     expect(bobDebitedCreditedTo?.type).toBe('expense');
     expect(bobDebitedCreditedTo?.amount).toBe(1500);
     expect(bobDebitedCreditedTo?.referenceNumber).toBe('667899887766');
+  });
+
+  test('36. Parses Credit Card swipe alert with Minimum amount due as expense', () => {
+    const ccAlert = parseBankSms({
+      sender: 'SBI-CARD',
+      body: 'Dear SBI Cardholder, txn of Rs 1,500.00 done on Card ending 4321 at ZOMATO on 16-Nov-26. Total Due: Rs 5,400. Minimum amount due: Rs 200. Avl Lmt: Rs 45,000.',
+      timestamp: Date.now(),
+    });
+    expect(ccAlert).not.toBeNull();
+    expect(ccAlert?.amount).toBe(1500);
+    expect(ccAlert?.type).toBe('expense');
+    expect(ccAlert?.merchant).toContain('Zomato');
+  });
+
+  test('37. Parses Debit SMS with One Time Password security disclaimer without dropping', () => {
+    const otpDisclaimerSms = parseBankSms({
+      sender: 'VM-BOBTXN',
+      body: 'A/c XX5678 debited by Rs 250.00 on 16-Nov-26. Info: UPI/391028471/Swiggy. Avl Bal Rs 5000. Do not share your One Time Password with anyone.',
+      timestamp: Date.now(),
+    });
+    expect(otpDisclaimerSms).not.toBeNull();
+    expect(otpDisclaimerSms?.amount).toBe(250);
+    expect(otpDisclaimerSms?.type).toBe('expense');
+    expect(otpDisclaimerSms?.merchant).toBe('Swiggy');
+  });
+
+  test('38. Parses legitimate cashback deposit on recharge as income', () => {
+    const cashbackSms = parseBankSms({
+      sender: 'HDFCBK',
+      body: 'Rs 50.00 credited to your A/c XX1234 as cashback on your recharge. Bal Rs 1,200.',
+      timestamp: Date.now(),
+    });
+    expect(cashbackSms).not.toBeNull();
+    expect(cashbackSms?.amount).toBe(50);
+    expect(['income', 'refund']).toContain(cashbackSms?.type);
+  });
+
+  test('39. Strips Avl Bal: Rs 50,000 so balance is never mistaken for transaction amount', () => {
+    const balanceFirst = parseBankSms({
+      sender: 'HDFCBK',
+      body: 'Avl Bal: Rs. 50,000.00. Account XX1234 debited for Rs 350.00 on 16-Nov at Cafe Coffee Day.',
+      timestamp: Date.now(),
+    });
+    expect(balanceFirst).not.toBeNull();
+    expect(balanceFirst?.amount).toBe(350);
+    expect(balanceFirst?.type).toBe('expense');
+  });
+
+  test('40. Saves refund as inflow and credits account balance', async () => {
+    const refundSms: ParsedSmsTransaction = {
+      sourceMessageId: 'refund_test_1',
+      smsSender: 'HDFCBK',
+      type: 'refund',
+      amount: 450,
+      amountMinor: 45000,
+      currency: 'INR',
+      bankId: 'hdfc',
+      bankName: 'HDFC Bank',
+      maskedAccount: 'XX9999',
+      merchant: 'Amazon',
+      paymentMethod: 'UPI',
+      category: 'Shopping',
+      transactionDate: new Date().toISOString(),
+      confidenceScore: 95,
+      isSalary: false,
+      isRefund: true,
+      isTransfer: false,
+      isAutoDetected: true,
+      needsReview: false,
+    };
+
+    const storeBefore = useAppStore.getState();
+    await smsListenerService.saveTransactionToStore(refundSms);
+    const storeAfter = useAppStore.getState();
+
+    const createdTx = storeAfter.transactions.find((t) => t.id === 'refund_test_1');
+    expect(createdTx).toBeDefined();
+    // Refund must be recorded as income in ledger
+    expect(createdTx?.type).toBe('income');
+    // Color should be green for credit
+    expect(createdTx?.category_color).toBe('#10B981');
   });
 });
 
