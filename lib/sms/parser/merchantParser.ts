@@ -4,6 +4,7 @@ interface MerchantResult {
   merchant: string;
   originalMerchant: string;
   category: string;
+  isLearned?: boolean;
 }
 
 export const CATEGORY_MAP: Record<string, string[]> = {
@@ -74,15 +75,15 @@ export function extractMerchantAndCategory(
   if (!rawExtracted) {
     const merchantPatterns = [
       // Explicit "To <Name/VPA>" e.g. "To Nandikeshwara condiments\nOn 23/09/26"
-      /(?:^|\n|\s)(?:To\s+VPA|To)\s+([A-Za-z0-9._-]+@[a-zA-Z0-9]+|[A-Za-z0-9\s._&\/-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
+      /(?:^|\n|\s)(?:To\s+VPA|To)\s+([A-Za-z0-9._-]+@[a-zA-Z0-9]+|[A-Za-z0-9\s._&\/()-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
       // "trf to <Name>" or "transfer to <Name>"
-      /(?:trf\s+to|transfer\s+to|transferred\s+to)\s+([A-Za-z0-9\s._&\/-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
+      /(?:trf\s+to|transfer\s+to|transferred\s+to)\s+([A-Za-z0-9._-]+@[a-zA-Z0-9]+|[A-Za-z0-9\s._&\/()-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
       // "paid to <Name>" or "spent at <Name>" or "purchase at <Name>"
-      /(?:paid\s+to|spent\s+at|spent\s+on|purchase\s+at|sent\s+to|\bat)\s+([A-Za-z0-9._-]+@[a-zA-Z0-9]+|[A-Za-z0-9\s._&\/-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
+      /(?:paid\s+to|spent\s+at|spent\s+on|purchase\s+at|sent\s+to|\bat)\s+([A-Za-z0-9._-]+@[a-zA-Z0-9]+|[A-Za-z0-9\s._&\/()-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
       // "towards <Purpose/Name>" or "for <Purpose/Name>" or "in favour of <Name>"
-      /(?:towards|for|in\s+favour\s+of|info:\s*|desc:\s*)\s+([A-Za-z0-9\s._&\/-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
+      /(?:towards|for|in\s+favour\s+of|info:\s*|desc:\s*)\s+([A-Za-z0-9._-]+@[a-zA-Z0-9]+|[A-Za-z0-9\s._&\/()-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
       // "refund from <Name>" or "received from <Name>" or "credited by <Name>"
-      /(?:refund\s+from|received\s+from|credited\s+by|credited\s+from|cr\.\s+to|cr\s+to)\s+([A-Za-z0-9._-]+@[a-zA-Z0-9]+|[A-Za-z0-9\s._&\/-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|to|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
+      /(?:refund\s+from|received\s+from|credited\s+by|credited\s+from|cr\.\s+to|cr\s+to)\s+([A-Za-z0-9._-]+@[a-zA-Z0-9]+|[A-Za-z0-9\s._&\/()-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|to|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
       // Standalone VPA
       /vpa\s+([a-zA-Z0-9._-]+@[a-zA-Z0-9]+)/i,
     ];
@@ -122,6 +123,8 @@ export function extractMerchantAndCategory(
   cleanMerchant = cleanMerchant.replace(/^(?:INF|UPI|PAYTM|BILLDESK|RAZORPAY|CCAVENUE|PAYU|POS)[\*\/_-]/i, '');
   // Strip corporate suffixes for clean human readability
   cleanMerchant = cleanMerchant.replace(/\s+(?:PVT\s+LTD|PRIVATE\s+LIMITED|LTD|LIMITED|INC|LLP|INDIA)\b/gi, '');
+  // Strip trailing payment method tags like (UPI), (Card), etc.
+  cleanMerchant = cleanMerchant.replace(/\s*\(?(?:UPI|CARD|NETBANKING|IMPS|NEFT|RTGS|CASH|WALLET)\)?\s*$/i, '').trim();
 
   // If the VPA handle is a phone number or numeric account ID (e.g. "8050027432@upi"), preserve clean handle without @upi
   const isNumericHandle = /^\d+$/.test(cleanMerchant.trim());
@@ -160,12 +163,28 @@ export function extractMerchantAndCategory(
 
   // 5. Match against User Learned Mappings
   const upperKey = cleanMerchant.toUpperCase();
+  const normUpperKey = upperKey
+    .replace(/\s*\(?(?:UPI|CARD|NETBANKING|IMPS|NEFT|RTGS|CASH|WALLET)\)?\s*$/i, '')
+    .trim();
+
   const learned = learnedCategories.find((lc) => {
-    const mk = (lc.merchantKey || '').trim().toUpperCase();
-    if (!mk) return false;
-    if (upperKey === mk) return true;
-    if (mk.length >= 3 && new RegExp(`\\b${mk.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(upperKey)) {
+    const rawMk = (lc.merchantKey || '').trim().toUpperCase();
+    if (!rawMk) return false;
+    const normMk = rawMk
+      .replace(/\s*\(?(?:UPI|CARD|NETBANKING|IMPS|NEFT|RTGS|CASH|WALLET)\)?\s*$/i, '')
+      .trim();
+    if (!normMk) return false;
+
+    // Direct equality on normalized or raw keys
+    if (normUpperKey === normMk || upperKey === rawMk || normUpperKey === rawMk || upperKey === normMk) {
       return true;
+    }
+
+    // Bidirectional substring match when key is at least 3 characters
+    if (normMk.length >= 3 && normUpperKey.length >= 3) {
+      if (normUpperKey.includes(normMk) || normMk.includes(normUpperKey)) {
+        return true;
+      }
     }
     return false;
   });
@@ -174,6 +193,7 @@ export function extractMerchantAndCategory(
       merchant: formattedMerchant,
       originalMerchant: rawExtracted,
       category: learned.categoryName,
+      isLearned: true,
     };
   }
 
