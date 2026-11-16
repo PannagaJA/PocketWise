@@ -256,8 +256,11 @@ class PocketWiseSmsReceiver : BroadcastReceiver() {
       // PocketWiseSmsModule.kt
       const moduleContent = `package com.pocketwise.app.sms
 
+import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.provider.ContactsContract
 import androidx.core.content.ContextCompat
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
@@ -265,14 +268,124 @@ import android.util.Log
 import org.json.JSONObject
 
 class PocketWiseSmsModule(private val reactContext: ReactApplicationContext) :
-    ReactContextBaseJavaModule(reactContext) {
+    ReactContextBaseJavaModule(reactContext), ActivityEventListener {
+
+    private var pickContactPromise: Promise? = null
+    private val RC_PICK_CONTACT = 4289
 
     init {
         companionReactContext = reactContext
+        reactContext.addActivityEventListener(this)
+    }
+
+    override fun onActivityResult(activity: Activity, requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == RC_PICK_CONTACT) {
+            val promise = pickContactPromise ?: return
+            pickContactPromise = null
+
+            if (resultCode == Activity.RESULT_OK && data?.data != null) {
+                try {
+                    val contactUri = data.data!!
+                    var name = ""
+                    var phone = ""
+
+                    val projection = arrayOf(
+                        ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                        ContactsContract.CommonDataKinds.Phone.NUMBER
+                    )
+
+                    reactContext.contentResolver.query(contactUri, projection, null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val nameIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+                            val phoneIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                            if (nameIdx != -1) name = cursor.getString(nameIdx) ?: ""
+                            if (phoneIdx != -1) phone = cursor.getString(phoneIdx) ?: ""
+                        }
+                    }
+
+                    if (name.isEmpty() || phone.isEmpty()) {
+                        reactContext.contentResolver.query(contactUri, null, null, null, null)?.use { cursor ->
+                            if (cursor.moveToFirst()) {
+                                for (col in cursor.columnNames) {
+                                    val colLower = col.lowercase()
+                                    if (name.isEmpty() && (colLower.contains("display_name") || colLower == "name")) {
+                                        val idx = cursor.getColumnIndex(col)
+                                        if (idx != -1) name = cursor.getString(idx) ?: ""
+                                    }
+                                    if (phone.isEmpty() && (colLower.contains("data1") || colLower.contains("number") || colLower.contains("phone"))) {
+                                        val idx = cursor.getColumnIndex(col)
+                                        if (idx != -1) phone = cursor.getString(idx) ?: ""
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    val map = Arguments.createMap().apply {
+                        putString("name", name.trim())
+                        putString("phone", phone.trim())
+                    }
+                    promise.resolve(map)
+                } catch (e: Exception) {
+                    Log.e("PocketWiseSmsModule", "Error reading picked contact", e)
+                    promise.reject("CONTACT_PICK_ERROR", e.message, e)
+                }
+            } else {
+                promise.resolve(null)
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {}
+
+    @ReactMethod
+    fun pickContact(promise: Promise) {
+        val act = reactContext.currentActivity
+        if (act == null) {
+            promise.reject("ACTIVITY_UNAVAILABLE", "Cannot pick contact: current activity is null")
+            return
+        }
+
+        if (pickContactPromise != null) {
+            pickContactPromise?.resolve(null)
+            pickContactPromise = null
+        }
+
+        pickContactPromise = promise
+        try {
+            val intent = Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI)
+            act.startActivityForResult(intent, RC_PICK_CONTACT)
+        } catch (e: Exception) {
+            try {
+                val fallbackIntent = Intent(Intent.ACTION_PICK, ContactsContract.Contacts.CONTENT_URI)
+                act.startActivityForResult(fallbackIntent, RC_PICK_CONTACT)
+            } catch (e2: Exception) {
+                pickContactPromise = null
+                promise.reject("LAUNCH_ERROR", e2.message, e2)
+            }
+        }
     }
 
     override fun getName(): String {
         return "PocketWiseSmsModule"
+    }
+
+    override fun getConstants(): MutableMap<String, Any> {
+        val constants = HashMap<String, Any>()
+        try {
+            val pInfo = reactContext.packageManager.getPackageInfo(reactContext.packageName, 0)
+            constants["nativeAppVersion"] = pInfo.versionName ?: "1.0.0"
+            val versionCode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                pInfo.longVersionCode
+            } else {
+                pInfo.versionCode.toLong()
+            }
+            constants["nativeBuildVersion"] = versionCode.toString()
+        } catch (e: Exception) {
+            constants["nativeAppVersion"] = "1.0.0"
+            constants["nativeBuildVersion"] = "1"
+        }
+        return constants
     }
 
     override fun initialize() {
@@ -360,6 +473,109 @@ class PocketWiseSmsModule(private val reactContext: ReactApplicationContext) :
             promise.resolve(true)
         } catch (e: Exception) {
             promise.reject("OPEN_SETTINGS_ERROR", e.message, e)
+        }
+    }
+
+    @ReactMethod
+    fun getAppVersion(promise: Promise) {
+        try {
+            val pInfo = reactContext.packageManager.getPackageInfo(reactContext.packageName, 0)
+            val versionName = pInfo.versionName ?: "1.0.2"
+            val versionCode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                pInfo.longVersionCode
+            } else {
+                pInfo.versionCode.toLong()
+            }
+            val resultMap = Arguments.createMap().apply {
+                putString("versionName", versionName)
+                putDouble("versionCode", versionCode.toDouble())
+            }
+            promise.resolve(resultMap)
+        } catch (e: Exception) {
+            promise.reject("APP_VERSION_ERROR", e.message, e)
+        }
+    }
+
+    @ReactMethod
+    fun canInstallUnknownApps(promise: Promise) {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                promise.resolve(reactContext.packageManager.canRequestPackageInstalls())
+            } else {
+                promise.resolve(true)
+            }
+        } catch (e: Exception) {
+            promise.reject("PERMISSION_ERROR", e.message, e)
+        }
+    }
+
+    @ReactMethod
+    fun openInstallPermissionSettings(promise: Promise) {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                val intent = android.content.Intent(
+                    android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    android.net.Uri.parse("package:\${reactContext.packageName}")
+                ).apply {
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                reactContext.startActivity(intent)
+                promise.resolve(true)
+            } else {
+                promise.resolve(true)
+            }
+        } catch (e: Exception) {
+            promise.reject("OPEN_INSTALL_SETTINGS_ERROR", e.message, e)
+        }
+    }
+
+    @ReactMethod
+    fun installApk(fileUriOrPath: String, promise: Promise) {
+        try {
+            val act = reactContext.currentActivity ?: reactContext
+            val cleanPath = fileUriOrPath.replace("^file://".toRegex(), "")
+            val file = java.io.File(cleanPath)
+
+            if (!file.exists() || file.length() < 1000000) {
+                promise.reject("INVALID_FILE", "APK file does not exist or is incomplete (\${file.length()} bytes)")
+                return
+            }
+
+            val contentUri = androidx.core.content.FileProvider.getUriForFile(
+                reactContext,
+                "\${reactContext.packageName}.FileSystemFileProvider",
+                file
+            )
+
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(contentUri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+
+            val resolvedActivities = reactContext.packageManager.queryIntentActivities(
+                intent,
+                PackageManager.MATCH_DEFAULT_ONLY
+            )
+            for (resolveInfo in resolvedActivities) {
+                val targetPkg = resolveInfo.activityInfo.packageName
+                try {
+                    reactContext.grantUriPermission(
+                        targetPkg,
+                        contentUri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (pe: Exception) {
+                    Log.w("PocketWiseSmsModule", "Failed granting URI permission to $targetPkg: \${pe.message}")
+                }
+            }
+
+            act.startActivity(intent)
+            promise.resolve(true)
+        } catch (e: Exception) {
+            Log.e("PocketWiseSmsModule", "Error installing APK: \${e.message}", e)
+            promise.reject("INSTALL_FAILED", e.message, e)
         }
     }
 
@@ -463,10 +679,17 @@ class PocketWiseNotificationListenerService : NotificationListenerService() {
         val text = extractStringExtra(extras, Notification.EXTRA_TEXT)
         val bigText = extractStringExtra(extras, Notification.EXTRA_BIG_TEXT)
 
-        val bodyText = when {
+        var bodyText = when {
             !bigText.isNullOrBlank() -> bigText
             !text.isNullOrBlank() -> text
             else -> ""
+        }
+
+        if (bodyText.isBlank() || bodyText.matches(Regex("^\\\\d+\\\\s+new\\\\s+messages?$", RegexOption.IGNORE_CASE))) {
+            val lines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)
+            if (!lines.isNullOrEmpty()) {
+                bodyText = lines.lastOrNull()?.toString() ?: ""
+            }
         }
 
         val hasTitle = !title.isNullOrBlank()
@@ -480,10 +703,8 @@ class PocketWiseNotificationListenerService : NotificationListenerService() {
 
         if (!isBankCandidate) return
 
-        // Resolve clean sender: prefer title if present (e.g., "AD-BOBBK" or "Bank of Baroda" or sender name)
         var senderName = if (hasTitle) title!! else "Google Messages"
 
-        // If title is a contact or generic header like "Messages", search body for explicit bank name
         if (senderName == "Google Messages" || senderName.equals("Messages", ignoreCase = true)) {
             val bodyUpper = bodyText.uppercase()
             val knownBank = listOf("BANK OF BARODA", "HDFC BANK", "SBI", "ICICI BANK", "AXIS BANK", "KOTAK", "CANARA BANK", "PUNJAB NATIONAL BANK", "UNION BANK")
@@ -494,8 +715,6 @@ class PocketWiseNotificationListenerService : NotificationListenerService() {
         }
 
         val timestamp = sbn.postTime
-
-        // Create timestamp bucket (rounded to 3-minute window) so updated/re-posted notifications get exact same ID
         val timeBucket = timestamp / (3 * 60 * 1000L)
         val stableId = generateSmsId(senderName, timeBucket, bodyText)
 
@@ -519,19 +738,31 @@ class PocketWiseNotificationListenerService : NotificationListenerService() {
     private fun isLikelyBankMessage(title: String?, text: String): Boolean {
         val combined = "$title $text".lowercase()
 
-        // Filter out non-financial noise
-        val noiseKeywords = listOf("otp", "one time password", "verification code", "secret code", "welcome to", "kyc", "cheque book", "statement is ready", "promotions", "marketing")
-        if (noiseKeywords.any { combined.contains(it) }) {
+        val financialKeywords = listOf(
+            "debited", "credited", "spent", "paid", "transferred", "received", "withdrawn",
+            "a/c", "acct", "account", "avbal", "avlbal", "bal:", "inr", "rs.", "rs ", "₹", "upi", "vpa", "ref", "rrn", "cr.", "dr."
+        )
+
+        val hasFinancialKeyword = financialKeywords.any { combined.contains(it) }
+        if (!hasFinancialKeyword) return false
+
+        val hasTransactionAction = Regex("\\\\b(debited|dr\\\\.?|spent|paid|withdrawn|credited|cr\\\\.?|received|deposited|transferred)\\\\b", RegexOption.IGNORE_CASE).containsMatchIn(combined)
+
+        val pureNoiseKeywords = listOf("verification code", "secret code", "welcome to", "kyc", "cheque book", "statement is ready", "promotions", "marketing")
+        if (pureNoiseKeywords.any { combined.contains(it) }) {
             return false
         }
 
-        // Financial indicator verbs/terms
-        val financialKeywords = listOf(
-            "debited", "credited", "spent", "paid", "transferred", "received", "withdrawn",
-            "a/c", "acct", "account", "avbal", "avlbal", "bal:", "inr", "rs.", "rs ", "upi", "vpa", "ref", "rrn"
-        )
+        val hasOtp = combined.contains("otp") || combined.contains("one time password")
+        val isSecurityDisclaimer = combined.contains("never share") || combined.contains("do not share") || combined.contains("don't share") || combined.contains("not share") || combined.contains("not done by you")
 
-        return financialKeywords.any { combined.contains(it) }
+        if (hasOtp && !isSecurityDisclaimer) {
+            if (!hasTransactionAction) {
+                return false
+            }
+        }
+
+        return true
     }
 
     private fun extractStringExtra(extras: android.os.Bundle, key: String): String? {
