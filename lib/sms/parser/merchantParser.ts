@@ -74,15 +74,15 @@ export function extractMerchantAndCategory(
   if (!rawExtracted) {
     const merchantPatterns = [
       // Explicit "To <Name/VPA>" e.g. "To Nandikeshwara condiments\nOn 23/09/26"
-      /(?:^|\n|\s)(?:To\s+VPA|To)\s+([A-Za-z0-9._-]+@[a-zA-Z0-9]+|[A-Za-z0-9\s._&-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
+      /(?:^|\n|\s)(?:To\s+VPA|To)\s+([A-Za-z0-9._-]+@[a-zA-Z0-9]+|[A-Za-z0-9\s._&\/-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
       // "trf to <Name>" or "transfer to <Name>"
-      /(?:trf\s+to|transfer\s+to|transferred\s+to)\s+([A-Za-z0-9\s._&-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
+      /(?:trf\s+to|transfer\s+to|transferred\s+to)\s+([A-Za-z0-9\s._&\/-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
       // "paid to <Name>" or "spent at <Name>" or "purchase at <Name>"
-      /(?:paid\s+to|spent\s+at|spent\s+on|purchase\s+at|sent\s+to|\bat)\s+([A-Za-z0-9._-]+@[a-zA-Z0-9]+|[A-Za-z0-9\s._&-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
+      /(?:paid\s+to|spent\s+at|spent\s+on|purchase\s+at|sent\s+to|\bat)\s+([A-Za-z0-9._-]+@[a-zA-Z0-9]+|[A-Za-z0-9\s._&\/-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
       // "towards <Purpose/Name>" or "for <Purpose/Name>" or "in favour of <Name>"
-      /(?:towards|for|in\s+favour\s+of|info:\s*|desc:\s*)\s+([A-Za-z0-9\s._&-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
+      /(?:towards|for|in\s+favour\s+of|info:\s*|desc:\s*)\s+([A-Za-z0-9\s._&\/-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
       // "refund from <Name>" or "received from <Name>" or "credited by <Name>"
-      /(?:refund\s+from|received\s+from|credited\s+by|credited\s+from|cr\.\s+to|cr\s+to)\s+([A-Za-z0-9._-]+@[a-zA-Z0-9]+|[A-Za-z0-9\s._&-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|to|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
+      /(?:refund\s+from|received\s+from|credited\s+by|credited\s+from|cr\.\s+to|cr\s+to)\s+([A-Za-z0-9._-]+@[a-zA-Z0-9]+|[A-Za-z0-9\s._&\/-]+?)(?=\s*(?:\n|\.|$|\s+(?:\b(?:on|to|ref|rrn|txn|val|bal|via|using|card|link|dated)\b|a\/c)))/i,
       // Standalone VPA
       /vpa\s+([a-zA-Z0-9._-]+@[a-zA-Z0-9]+)/i,
     ];
@@ -135,6 +135,8 @@ export function extractMerchantAndCategory(
 
   // Remove numeric transaction IDs attached to merchant name (e.g. "Swiggy 92837482" -> "Swiggy")
   cleanMerchant = cleanMerchant.replace(/\b\d{6,}\b/g, '').trim();
+  // Strip leading and trailing punctuation/slashes left behind by routing tokens (e.g. "/Swiggy" -> "Swiggy")
+  cleanMerchant = cleanMerchant.replace(/^[\/_\-\*]+|[\/_\-\*]+$/g, '').trim();
 
   if (!cleanMerchant || cleanMerchant.length < 2) {
     if (isVpa) {
