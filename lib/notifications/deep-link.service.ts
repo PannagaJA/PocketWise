@@ -59,15 +59,32 @@ export const deepLinkService = {
   getRouteFromPayload(type?: string, referenceId?: string): string {
     switch (type) {
       case 'subscription':
+      case 'subscription_reminder':
         return '/(tabs)/subscriptions';
       case 'bill':
+      case 'bill_reminder':
         return '/bills';
       case 'budget':
+      case 'budget_exceeded':
         return '/(tabs)/budgets';
       case 'goal':
+      case 'savings':
+      case 'savings_completed':
         return '/goals';
       case 'transaction':
+      case 'income':
+      case 'expense':
+      case 'large_transaction':
+      case 'unusual_spending':
         return '/(tabs)/transactions';
+      case 'reminder':
+      case 'reminders':
+      case 'custom':
+        return '/reminders';
+      case 'summary':
+      case 'analytics':
+      case 'reports':
+        return '/reports';
       case 'app_update':
       case 'update':
         return '/(tabs)/more';
