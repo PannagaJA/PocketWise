@@ -23,7 +23,9 @@ export function isFinancialSms(sender: string, body: string): boolean {
   }
 
   // Pre-check for past-tense transaction actions
-  const hasPostedAction = /\b(?:debited|dr\.?\s+(?:from|by)|spent|withdrawn|paid|transferred|sent|credited|cr\.?\s+(?:to|by)|deposited|refunded)\b/i.test(body);
+  const hasPostedAction =
+    /\b(?:debited|dr\.?\s+(?:from|by)|spent|withdrawn|paid|transferred|sent|credited|cr\.?\s+(?:to|by)|deposited|refunded|charged|purchase(?:d)?)\b/i.test(body) ||
+    /\b(?:txn|transaction)\s+(?:of\s+.*?\s+)?done\b/i.test(body);
 
   // 2. Explicit False Positive / Marketing / Promotional Keyword Filters
   const marketingAndFalsePositivePatterns = [
@@ -95,6 +97,9 @@ export function isFinancialSms(sender: string, body: string): boolean {
   const allowableWithPostedAction = new Set([
     'due on',
     'payment due',
+    'minimum amount due',
+    'schedule for debit',
+    'scheduled for debit',
     'click here',
     'reward points',
     'terms and conditions',
@@ -104,14 +109,35 @@ export function isFinancialSms(sender: string, body: string): boolean {
     'do not share',
   ]);
 
-  const hasSecurityDisclaimerFooter = /(?:never|do not|don't)\s+share/i.test(normalizedBody);
+  const hasSecurityDisclaimerFooter = /(?:never|do not|don't)\s+share/i.test(normalizedBody) ||
+    /do\s+not\s+disclose/i.test(normalizedBody);
+
+  const securityDisclaimerKeywords = new Set([
+    'otp',
+    'one time password',
+    'verification code',
+    'secret code',
+  ]);
+
+  const hasCreditAction = /\b(?:credited|credit|cr|cr\.|received|deposited|refunded|refund)\b/i.test(body);
+  const cashbackWithCreditPatterns = new Set([
+    'cashback on your',
+    'cashback on next',
+    'cashback on recharge',
+    'cashback of up to',
+  ]);
 
   for (const pattern of marketingAndFalsePositivePatterns) {
-    if (
-      hasPostedAction &&
-      (allowableWithPostedAction.has(pattern) || (pattern === 'otp' && hasSecurityDisclaimerFooter))
-    ) {
-      continue;
+    if (hasPostedAction) {
+      if (allowableWithPostedAction.has(pattern)) {
+        continue;
+      }
+      if (securityDisclaimerKeywords.has(pattern) && hasSecurityDisclaimerFooter) {
+        continue;
+      }
+      if (hasCreditAction && cashbackWithCreditPatterns.has(pattern)) {
+        continue;
+      }
     }
     if (normalizedBody.includes(pattern)) {
       return false;
@@ -123,7 +149,9 @@ export function isFinancialSms(sender: string, body: string): boolean {
   if (!extracted) return false;
 
   // 4. Must contain an explicit past-tense transaction action (DEBIT or CREDIT)
-  const isDebit = /\b(?:debited|debit|dr|dr\.|spent|withdrawn|paid|transferred|sent)\b/i.test(body);
+  const isDebit =
+    /\b(?:debited|debit|dr|dr\.|spent|withdrawn|paid|transferred|sent|charged|purchase(?:d)?)\b/i.test(body) ||
+    /\b(?:txn|transaction)\s+(?:of\s+.*?\s+)?done\b/i.test(body);
   const isCredit = /\b(?:credited|credit|cr|cr\.|received|deposited|salary|refunded|refund)\b/i.test(body);
 
   if (!isDebit && !isCredit) {
