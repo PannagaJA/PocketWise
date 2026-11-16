@@ -108,6 +108,20 @@ function GlobalRealtimeSync() {
             priority: 'high',
             data: { type: 'app_update', version },
           }).catch(() => {});
+        } else {
+          // Present alert in notification tray for subscription, bill, or reminder push
+          const title = notification?.title || data.title || 'PocketWise Reminder 🔔';
+          const body = notification?.body || data.body || data.message || '';
+          const category = (data.type as any) || 'reminder';
+
+          await notificationService.sendSystemAlert({
+            id: `fcm_${Date.now()}`,
+            category,
+            title,
+            body,
+            priority: data.priority === 'high' ? 'high' : 'medium',
+            data: { ...data, type: category },
+          }).catch(() => {});
         }
       });
 
@@ -189,6 +203,9 @@ function GlobalRealtimeSync() {
 
     // Force revalidation of all queries whenever an authenticated user session mounts
     queryClient.invalidateQueries();
+
+    // Register FCM device push token with Supabase for backend reminders & updates
+    notificationService.registerDeviceToken(user.id).catch(() => {});
 
     // Trigger inbox sync & retroactive upgrade for the authenticated user
     smsListenerService.syncRecentInboxSms().catch(() => {});
