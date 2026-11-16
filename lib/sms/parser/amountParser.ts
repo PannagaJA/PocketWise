@@ -8,10 +8,10 @@
 export function extractAmount(text: string): { amount: number; amountMinor: number } | null {
   if (!text) return null;
 
-  // Strip trailing available/clear balance clauses so we extract the transaction amount,
-  // not a subsequent balance ("Avl Bal Rs 20000") when the verb amount has no currency prefix.
+  // Strip trailing available/clear/total balance clauses (e.g. "Avl Bal: Rs 20,000", "Avail Bal is INR 500", "Clear Bal Rs 100")
+  // so we extract the transaction amount, not a subsequent balance when the verb amount has no currency prefix.
   const withoutBalance = text.replace(
-    /(?:avl\.?\s*bal(?:ance)?|avail(?:able)?\s*bal(?:ance)?|clear\s*bal(?:ance)?|bal(?:ance)?\s*(?:is|:)?)\s*(?:rs\.?|inr|₹)?\s*[\d,]+(?:\.\d{1,2})?/gi,
+    /(?:(?:avl\.?|avail(?:able)?|clear|tot(?:al)?)\s*bal(?:ance)?|bal(?:ance)?)\s*(?:is|:)?\s*(?:rs\.?|inr|₹)?\s*[\d,]+(?:\.\d{1,2})?/gi,
     ' '
   );
 
