@@ -481,7 +481,11 @@ export default function TransactionsScreen() {
         const selectedCat = categories.find((c) => c.id === editCategoryId);
         if (selectedCat) {
           const payeeKey = editDescription.trim();
-          await smsStorage.saveLearnedCategory(payeeKey, selectedCat.name);
+          const cleanPayee = payeeKey
+            .replace(/\s*\(?(?:UPI|CARD|NETBANKING|IMPS|NEFT|RTGS|CASH|WALLET)\)?\s*$/i, '')
+            .trim();
+
+          await smsStorage.saveLearnedCategory(cleanPayee || payeeKey, selectedCat.name);
 
           // Batch Update: Automatically apply this category to any other past transactions for this exact payee
           await transactionService.batchUpdateCategoryForPayee(
@@ -1344,57 +1348,63 @@ export default function TransactionsScreen() {
             />
 
             {/* Scope Suggestion: Apply to this transaction only vs all for this payee */}
-            {Boolean(editCategoryId && editingTx && editDescription.trim()) && (
-              <View className="mt-1 mb-2 bg-zinc-50 border border-zinc-200/80 rounded-2xl p-3.5">
-                <Text className="text-xs font-bold text-zinc-800 mb-2">
-                  Apply category tag to:
-                </Text>
-                <View className="flex-row gap-2">
-                  <Pressable
-                    onPress={() => {
-                      try { Haptics.selectionAsync(); } catch {}
-                      setCategoryScope('single');
-                    }}
-                    className={`flex-1 py-2 px-2.5 rounded-xl border items-center justify-center ${
-                      categoryScope === 'single'
-                        ? 'bg-zinc-950 border-zinc-950'
-                        : 'bg-white border-zinc-200'
-                    }`}
-                  >
-                    <Text
-                      numberOfLines={1}
-                      className={`text-xs font-bold ${categoryScope === 'single' ? 'text-white' : 'text-zinc-700'}`}
-                    >
-                      Only this one
-                    </Text>
-                  </Pressable>
+            {Boolean(editCategoryId && editingTx && editDescription.trim()) && (() => {
+              const cleanPayeeLabel = editDescription
+                .replace(/\s*\(?(?:UPI|CARD|NETBANKING|IMPS|NEFT|RTGS|CASH|WALLET)\)?\s*$/i, '')
+                .trim() || editDescription.trim();
 
-                  <Pressable
-                    onPress={() => {
-                      try { Haptics.selectionAsync(); } catch {}
-                      setCategoryScope('all');
-                    }}
-                    className={`flex-1 py-2 px-2.5 rounded-xl border items-center justify-center ${
-                      categoryScope === 'all'
-                        ? 'bg-zinc-950 border-zinc-950'
-                        : 'bg-white border-zinc-200'
-                    }`}
-                  >
-                    <Text
-                      numberOfLines={1}
-                      className={`text-xs font-bold ${categoryScope === 'all' ? 'text-white' : 'text-zinc-700'}`}
+              return (
+                <View className="mt-1 mb-2 bg-zinc-50 border border-zinc-200/80 rounded-2xl p-3.5">
+                  <Text className="text-xs font-bold text-zinc-800 mb-2">
+                    Apply category tag to:
+                  </Text>
+                  <View className="flex-row gap-2">
+                    <Pressable
+                      onPress={() => {
+                        try { Haptics.selectionAsync(); } catch {}
+                        setCategoryScope('single');
+                      }}
+                      className={`flex-1 py-2 px-2.5 rounded-xl border items-center justify-center ${
+                        categoryScope === 'single'
+                          ? 'bg-zinc-950 border-zinc-950'
+                          : 'bg-white border-zinc-200'
+                      }`}
                     >
-                      All "{editDescription.trim()}"
-                    </Text>
-                  </Pressable>
+                      <Text
+                        numberOfLines={1}
+                        className={`text-xs font-bold ${categoryScope === 'single' ? 'text-white' : 'text-zinc-700'}`}
+                      >
+                        Only this one
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => {
+                        try { Haptics.selectionAsync(); } catch {}
+                        setCategoryScope('all');
+                      }}
+                      className={`flex-1 py-2 px-2.5 rounded-xl border items-center justify-center ${
+                        categoryScope === 'all'
+                          ? 'bg-zinc-950 border-zinc-950'
+                          : 'bg-white border-zinc-200'
+                      }`}
+                    >
+                      <Text
+                        numberOfLines={1}
+                        className={`text-xs font-bold ${categoryScope === 'all' ? 'text-white' : 'text-zinc-700'}`}
+                      >
+                        All "{cleanPayeeLabel}"
+                      </Text>
+                    </Pressable>
+                  </View>
+                  <Text className="text-[11px] text-zinc-500 mt-2">
+                    {categoryScope === 'single'
+                      ? 'Only this single transaction will keep this category tag.'
+                      : `Updates all past & upcoming transactions for "${cleanPayeeLabel}".`}
+                  </Text>
                 </View>
-                <Text className="text-[11px] text-zinc-500 mt-2">
-                  {categoryScope === 'single'
-                    ? 'Only this single transaction will keep this category tag.'
-                    : `Updates all past & upcoming transactions for "${editDescription.trim()}".`}
-                </Text>
-              </View>
-            )}
+              );
+            })()}
 
             {/* Action Buttons */}
             <View className="flex-row gap-3 mt-4">
