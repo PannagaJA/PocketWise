@@ -351,6 +351,7 @@ class SmsListenerService {
 
   /**
    * Flush background queue from SharedPreferences.
+   * Only clears from native storage once an authenticated user session is active.
    */
   async flushBackgroundQueue() {
     if (Platform.OS !== 'android') return;
@@ -360,6 +361,26 @@ class SmsListenerService {
       try {
         const queueJsonString = await PocketWiseSmsModule.getUnprocessedSms();
         if (queueJsonString && queueJsonString !== '[]') {
+          // Check for active user session before purging native queue
+          let activeUserId = (typeof supabase.auth?.getSession === 'function'
+            ? (await supabase.auth.getSession()).data?.session?.user?.id
+            : undefined) ||
+            (typeof supabase.auth?.getUser === 'function' ? (await supabase.auth.getUser()).data?.user?.id : undefined);
+
+          // If auth is still restoring on cold launch, wait up to 1.5s
+          if (!activeUserId && typeof supabase.auth?.getSession === 'function') {
+            for (let i = 0; i < 5; i++) {
+              await new Promise((resolve) => setTimeout(resolve, 300));
+              activeUserId = (await supabase.auth.getSession()).data?.session?.user?.id;
+              if (activeUserId) break;
+            }
+          }
+
+          if (!activeUserId) {
+            console.log('[SMS Listener] Postponing background queue flush until user session is ready');
+            return;
+          }
+
           const queue: RawSMS[] = JSON.parse(queueJsonString);
           for (const rawSms of queue) {
             await this.processIncomingSms(rawSms);
@@ -450,14 +471,16 @@ class SmsListenerService {
         console.warn('[SMS Parser] Non-fatal DB duplicate check error:', e);
       }
 
-      // Mark direction+bank-scoped reference ID and fingerprint as processed
-      await markProcessedKeys();
+      // Auto-save all valid financial transactions so user never misses payments in Transactions screen
+      const savedToDb = await this.saveTransactionToStore(parsedTx);
+
+      // Only mark reference keys as permanently processed if successfully persisted or during manual scan
+      if (savedToDb || isManualScan) {
+        await markProcessedKeys();
+      }
 
       // Update statistics count
       await smsStorage.incrementDetectedCount();
-
-      // Auto-save all valid financial transactions so user never misses payments in Transactions screen
-      await this.saveTransactionToStore(parsedTx);
 
       // If confidence score is low or bank unknown, also track in pending review queue for user verification
       if (parsedTx.needsReview && !isManualScan) {
@@ -474,8 +497,12 @@ class SmsListenerService {
   /**
    * Automatically convert parsed transaction into Supabase & Zustand store transaction & account format.
    * If the bank account does not exist, automatically creates it in both the Zustand store and Supabase DB.
+   * Accurately handles Credits and Refunds as Inflow, and Debits as Outflow.
    */
-  async saveTransactionToStore(parsedTx: ParsedSmsTransaction) {
+  async saveTransactionToStore(parsedTx: ParsedSmsTransaction): Promise<boolean> {
+    const isCreditFlow = parsedTx.type === 'income' || parsedTx.type === 'refund';
+    const dbType: 'income' | 'expense' = isCreditFlow ? 'income' : 'expense';
+
     const bankDisplayName = parsedTx.bankName && parsedTx.bankName !== 'Unknown Bank'
       ? parsedTx.bankName
       : (parsedTx.maskedAccount ? `Bank (${parsedTx.maskedAccount})` : 'Bank Account');
@@ -484,8 +511,8 @@ class SmsListenerService {
       ? `${bankDisplayName} (${parsedTx.maskedAccount})`
       : bankDisplayName;
 
-    const bankColor = parsedTx.type === 'income' ? '#10B981' : '#3B82F6';
-    const deltaAmount = parsedTx.type === 'income' ? parsedTx.amountMinor : -parsedTx.amountMinor;
+    const bankColor = isCreditFlow ? '#10B981' : '#3B82F6';
+    const deltaAmount = isCreditFlow ? parsedTx.amountMinor : -parsedTx.amountMinor;
     const cleanLastDigits = parsedTx.maskedAccount ? parsedTx.maskedAccount.replace(/\D/g, '') : '';
 
     // Clean merchant/payee formatting: Avoid 'Bank Transaction (Unknown)' label
@@ -494,7 +521,7 @@ class SmsListenerService {
       if (parsedTx.originalMerchant && parsedTx.originalMerchant.includes('@')) {
         merchantLabel = parsedTx.originalMerchant.split('@')[0].trim();
       } else {
-        merchantLabel = parsedTx.type === 'income' ? 'Received Payment' : 'Bank Payment';
+        merchantLabel = isCreditFlow ? (parsedTx.isRefund ? 'Refund Received' : 'Received Payment') : 'Bank Payment';
       }
     }
 
@@ -516,7 +543,7 @@ class SmsListenerService {
       ? store.transactions.find(
           (t) =>
             t.account_id === localAccount!.id &&
-            t.type === (parsedTx.type === 'income' ? 'income' : 'expense') &&
+            t.type === dbType &&
             t.amount === parsedTx.amountMinor &&
             t.date === txDateStr &&
             t.description === cleanDescription
@@ -544,11 +571,11 @@ class SmsListenerService {
         id: parsedTx.sourceMessageId || `tx_${Date.now()}`,
         account_id: localAccount.id,
         account_name: localAccount.name,
-        type: parsedTx.type === 'income' ? 'income' : 'expense',
+        type: dbType,
         amount: parsedTx.amountMinor,
         currency: parsedTx.currency,
         category_name: parsedTx.category,
-        category_color: parsedTx.type === 'income' ? '#10B981' : '#EF4444',
+        category_color: isCreditFlow ? '#10B981' : '#EF4444',
         description: cleanDescription,
         date: txDateStr,
         created_at: parsedTx.transactionDate,
@@ -565,10 +592,24 @@ class SmsListenerService {
       }).catch(() => {});
     }
 
+    let persistedToSupabase = false;
+
     // 2. Persist to Supabase Database for logged-in user
     try {
-      const session = typeof supabase.auth?.getSession === 'function' ? (await supabase.auth.getSession()).data?.session : null;
-      const userId = session?.user?.id || (typeof supabase.auth?.getUser === 'function' ? (await supabase.auth.getUser()).data?.user?.id : undefined);
+      let session = typeof supabase.auth?.getSession === 'function' ? (await supabase.auth.getSession()).data?.session : null;
+      let userId = session?.user?.id || (typeof supabase.auth?.getUser === 'function' ? (await supabase.auth.getUser()).data?.user?.id : undefined);
+
+      // Grace period if auth session is currently restoring on cold boot
+      if (!userId && typeof supabase.auth?.getSession === 'function') {
+        for (let i = 0; i < 4; i++) {
+          await new Promise((r) => setTimeout(r, 250));
+          const retry = await supabase.auth.getSession();
+          if (retry?.data?.session?.user?.id) {
+            userId = retry.data.session.user.id;
+            break;
+          }
+        }
+      }
 
       if (userId) {
         const userAccounts = await accountService.getAccounts(userId);
@@ -588,7 +629,7 @@ class SmsListenerService {
         // Check if an exact match already exists in Supabase
         const recentAccountTxs = await transactionService.getTransactions(userId, 50, targetAccount.id);
         const alreadyExists = recentAccountTxs.some((t) => {
-          if (t.type !== (parsedTx.type === 'income' ? 'income' : 'expense')) return false;
+          if (t.type !== dbType) return false;
           if (t.amount_minor !== parsedTx.amountMinor) return false;
           if ((t.date || '').substring(0, 10) !== txDateStr) return false;
 
@@ -606,7 +647,7 @@ class SmsListenerService {
 
         if (alreadyExists) {
           console.log('[SMS Listener] Prevented duplicate Supabase transaction creation:', cleanDescription, parsedTx.amountMinor);
-          return;
+          return true;
         }
 
         // Resolve target Category ID from user categories for accurate monthly budget tracking
@@ -616,11 +657,11 @@ class SmsListenerService {
           const matchedCategory = matchCategoryToUserCategories(
             parsedTx.category,
             userCategories,
-            parsedTx.type === 'income' ? 'income' : 'expense'
+            dbType
           );
           if (matchedCategory) {
             targetCategoryId = matchedCategory.id;
-          } else if (parsedTx.type !== 'income') {
+          } else if (!isCreditFlow) {
             const personalCat = userCategories.find(
               (c) => c.name.toLowerCase() === 'personal' && c.type === 'expense'
             );
@@ -634,7 +675,7 @@ class SmsListenerService {
           user_id: userId,
           account_id: targetAccount.id,
           category_id: targetCategoryId,
-          type: parsedTx.type === 'income' ? 'income' : 'expense',
+          type: dbType,
           amount_minor: parsedTx.amountMinor,
           currency: parsedTx.currency,
           description: cleanDescription,
@@ -642,6 +683,8 @@ class SmsListenerService {
           created_at: parsedTx.transactionDate,
           notes: parsedTx.referenceNumber ? `Ref: ${parsedTx.referenceNumber}` : (parsedTx.upiReference ? `UPI Ref: ${parsedTx.upiReference}` : undefined),
         });
+
+        persistedToSupabase = true;
 
         // Clean up pending reviews queue if this transaction was previously waiting for review
         if (parsedTx.sourceMessageId) {
@@ -660,15 +703,15 @@ class SmsListenerService {
 
     // 3. Trigger Real Android System Notification via Central Notification Engine
     try {
-      const isIncome = parsedTx.type === 'income';
+      const isIncome = isCreditFlow;
       const formattedAmount = `₹${(parsedTx.amountMinor / 100).toLocaleString('en-IN')}`;
-      const title = isIncome ? 'Money Received 💰' : 'Expense Recorded 💳';
+      const title = isIncome ? (parsedTx.isRefund ? 'Refund Received 💰' : 'Money Received 💰') : 'Expense Recorded 💳';
       const cleanMerchantName = (parsedTx.merchant || '').replace(/@.*$/, '').trim();
       const merchantPart = cleanMerchantName && cleanMerchantName !== 'Bank Transaction'
-        ? ` to ${cleanMerchantName}`
+        ? (isIncome ? ` from ${cleanMerchantName}` : ` to ${cleanMerchantName}`)
         : '';
       const body = isIncome
-        ? `${formattedAmount} received into your ${parsedTx.bankName} account.`
+        ? `${formattedAmount} received${merchantPart} (${parsedTx.bankName}).`
         : `${formattedAmount} spent${merchantPart} (${parsedTx.bankName}).`;
 
       const category = isIncome ? 'income' : parsedTx.amountMinor >= 1000000 ? 'large_transaction' : 'expense';
@@ -693,11 +736,13 @@ class SmsListenerService {
         amount_minor: parsedTx.amountMinor,
         category_name: parsedTx.category,
         description: cleanDescription,
-        type: parsedTx.type === 'income' ? 'income' : 'expense',
+        type: dbType,
       }, existingTxs);
     } catch (notifErr) {
       console.warn('[SMS Listener] Non-fatal notification error:', notifErr);
     }
+
+    return persistedToSupabase;
   }
 
   /**
