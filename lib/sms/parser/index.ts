@@ -58,9 +58,11 @@ export function parseBankSms(
   // Calculate Date ISO string (from body text if present or fallback to timestamp)
   const txDate = extractTransactionDate(sms.body, sms.timestamp);
 
-  // Category resolution: Salary -> Refund -> Learned/Extracted
+  // Category resolution: Learned/User Preference -> Salary -> Transfer (unless learned) -> Default
   let finalCategory = merchantResult.category;
-  if (classification.isSalary) {
+  if (merchantResult.isLearned) {
+    finalCategory = merchantResult.category;
+  } else if (classification.isSalary) {
     finalCategory = 'Salary';
   } else if (classification.isTransfer) {
     finalCategory = 'Transfer';
