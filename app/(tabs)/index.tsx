@@ -199,10 +199,15 @@ export default function DashboardScreen() {
     const sub = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'background' || nextState === 'inactive') {
         setExitModalVisible(false);
+      } else if (nextState === 'active' && user?.id && !isLocked) {
+        // Flush any background-queued bank SMS and refresh accounts & transactions
+        smsListenerService.flushBackgroundQueue().catch(() => {});
+        refetchAcc();
+        refetchTx();
       }
     });
     return () => sub.remove();
-  }, []);
+  }, [user?.id, isLocked, refetchAcc, refetchTx]);
 
   const checkSmsOnboarding = async () => {
     if (!user?.id || isLocked) return;
