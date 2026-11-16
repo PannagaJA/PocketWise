@@ -1,3 +1,9 @@
+jest.mock('expo-router', () => ({
+  router: {
+    push: jest.fn(),
+  },
+}));
+
 jest.mock('../lib/supabase', () => ({
   supabase: {
     from: jest.fn(() => ({
@@ -103,6 +109,23 @@ describe('Stage 3 FCM HTTP v1 Push Notification Modernization', () => {
 
       expect(isTokenUnregistered(fcmV1UnregisteredError)).toBe(true);
       expect(isTokenUnregistered(genericNetworkError)).toBe(false);
+    });
+
+    test('DeepLinkService routes reminder, subscription, bill, and update payloads accurately', () => {
+      const { deepLinkService } = require('../lib/notifications/deep-link.service');
+
+      expect(deepLinkService.getRouteFromPayload('subscription')).toBe('/(tabs)/subscriptions');
+      expect(deepLinkService.getRouteFromPayload('subscription_reminder')).toBe('/(tabs)/subscriptions');
+      expect(deepLinkService.getRouteFromPayload('bill')).toBe('/bills');
+      expect(deepLinkService.getRouteFromPayload('bill_reminder')).toBe('/bills');
+      expect(deepLinkService.getRouteFromPayload('budget')).toBe('/(tabs)/budgets');
+      expect(deepLinkService.getRouteFromPayload('budget_exceeded')).toBe('/(tabs)/budgets');
+      expect(deepLinkService.getRouteFromPayload('goal')).toBe('/goals');
+      expect(deepLinkService.getRouteFromPayload('savings_completed')).toBe('/goals');
+      expect(deepLinkService.getRouteFromPayload('reminder')).toBe('/reminders');
+      expect(deepLinkService.getRouteFromPayload('reminders')).toBe('/reminders');
+      expect(deepLinkService.getRouteFromPayload('app_update')).toBe('/(tabs)/more');
+      expect(deepLinkService.getRouteFromPayload('transaction')).toBe('/(tabs)/transactions');
     });
   });
 });
